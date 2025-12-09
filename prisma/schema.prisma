@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "cockroachdb"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// IDENTITY MODULE
+// ============================================================================
+
+model User {
+  id        String   @id // Firebase UID
+  email     String   @unique
+  name      String
+  role      Int      @default(1) // 0 = super_admin, 1 = client_admin
+  clientId  String?  @map("client_id")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
