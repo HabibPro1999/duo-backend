@@ -7,11 +7,6 @@ import { z } from 'zod';
 export const CreateClientSchema = z
   .object({
     name: z.string().min(1).max(100),
-    slug: z
-      .string()
-      .min(1)
-      .max(50)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
     logo: z.string().url().optional().nullable(),
     primaryColor: z
       .string()
@@ -26,12 +21,6 @@ export const CreateClientSchema = z
 export const UpdateClientSchema = z
   .object({
     name: z.string().min(1).max(100).optional(),
-    slug: z
-      .string()
-      .min(1)
-      .max(50)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens')
-      .optional(),
     logo: z.string().url().optional().nullable(),
     primaryColor: z
       .string()
@@ -69,7 +58,6 @@ export const ClientIdParamSchema = z
 export const ClientResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
-  slug: z.string(),
   logo: z.string().nullable(),
   primaryColor: z.string().nullable(),
   email: z.string().nullable(),

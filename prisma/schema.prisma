@@ -14,7 +14,6 @@ datasource db {
 model Client {
   id           String   @id @default(uuid())
   name         String
-  slug         String   @unique
   logo         String?
   primaryColor String?  @map("primary_color")
   email        String?
@@ -56,7 +55,7 @@ model Event {
   id              String      @id @default(uuid())
   clientId        String      @map("client_id")
   name            String
-  slug            String
+  slug            String      @unique
   description     String?
   maxCapacity     Int?        @map("max_capacity")
   registeredCount Int         @default(0) @map("registered_count")
@@ -70,7 +69,6 @@ model Event {
   client          Client      @relation(fields: [clientId], references: [id])
   forms           Form[]
 
-  @@unique([clientId, slug])
   @@map("events")
 }
 
@@ -88,7 +86,6 @@ model Form {
   id             String     @id @default(uuid())
   eventId        String     @map("event_id")
   name           String
-  slug           String     @unique
   schema         Json
   basePrice      Int        @default(0) @map("base_price")
   currency       String     @default("MAD")

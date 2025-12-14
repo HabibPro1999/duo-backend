@@ -116,11 +116,6 @@ export const CreateFormSchema = z
   .object({
     eventId: z.string().uuid(),
     name: z.string().min(1).max(200),
-    slug: z
-      .string()
-      .min(1)
-      .max(100)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens'),
     schema: FormSchemaJsonSchema,
     basePrice: z.number().int().min(0).default(0),
     currency: z.string().length(3).default('MAD'),
@@ -133,12 +128,6 @@ export const CreateFormSchema = z
 export const UpdateFormSchema = z
   .object({
     name: z.string().min(1).max(200).optional(),
-    slug: z
-      .string()
-      .min(1)
-      .max(100)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens')
-      .optional(),
     schema: FormSchemaJsonSchema.optional(),
     basePrice: z.number().int().min(0).optional(),
     currency: z.string().length(3).optional(),
@@ -165,12 +154,6 @@ export const FormIdParamSchema = z
   })
   .strict();
 
-export const FormSlugParamSchema = z
-  .object({
-    slug: z.string(),
-  })
-  .strict();
-
 // ============================================================================
 // Response Schemas
 // ============================================================================
@@ -179,7 +162,6 @@ export const FormResponseSchema = z.object({
   id: z.string(),
   eventId: z.string(),
   name: z.string(),
-  slug: z.string(),
   schema: z.any(), // JSONB - use any for response
   basePrice: z.number(),
   currency: z.string(),
@@ -202,7 +184,6 @@ export const FormWithRelationsResponseSchema = FormResponseSchema.extend({
     client: z.object({
       id: z.string(),
       name: z.string(),
-      slug: z.string(),
       logo: z.string().nullable(),
       primaryColor: z.string().nullable(),
     }),

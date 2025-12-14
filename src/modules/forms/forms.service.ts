@@ -7,7 +7,7 @@ import type { Form, Prisma, Event, Client } from '@prisma/client';
 
 type FormWithRelations = Form & {
   event: Event & {
-    client: Pick<Client, 'id' | 'name' | 'slug' | 'logo' | 'primaryColor'>;
+    client: Pick<Client, 'id' | 'name' | 'logo' | 'primaryColor'>;
   };
 };
 
@@ -15,7 +15,7 @@ type FormWithRelations = Form & {
  * Create a new form.
  */
 export async function createForm(input: CreateFormInput): Promise<Form> {
-  const { eventId, name, slug, schema, basePrice, currency, successTitle, successMessage, status } =
+  const { eventId, name, schema, basePrice, currency, successTitle, successMessage, status } =
     input;
 
   // Validate that event exists
@@ -24,24 +24,10 @@ export async function createForm(input: CreateFormInput): Promise<Form> {
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // Check if slug is globally unique (not just per event)
-  const existing = await prisma.form.findUnique({
-    where: { slug },
-  });
-  if (existing) {
-    throw new AppError(
-      'Form with this slug already exists',
-      409,
-      true,
-      ErrorCodes.CONFLICT
-    );
-  }
-
   return prisma.form.create({
     data: {
       eventId,
       name,
-      slug,
       schema: schema as Prisma.InputJsonValue,
       basePrice: basePrice ?? 0,
       currency: currency ?? 'MAD',
@@ -60,12 +46,22 @@ export async function getFormById(id: string): Promise<Form | null> {
 }
 
 /**
- * Get form by slug (for public access).
+ * Get form by event slug (for public access).
  * Only returns PUBLISHED and active forms with event and client data.
  */
-export async function getFormBySlug(slug: string): Promise<FormWithRelations | null> {
-  const form = await prisma.form.findUnique({
-    where: { slug },
+export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRelations | null> {
+  // First, find the event by slug
+  const event = await prisma.event.findUnique({
+    where: { slug: eventSlug },
+  });
+
+  if (!event) {
+    return null;
+  }
+
+  // Then find the form for this event
+  const form = await prisma.form.findFirst({
+    where: { eventId: event.id },
     include: {
       event: {
         include: {
@@ -73,7 +69,6 @@ export async function getFormBySlug(slug: string): Promise<FormWithRelations | n
             select: {
               id: true,
               name: true,
-              slug: true,
               logo: true,
               primaryColor: true,
             },
@@ -101,25 +96,9 @@ export async function updateForm(id: string, input: UpdateFormInput): Promise<Fo
     throw new AppError('Form not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // If slug is being updated, check global uniqueness
-  if (input.slug && input.slug !== form.slug) {
-    const existing = await prisma.form.findUnique({
-      where: { slug: input.slug },
-    });
-    if (existing) {
-      throw new AppError(
-        'Form with this slug already exists',
-        409,
-        true,
-        ErrorCodes.CONFLICT
-      );
-    }
-  }
-
   // Prepare update data
   const updateData: Prisma.FormUpdateInput = {};
   if (input.name !== undefined) updateData.name = input.name;
-  if (input.slug !== undefined) updateData.slug = input.slug;
   if (input.schema !== undefined) updateData.schema = input.schema as Prisma.InputJsonValue;
   if (input.basePrice !== undefined) updateData.basePrice = input.basePrice;
   if (input.currency !== undefined) updateData.currency = input.currency;
@@ -151,7 +130,6 @@ export async function listForms(query: ListFormsQuery): Promise<{
   if (search) {
     where.OR = [
       { name: { contains: search, mode: 'insensitive' } },
-      { slug: { contains: search, mode: 'insensitive' } },
     ];
   }
 

@@ -17,6 +17,7 @@ export {
   UpdateEventSchema,
   ListEventsQuerySchema,
   EventIdParamSchema,
+  EventSlugParamSchema,
   EventResponseSchema,
   EventsListResponseSchema,
   type CreateEventInput,

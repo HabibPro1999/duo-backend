@@ -72,6 +72,12 @@ export const EventIdParamSchema = z
   })
   .strict();
 
+export const EventSlugParamSchema = z
+  .object({
+    slug: z.string(),
+  })
+  .strict();
+
 // ============================================================================
 // Response Schemas
 // ============================================================================

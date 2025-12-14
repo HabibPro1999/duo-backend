@@ -2,7 +2,7 @@
 export {
   createForm,
   getFormById,
-  getFormBySlug,
+  getFormByEventSlug,
   updateForm,
   listForms,
   deleteForm,
@@ -25,7 +25,6 @@ export {
   UpdateFormSchema,
   ListFormsQuerySchema,
   FormIdParamSchema,
-  FormSlugParamSchema,
   FormResponseSchema,
   FormWithRelationsResponseSchema,
   FormsListResponseSchema,

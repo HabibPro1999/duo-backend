@@ -18,13 +18,13 @@ export async function createEvent(input: CreateEventInput): Promise<Event> {
     throw new AppError('Client not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // Check if slug already exists for this client
+  // Check if slug already exists globally
   const existing = await prisma.event.findUnique({
-    where: { clientId_slug: { clientId, slug } },
+    where: { slug },
   });
   if (existing) {
     throw new AppError(
-      'Event with this slug already exists for this client',
+      'Event with this slug already exists',
       409,
       true,
       ErrorCodes.CONFLICT
@@ -54,14 +54,11 @@ export async function getEventById(id: string): Promise<Event | null> {
 }
 
 /**
- * Get event by client ID and slug (for public access).
+ * Get event by slug (for public access).
  */
-export async function getEventBySlug(
-  clientId: string,
-  slug: string
-): Promise<Event | null> {
+export async function getEventBySlug(slug: string): Promise<Event | null> {
   return prisma.event.findUnique({
-    where: { clientId_slug: { clientId, slug } },
+    where: { slug },
   });
 }
 
@@ -75,14 +72,14 @@ export async function updateEvent(id: string, input: UpdateEventInput): Promise<
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // If slug is being updated, check uniqueness for this client
+  // If slug is being updated, check global uniqueness
   if (input.slug && input.slug !== event.slug) {
     const existing = await prisma.event.findUnique({
-      where: { clientId_slug: { clientId: event.clientId, slug: input.slug } },
+      where: { slug: input.slug },
     });
     if (existing) {
       throw new AppError(
-        'Event with this slug already exists for this client',
+        'Event with this slug already exists',
         409,
         true,
         ErrorCodes.CONFLICT

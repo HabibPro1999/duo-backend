@@ -8,23 +8,11 @@ import type { Client, Prisma } from '@prisma/client';
  * Create a new client.
  */
 export async function createClient(input: CreateClientInput): Promise<Client> {
-  const { name, slug, logo, primaryColor, email, phone } = input;
-
-  // Check if slug already exists
-  const existing = await prisma.client.findUnique({ where: { slug } });
-  if (existing) {
-    throw new AppError(
-      'Client with this slug already exists',
-      409,
-      true,
-      ErrorCodes.CONFLICT
-    );
-  }
+  const { name, logo, primaryColor, email, phone } = input;
 
   return prisma.client.create({
     data: {
       name,
-      slug,
       logo: logo ?? null,
       primaryColor: primaryColor ?? null,
       email: email ?? null,
@@ -53,19 +41,6 @@ export async function updateClient(
     throw new AppError('Client not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // If slug is being updated, check uniqueness
-  if (input.slug && input.slug !== client.slug) {
-    const existing = await prisma.client.findUnique({ where: { slug: input.slug } });
-    if (existing) {
-      throw new AppError(
-        'Client with this slug already exists',
-        409,
-        true,
-        ErrorCodes.CONFLICT
-      );
-    }
-  }
-
   return prisma.client.update({
     where: { id },
     data: input,
@@ -88,7 +63,6 @@ export async function listClients(query: ListClientsQuery): Promise<{
   if (search) {
     where.OR = [
       { name: { contains: search, mode: 'insensitive' } },
-      { slug: { contains: search, mode: 'insensitive' } },
       { email: { contains: search, mode: 'insensitive' } },
     ];
   }
