@@ -12,7 +12,13 @@ function createPrismaClient() {
   }).$extends({
     query: {
       user: {
-        async $allOperations({ args, query }) {
+        async $allOperations({ operation, args, query }) {
+          // Skip omit for aggregate operations (they don't support it)
+          const aggregateOps = ['count', 'aggregate', 'groupBy'];
+          if (aggregateOps.includes(operation)) {
+            return query(args);
+          }
+
           if ('omit' in args) {
             args.omit = { createdAt: true, updatedAt: true, ...args.omit };
           } else {

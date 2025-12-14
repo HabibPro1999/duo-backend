@@ -26,6 +26,14 @@ export default tseslint.config(
           {
             group: ['**/modules/clients/**', '!**/modules/clients/index.js'],
             message: 'Import from @clients barrel, not internal files'
+          },
+          {
+            group: ['**/modules/events/**', '!**/modules/events/index.js'],
+            message: 'Import from @events barrel, not internal files'
+          },
+          {
+            group: ['**/modules/forms/**', '!**/modules/forms/index.js'],
+            message: 'Import from @forms barrel, not internal files'
           }
         ]
       }]

@@ -12,10 +12,12 @@ import { prisma } from '@/database/client.js';
 import { logger } from '@shared/utils/logger.js';
 import { usersRoutes } from '@identity';
 import { clientsRoutes } from '@clients';
+import { eventsRoutes } from '@events';
+import { formsRoutes, formsPublicRoutes } from '@forms';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
-    logger,
+    loggerInstance: logger,
   }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
@@ -36,6 +38,9 @@ export async function buildServer(): Promise<FastifyInstance> {
   // Register module routes
   await app.register(usersRoutes, { prefix: '/api/users' });
   await app.register(clientsRoutes, { prefix: '/api/clients' });
+  await app.register(eventsRoutes, { prefix: '/api/events' });
+  await app.register(formsRoutes, { prefix: '/api/forms' });
+  await app.register(formsPublicRoutes, { prefix: '/api/forms/public' });
 
   // Global error handler
   app.setErrorHandler(errorHandler);

@@ -26,7 +26,9 @@
       "@shared/*": ["./src/shared/*"],
       "@modules/*": ["./src/modules/*"],
       "@identity": ["./src/modules/identity/index.ts"],
-      "@clients": ["./src/modules/clients/index.ts"]
+      "@clients": ["./src/modules/clients/index.ts"],
+      "@events": ["./src/modules/events/index.ts"],
+      "@forms": ["./src/modules/forms/index.ts"]
     }
   },
   "include": ["src/**/*"],

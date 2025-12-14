@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Seed script to create the initial super admin user.
  * Run with: npx tsx scripts/seed-super-admin.ts
