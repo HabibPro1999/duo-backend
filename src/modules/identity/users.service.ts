@@ -6,6 +6,7 @@ import {
   setCustomClaims,
   deleteFirebaseUser,
 } from '@shared/services/firebase.service.js';
+import { clientExists } from '@clients';
 import type { CreateUserInput, UpdateUserInput, ListUsersQuery } from './users.schema.js';
 import type { User, Prisma } from '@prisma/client';
 
@@ -26,6 +27,14 @@ export async function createUser(
       true,
       ErrorCodes.CONFLICT
     );
+  }
+
+  // Validate clientId if provided
+  if (clientId) {
+    const isValidClient = await clientExists(clientId);
+    if (!isValidClient) {
+      throw new AppError('Invalid client ID', 400, true, ErrorCodes.BAD_REQUEST);
+    }
   }
 
   // Create in Firebase Auth
@@ -61,7 +70,10 @@ export async function createUser(
  * Get user by ID from database.
  */
 export async function getUserById(id: string): Promise<User | null> {
-  return prisma.user.findUnique({ where: { id } });
+  return prisma.user.findUnique({
+    where: { id },
+    include: { client: true },
+  });
 }
 
 /**
@@ -76,9 +88,18 @@ export async function updateUser(
     throw new AppError('User not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
+  // Validate clientId if being changed
+  if (input.clientId !== undefined && input.clientId !== null) {
+    const isValidClient = await clientExists(input.clientId);
+    if (!isValidClient) {
+      throw new AppError('Invalid client ID', 400, true, ErrorCodes.BAD_REQUEST);
+    }
+  }
+
   return prisma.user.update({
     where: { id },
     data: input,
+    include: { client: true },
   });
 }
 
@@ -105,7 +126,13 @@ export async function listUsers(query: ListUsersQuery): Promise<{
   }
 
   const [data, total] = await Promise.all([
-    prisma.user.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+    prisma.user.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: { client: true },
+    }),
     prisma.user.count({ where }),
   ]);
 

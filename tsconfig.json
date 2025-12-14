@@ -25,7 +25,8 @@
       "@core/*": ["./src/core/*"],
       "@shared/*": ["./src/shared/*"],
       "@modules/*": ["./src/modules/*"],
-      "@identity": ["./src/modules/identity/index.ts"]
+      "@identity": ["./src/modules/identity/index.ts"],
+      "@clients": ["./src/modules/clients/index.ts"]
     }
   },
   "include": ["src/**/*"],

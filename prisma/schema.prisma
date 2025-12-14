@@ -8,6 +8,27 @@ datasource db {
 }
 
 // ============================================================================
+// CLIENTS MODULE
+// ============================================================================
+
+model Client {
+  id           String   @id @default(uuid())
+  name         String
+  slug         String   @unique
+  logo         String?
+  primaryColor String?  @map("primary_color")
+  email        String?
+  phone        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  users        User[]
+
+  @@map("clients")
+}
+
+// ============================================================================
 // IDENTITY MODULE
 // ============================================================================
 
@@ -20,6 +41,8 @@ model User {
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  client    Client?  @relation(fields: [clientId], references: [id])
 
   @@map("users")
 }

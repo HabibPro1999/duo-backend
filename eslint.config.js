@@ -18,10 +18,16 @@ export default tseslint.config(
 
       // Module boundary enforcement
       'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['**/modules/identity/**', '!**/modules/identity/index.js'],
-          message: 'Import from @identity barrel, not internal files'
-        }]
+        patterns: [
+          {
+            group: ['**/modules/identity/**', '!**/modules/identity/index.js'],
+            message: 'Import from @identity barrel, not internal files'
+          },
+          {
+            group: ['**/modules/clients/**', '!**/modules/clients/index.js'],
+            message: 'Import from @clients barrel, not internal files'
+          }
+        ]
       }]
     },
   },

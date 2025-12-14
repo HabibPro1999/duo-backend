@@ -11,6 +11,7 @@ import { errorHandler } from '@shared/middleware/error.middleware.js';
 import { prisma } from '@/database/client.js';
 import { logger } from '@shared/utils/logger.js';
 import { usersRoutes } from '@identity';
+import { clientsRoutes } from '@clients';
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -34,6 +35,7 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Register module routes
   await app.register(usersRoutes, { prefix: '/api/users' });
+  await app.register(clientsRoutes, { prefix: '/api/clients' });
 
   // Global error handler
   app.setErrorHandler(errorHandler);
