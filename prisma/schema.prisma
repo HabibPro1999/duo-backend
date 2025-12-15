@@ -44,6 +44,8 @@ model User {
 
   client    Client?  @relation(fields: [clientId], references: [id])
 
+  @@index([clientId])
+  @@index([active, role])
   @@map("users")
 }
 
@@ -68,7 +70,10 @@ model Event {
 
   client          Client      @relation(fields: [clientId], references: [id])
   forms           Form[]
+  pricingRules    PricingRule[]
+  extras          EventExtra[]
 
+  @@index([clientId, status])
   @@map("events")
 }
 
@@ -83,21 +88,23 @@ enum EventStatus {
 // ============================================================================
 
 model Form {
-  id             String     @id @default(uuid())
-  eventId        String     @map("event_id")
-  name           String
-  schema         Json
-  basePrice      Int        @default(0) @map("base_price")
-  currency       String     @default("MAD")
-  successTitle   Json?      @map("success_title")
-  successMessage Json?      @map("success_message")
-  status         FormStatus @default(DRAFT)
-  active         Boolean    @default(true)
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
+  id              String     @id @default(uuid())
+  eventId         String     @map("event_id")
+  name            String
+  schema          Json
+  basePrice       Int        @default(0) @map("base_price")
+  currency        String     @default("MAD")
+  successTitle    Json?      @map("success_title")
+  successMessage  Json?      @map("success_message")
+  status          FormStatus @default(DRAFT)
+  active          Boolean    @default(true)
+  useEventPricing Boolean    @default(true) @map("use_event_pricing")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
-  event          Event      @relation(fields: [eventId], references: [id])
+  event           Event      @relation(fields: [eventId], references: [id])
 
+  @@index([eventId, status, active])
   @@map("forms")
 }
 
@@ -105,4 +112,65 @@ enum FormStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+// ============================================================================
+// PRICING MODULE
+// ============================================================================
+
+model PricingRule {
+  id             String          @id @default(uuid())
+  eventId        String          @map("event_id")
+  name           String
+  description    Json?           // MultiLangText {fr, en?, ar?}
+  ruleType       PricingRuleType @map("rule_type")
+  priority       Int             @default(0)
+  conditions     Json            // Array of {fieldId, operator, value}
+  conditionLogic String          @default("AND") @map("condition_logic")
+  validFrom      DateTime?       @map("valid_from")
+  validTo        DateTime?       @map("valid_to")
+  priceType      PriceType       @default(FIXED) @map("price_type")
+  priceValue     Int             @map("price_value")
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("pricing_rules")
+}
+
+enum PricingRuleType {
+  BASE_PRICE // Sets the base price when conditions match
+  MODIFIER   // Adds/subtracts from calculated price
+}
+
+enum PriceType {
+  FIXED      // Absolute amount
+  PERCENTAGE // Percentage of base price
+}
+
+model EventExtra {
+  id              String    @id @default(uuid())
+  eventId         String    @map("event_id")
+  name            Json      // MultiLangText {fr, en?, ar?}
+  description     Json?     // MultiLangText
+  price           Int
+  currency        String    @default("MAD")
+  maxCapacity     Int?      @map("max_capacity")
+  registeredCount Int       @default(0) @map("registered_count")
+  availableFrom   DateTime? @map("available_from")
+  availableTo     DateTime? @map("available_to")
+  conditions      Json?     // Array of {fieldId, operator, value}
+  conditionLogic  String    @default("AND") @map("condition_logic")
+  sortOrder       Int       @default(0) @map("sort_order")
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  event           Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_extras")
 }

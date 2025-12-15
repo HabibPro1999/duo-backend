@@ -1,4 +1,3 @@
-import type { FastifyInstance } from 'fastify';
 import { requireAuth, requireSuperAdmin } from '@shared/middleware/auth.middleware.js';
 import {
   createUser,
@@ -12,9 +11,13 @@ import {
   UpdateUserSchema,
   ListUsersQuerySchema,
   UserIdParamSchema,
+  type CreateUserInput,
+  type UpdateUserInput,
+  type ListUsersQuery,
 } from './users.schema.js';
+import type { AppInstance } from '@shared/types/fastify.js';
 
-export async function usersRoutes(app: FastifyInstance): Promise<void> {
+export async function usersRoutes(app: AppInstance): Promise<void> {
   // All routes require authentication
   app.addHook('onRequest', requireAuth);
 
@@ -24,41 +27,70 @@ export async function usersRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // POST /api/users - Create user (super_admin only)
-  app.post('/', { preHandler: [requireSuperAdmin] }, async (request, reply) => {
-    const input = CreateUserSchema.parse(request.body);
-    const user = await createUser(input);
-    return reply.status(201).send(user);
-  });
+  app.post<{ Body: CreateUserInput }>(
+    '/',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: { body: CreateUserSchema },
+    },
+    async (request, reply) => {
+      const user = await createUser(request.body);
+      return reply.status(201).send(user);
+    }
+  );
 
   // GET /api/users - List users (super_admin only)
-  app.get('/', { preHandler: [requireSuperAdmin] }, async (request, reply) => {
-    const query = ListUsersQuerySchema.parse(request.query);
-    const result = await listUsers(query);
-    return reply.send(result);
-  });
+  app.get<{ Querystring: ListUsersQuery }>(
+    '/',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: { querystring: ListUsersQuerySchema },
+    },
+    async (request, reply) => {
+      const result = await listUsers(request.query);
+      return reply.send(result);
+    }
+  );
 
   // GET /api/users/:id - Get single user (super_admin only)
-  app.get('/:id', { preHandler: [requireSuperAdmin] }, async (request, reply) => {
-    const { id } = UserIdParamSchema.parse(request.params);
-    const user = await getUserById(id);
-    if (!user) {
-      return reply.status(404).send({ error: 'User not found' });
+  app.get<{ Params: { id: string } }>(
+    '/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: { params: UserIdParamSchema },
+    },
+    async (request, reply) => {
+      const user = await getUserById(request.params.id);
+      if (!user) {
+        throw app.httpErrors.notFound('User not found');
+      }
+      return reply.send(user);
     }
-    return reply.send(user);
-  });
+  );
 
   // PATCH /api/users/:id - Update user (super_admin only)
-  app.patch('/:id', { preHandler: [requireSuperAdmin] }, async (request, reply) => {
-    const { id } = UserIdParamSchema.parse(request.params);
-    const input = UpdateUserSchema.parse(request.body);
-    const user = await updateUser(id, input);
-    return reply.send(user);
-  });
+  app.patch<{ Params: { id: string }; Body: UpdateUserInput }>(
+    '/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: { params: UserIdParamSchema, body: UpdateUserSchema },
+    },
+    async (request, reply) => {
+      const user = await updateUser(request.params.id, request.body);
+      return reply.send(user);
+    }
+  );
 
   // DELETE /api/users/:id - Delete user (super_admin only)
-  app.delete('/:id', { preHandler: [requireSuperAdmin] }, async (request, reply) => {
-    const { id } = UserIdParamSchema.parse(request.params);
-    await deleteUser(id);
-    return reply.status(204).send();
-  });
+  app.delete<{ Params: { id: string } }>(
+    '/:id',
+    {
+      preHandler: [requireSuperAdmin],
+      schema: { params: UserIdParamSchema },
+    },
+    async (request, reply) => {
+      await deleteUser(request.params.id);
+      return reply.status(204).send();
+    }
+  );
 }

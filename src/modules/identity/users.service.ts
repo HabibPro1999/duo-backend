@@ -7,8 +7,12 @@ import {
   deleteFirebaseUser,
 } from '@shared/services/firebase.service.js';
 import { clientExists } from '@clients';
+import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateUserInput, UpdateUserInput, ListUsersQuery } from './users.schema.js';
 import type { User, Prisma } from '@prisma/client';
+
+// Define type for user queries with include
+type UserWithClient = Prisma.UserGetPayload<{ include: { client: true } }>;
 
 /**
  * Create a new user in Firebase Auth + set custom claims + create in DB.
@@ -69,7 +73,7 @@ export async function createUser(
 /**
  * Get user by ID from database.
  */
-export async function getUserById(id: string): Promise<User | null> {
+export async function getUserById(id: string): Promise<UserWithClient | null> {
   return prisma.user.findUnique({
     where: { id },
     include: { client: true },
@@ -82,7 +86,7 @@ export async function getUserById(id: string): Promise<User | null> {
 export async function updateUser(
   id: string,
   input: UpdateUserInput
-): Promise<User> {
+): Promise<UserWithClient> {
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) {
     throw new AppError('User not found', 404, true, ErrorCodes.NOT_FOUND);
@@ -106,12 +110,9 @@ export async function updateUser(
 /**
  * List users with pagination and filters (DB only).
  */
-export async function listUsers(query: ListUsersQuery): Promise<{
-  data: User[];
-  meta: { page: number; limit: number; total: number; totalPages: number };
-}> {
+export async function listUsers(query: ListUsersQuery): Promise<PaginatedResult<UserWithClient>> {
   const { page, limit, role, clientId, active, search } = query;
-  const skip = (page - 1) * limit;
+  const skip = getSkip({ page, limit });
 
   const where: Prisma.UserWhereInput = {};
 
@@ -136,10 +137,7 @@ export async function listUsers(query: ListUsersQuery): Promise<{
     prisma.user.count({ where }),
   ]);
 
-  return {
-    data,
-    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  };
+  return paginate(data, total, { page, limit });
 }
 
 /**

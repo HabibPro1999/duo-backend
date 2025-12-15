@@ -102,11 +102,10 @@ export const FormStepSchema = z
 // Complete Form Schema (JSONB)
 // ============================================================================
 
-export const FormSchemaJsonSchema = z
-  .object({
-    steps: z.array(FormStepSchema),
-  })
-  .strict();
+// Use permissive schema for JSONB - frontend defines the structure
+export const FormSchemaJsonSchema = z.object({
+  steps: z.array(z.any()),
+}).passthrough();
 
 // ============================================================================
 // Request Schemas

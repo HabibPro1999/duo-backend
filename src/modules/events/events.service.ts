@@ -2,6 +2,7 @@ import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { clientExists } from '@clients';
+import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateEventInput, UpdateEventInput, ListEventsQuery } from './events.schema.js';
 import type { Event, Prisma } from '@prisma/client';
 
@@ -96,12 +97,9 @@ export async function updateEvent(id: string, input: UpdateEventInput): Promise<
 /**
  * List events with pagination and filters.
  */
-export async function listEvents(query: ListEventsQuery): Promise<{
-  data: Event[];
-  meta: { page: number; limit: number; total: number; totalPages: number };
-}> {
+export async function listEvents(query: ListEventsQuery): Promise<PaginatedResult<Event>> {
   const { page, limit, clientId, status, search } = query;
-  const skip = (page - 1) * limit;
+  const skip = getSkip({ page, limit });
 
   const where: Prisma.EventWhereInput = {};
 
@@ -121,10 +119,7 @@ export async function listEvents(query: ListEventsQuery): Promise<{
     prisma.event.count({ where }),
   ]);
 
-  return {
-    data,
-    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  };
+  return paginate(data, total, { page, limit });
 }
 
 /**

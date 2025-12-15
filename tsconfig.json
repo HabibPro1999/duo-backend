@@ -28,7 +28,8 @@
       "@identity": ["./src/modules/identity/index.ts"],
       "@clients": ["./src/modules/clients/index.ts"],
       "@events": ["./src/modules/events/index.ts"],
-      "@forms": ["./src/modules/forms/index.ts"]
+      "@forms": ["./src/modules/forms/index.ts"],
+      "@pricing": ["./src/modules/pricing/index.ts"]
     }
   },
   "include": ["src/**/*"],

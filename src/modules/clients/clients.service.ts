@@ -1,6 +1,7 @@
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
+import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateClientInput, UpdateClientInput, ListClientsQuery } from './clients.schema.js';
 import type { Client, Prisma } from '@prisma/client';
 
@@ -50,12 +51,9 @@ export async function updateClient(
 /**
  * List clients with pagination and filters.
  */
-export async function listClients(query: ListClientsQuery): Promise<{
-  data: Client[];
-  meta: { page: number; limit: number; total: number; totalPages: number };
-}> {
+export async function listClients(query: ListClientsQuery): Promise<PaginatedResult<Client>> {
   const { page, limit, active, search } = query;
-  const skip = (page - 1) * limit;
+  const skip = getSkip({ page, limit });
 
   const where: Prisma.ClientWhereInput = {};
 
@@ -72,10 +70,7 @@ export async function listClients(query: ListClientsQuery): Promise<{
     prisma.client.count({ where }),
   ]);
 
-  return {
-    data,
-    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  };
+  return paginate(data, total, { page, limit });
 }
 
 /**

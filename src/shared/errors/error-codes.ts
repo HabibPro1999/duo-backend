@@ -19,6 +19,12 @@ export const ErrorCodes = {
   // Server (5xxx)
   INTERNAL_ERROR: 'SRV_5001',
   DATABASE_ERROR: 'SRV_5002',
+
+  // Pricing (6xxx)
+  EXTRA_CAPACITY_EXCEEDED: 'PRC_6001',
+  PRICE_MISMATCH: 'PRC_6002',
+  EXTRA_NOT_AVAILABLE: 'PRC_6003',
+  INVALID_SPONSORSHIP_CODE: 'PRC_6004',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

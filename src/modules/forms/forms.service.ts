@@ -2,12 +2,15 @@ import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
+import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateFormInput, UpdateFormInput, ListFormsQuery } from './forms.schema.js';
-import type { Form, Prisma, Event, Client } from '@prisma/client';
+import type { Form, Prisma, Event, Client, PricingRule, EventExtra } from '@prisma/client';
 
 type FormWithRelations = Form & {
   event: Event & {
     client: Pick<Client, 'id' | 'name' | 'logo' | 'primaryColor'>;
+    pricingRules: PricingRule[];
+    extras: EventExtra[];
   };
 };
 
@@ -59,7 +62,7 @@ export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRel
     return null;
   }
 
-  // Then find the form for this event
+  // Then find the form for this event with pricing rules and extras
   const form = await prisma.form.findFirst({
     where: { eventId: event.id },
     include: {
@@ -72,6 +75,14 @@ export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRel
               logo: true,
               primaryColor: true,
             },
+          },
+          pricingRules: {
+            where: { active: true },
+            orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+          },
+          extras: {
+            where: { active: true },
+            orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
           },
         },
       },
@@ -116,12 +127,9 @@ export async function updateForm(id: string, input: UpdateFormInput): Promise<Fo
 /**
  * List forms with pagination and filters.
  */
-export async function listForms(query: ListFormsQuery): Promise<{
-  data: Form[];
-  meta: { page: number; limit: number; total: number; totalPages: number };
-}> {
+export async function listForms(query: ListFormsQuery): Promise<PaginatedResult<Form>> {
   const { page, limit, eventId, status, search } = query;
-  const skip = (page - 1) * limit;
+  const skip = getSkip({ page, limit });
 
   const where: Prisma.FormWhereInput = {};
 
@@ -138,10 +146,7 @@ export async function listForms(query: ListFormsQuery): Promise<{
     prisma.form.count({ where }),
   ]);
 
-  return {
-    data,
-    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  };
+  return paginate(data, total, { page, limit });
 }
 
 /**
