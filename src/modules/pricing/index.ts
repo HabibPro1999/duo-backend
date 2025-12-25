@@ -1,49 +1,46 @@
 // Services
 export {
-  // Pricing Rules
-  createPricingRule,
-  updatePricingRule,
-  deletePricingRule,
-  listPricingRules,
-  getPricingRuleById,
-  // Event Pricing
+  // Event Pricing (Unified with embedded rules)
   createEventPricing,
   getEventPricing,
   updateEventPricing,
   deleteEventPricing,
+  // Rule Management Helpers
+  addPricingRule,
+  updatePricingRule,
+  deletePricingRule,
   // Price Calculation
   calculatePrice,
+  // Types
+  type EventPricingWithRules,
 } from './pricing.service.js';
 
 // Schemas & Types
 export {
-  // Pricing Rules
+  // Shared
   PricingConditionSchema,
-  CreatePricingRuleSchema,
-  UpdatePricingRuleSchema,
-  ListPricingRulesQuerySchema,
-  PricingRuleIdParamSchema,
+  // Embedded Rules
+  EmbeddedPricingRuleSchema,
+  CreateEmbeddedRuleSchema,
+  UpdateEmbeddedRuleSchema,
   // Event Pricing
   CreateEventPricingSchema,
   UpdateEventPricingSchema,
-  EventPricingResponseSchema,
   EventIdParamSchema,
+  RuleIdParamSchema,
   // Price Calculation
   CalculatePriceRequestSchema,
   PriceBreakdownSchema,
   // Types
   type PricingCondition,
-  type CreatePricingRuleInput,
-  type UpdatePricingRuleInput,
+  type EmbeddedPricingRule,
+  type CreateEmbeddedRuleInput,
+  type UpdateEmbeddedRuleInput,
   type CreateEventPricingInput,
   type UpdateEventPricingInput,
-  type EventPricingResponse,
   type CalculatePriceRequest,
   type PriceBreakdown,
 } from './pricing.schema.js';
 
 // Routes
-export {
-  pricingRulesRoutes,
-  pricingPublicRoutes,
-} from './pricing.routes.js';
+export { pricingRulesRoutes, pricingPublicRoutes } from './pricing.routes.js';

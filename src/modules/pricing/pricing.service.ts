@@ -1,216 +1,135 @@
-import { prisma } from "@/database/client.js";
-import { AppError } from "@shared/errors/app-error.js";
-import { ErrorCodes } from "@shared/errors/error-codes.js";
-import { eventExists } from "@events";
+import { randomUUID } from 'crypto';
+import { prisma } from '@/database/client.js';
+import { AppError } from '@shared/errors/app-error.js';
+import { ErrorCodes } from '@shared/errors/error-codes.js';
+import { eventExists } from '@events';
 import type {
-  CreatePricingRuleInput,
-  UpdatePricingRuleInput,
   CreateEventPricingInput,
   UpdateEventPricingInput,
+  CreateEmbeddedRuleInput,
+  UpdateEmbeddedRuleInput,
+  EmbeddedPricingRule,
   CalculatePriceRequest,
   PriceBreakdown,
   PricingCondition,
   SelectedExtra,
-} from "./pricing.schema.js";
-import { Prisma } from "@prisma/client";
-import type { PricingRule, EventPricing } from "@prisma/client";
+} from './pricing.schema.js';
+import type { Prisma, EventPricing } from '@prisma/client';
 
 // ============================================================================
-// Pricing Rules CRUD
+// Types
 // ============================================================================
 
-/**
- * Create a new pricing rule.
- * A pricing rule defines a conditional base price override:
- * if conditions match → use this price instead of event's base price.
- */
-export async function createPricingRule(
-  input: CreatePricingRuleInput,
-): Promise<PricingRule> {
-  const {
-    eventId,
-    name,
-    description,
-    priority,
-    conditions,
-    conditionLogic,
-    price,
-    active,
-  } = input;
-
-  // Validate that event exists
-  const isValidEvent = await eventExists(eventId);
-  if (!isValidEvent) {
-    throw new AppError("Event not found", 404, true, ErrorCodes.NOT_FOUND);
-  }
-
-  return prisma.pricingRule.create({
-    data: {
-      eventId,
-      name,
-      description: description ?? null,
-      priority: priority ?? 0,
-      conditions: conditions as Prisma.InputJsonValue,
-      conditionLogic: conditionLogic ?? "AND",
-      price,
-      active: active ?? true,
-    },
-  });
-}
-
-/**
- * Update a pricing rule.
- */
-export async function updatePricingRule(
-  id: string,
-  input: UpdatePricingRuleInput,
-): Promise<PricingRule> {
-  const rule = await prisma.pricingRule.findUnique({ where: { id } });
-  if (!rule) {
-    throw new AppError(
-      "Pricing rule not found",
-      404,
-      true,
-      ErrorCodes.NOT_FOUND,
-    );
-  }
-
-  const updateData: Prisma.PricingRuleUpdateInput = {
-    ...(input.name !== undefined && { name: input.name }),
-    ...(input.description !== undefined && { description: input.description }),
-    ...(input.priority !== undefined && { priority: input.priority }),
-    ...(input.conditions !== undefined && {
-      conditions: input.conditions as Prisma.InputJsonValue,
-    }),
-    ...(input.conditionLogic !== undefined && {
-      conditionLogic: input.conditionLogic,
-    }),
-    ...(input.price !== undefined && { price: input.price }),
-    ...(input.active !== undefined && { active: input.active }),
-  };
-
-  return prisma.pricingRule.update({
-    where: { id },
-    data: updateData,
-  });
-}
-
-/**
- * Delete a pricing rule.
- */
-export async function deletePricingRule(id: string): Promise<void> {
-  const rule = await prisma.pricingRule.findUnique({ where: { id } });
-  if (!rule) {
-    throw new AppError(
-      "Pricing rule not found",
-      404,
-      true,
-      ErrorCodes.NOT_FOUND,
-    );
-  }
-
-  await prisma.pricingRule.delete({ where: { id } });
-}
-
-/**
- * List pricing rules for an event.
- */
-export async function listPricingRules(
-  eventId: string,
-  options?: { active?: boolean },
-): Promise<PricingRule[]> {
-  const where: { eventId: string; active?: boolean } = { eventId };
-  if (options?.active !== undefined) {
-    where.active = options.active;
-  }
-
-  return prisma.pricingRule.findMany({
-    where,
-    orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
-  });
-}
-
-/**
- * Get a pricing rule by ID.
- */
-export async function getPricingRuleById(
-  id: string,
-): Promise<PricingRule | null> {
-  return prisma.pricingRule.findUnique({ where: { id } });
-}
+// EventPricing with parsed rules array
+export type EventPricingWithRules = Omit<EventPricing, 'rules'> & {
+  rules: EmbeddedPricingRule[];
+};
 
 // ============================================================================
-// Event Pricing CRUD
+// Event Pricing CRUD (Unified with embedded rules)
 // ============================================================================
 
 /**
- * Create event pricing configuration.
+ * Create event pricing configuration with optional embedded rules.
  * Called automatically when Event is created.
  */
 export async function createEventPricing(
-  input: CreateEventPricingInput,
-): Promise<EventPricing> {
-  const { eventId, basePrice, currency } = input;
+  input: CreateEventPricingInput
+): Promise<EventPricingWithRules> {
+  const { eventId, basePrice, currency, rules } = input;
 
   // Validate event exists
   const isValidEvent = await eventExists(eventId);
   if (!isValidEvent) {
-    throw new AppError("Event not found", 404, true, ErrorCodes.NOT_FOUND);
+    throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
   // Check if pricing already exists
   const existing = await prisma.eventPricing.findUnique({ where: { eventId } });
   if (existing) {
     throw new AppError(
-      "Event pricing already exists",
+      'Event pricing already exists',
       409,
       true,
-      ErrorCodes.CONFLICT,
+      ErrorCodes.CONFLICT
     );
   }
 
-  return prisma.eventPricing.create({
+  // Generate IDs for any rules
+  const rulesWithIds = (rules ?? []).map((rule) => ({
+    ...rule,
+    id: randomUUID(),
+  }));
+
+  const pricing = await prisma.eventPricing.create({
     data: {
       eventId,
       basePrice: basePrice ?? 0,
-      currency: currency ?? "TND",
+      currency: currency ?? 'TND',
+      rules: rulesWithIds as Prisma.InputJsonValue,
     },
   });
+
+  return {
+    ...pricing,
+    rules: (pricing.rules as unknown as EmbeddedPricingRule[]) ?? [],
+  };
 }
 
 /**
- * Get event pricing by event ID.
+ * Get event pricing by event ID with parsed rules.
  */
 export async function getEventPricing(
-  eventId: string,
-): Promise<EventPricing | null> {
-  return prisma.eventPricing.findUnique({ where: { eventId } });
+  eventId: string
+): Promise<EventPricingWithRules | null> {
+  const pricing = await prisma.eventPricing.findUnique({ where: { eventId } });
+  if (!pricing) return null;
+
+  return {
+    ...pricing,
+    rules: (pricing.rules as unknown as EmbeddedPricingRule[]) ?? [],
+  };
 }
 
 /**
- * Update event pricing.
+ * Update event pricing (base price, currency, and/or rules).
  */
 export async function updateEventPricing(
   eventId: string,
-  input: UpdateEventPricingInput,
-): Promise<EventPricing> {
+  input: UpdateEventPricingInput
+): Promise<EventPricingWithRules> {
   const pricing = await prisma.eventPricing.findUnique({ where: { eventId } });
   if (!pricing) {
     throw new AppError(
-      "Event pricing not found",
+      'Event pricing not found',
       404,
       true,
-      ErrorCodes.PRICING_NOT_FOUND,
+      ErrorCodes.PRICING_NOT_FOUND
     );
   }
 
-  return prisma.eventPricing.update({
+  const updateData: Prisma.EventPricingUpdateInput = {};
+
+  if (input.basePrice !== undefined) updateData.basePrice = input.basePrice;
+  if (input.currency !== undefined) updateData.currency = input.currency;
+  if (input.rules !== undefined) {
+    // Ensure all rules have IDs (in case new ones are added)
+    const rulesWithIds = input.rules.map((rule) => ({
+      ...rule,
+      id: rule.id ?? randomUUID(),
+    }));
+    updateData.rules = rulesWithIds as Prisma.InputJsonValue;
+  }
+
+  const updated = await prisma.eventPricing.update({
     where: { eventId },
-    data: {
-      ...(input.basePrice !== undefined && { basePrice: input.basePrice }),
-      ...(input.currency !== undefined && { currency: input.currency }),
-    },
+    data: updateData,
   });
+
+  return {
+    ...updated,
+    rules: (updated.rules as unknown as EmbeddedPricingRule[]) ?? [],
+  };
 }
 
 /**
@@ -220,14 +139,103 @@ export async function deleteEventPricing(eventId: string): Promise<void> {
   const pricing = await prisma.eventPricing.findUnique({ where: { eventId } });
   if (!pricing) {
     throw new AppError(
-      "Event pricing not found",
+      'Event pricing not found',
       404,
       true,
-      ErrorCodes.PRICING_NOT_FOUND,
+      ErrorCodes.PRICING_NOT_FOUND
     );
   }
 
   await prisma.eventPricing.delete({ where: { eventId } });
+}
+
+// ============================================================================
+// Embedded Rule Management Helpers
+// ============================================================================
+
+/**
+ * Add a single pricing rule to an event's pricing.
+ */
+export async function addPricingRule(
+  eventId: string,
+  rule: CreateEmbeddedRuleInput
+): Promise<EventPricingWithRules> {
+  const pricing = await getEventPricing(eventId);
+  if (!pricing) {
+    throw new AppError(
+      'Event pricing not found',
+      404,
+      true,
+      ErrorCodes.PRICING_NOT_FOUND
+    );
+  }
+
+  const newRule: EmbeddedPricingRule = {
+    ...rule,
+    id: randomUUID(),
+    description: rule.description ?? null,
+    priority: rule.priority ?? 0,
+    conditionLogic: rule.conditionLogic ?? 'AND',
+    active: rule.active ?? true,
+  };
+
+  const updatedRules = [...pricing.rules, newRule];
+  return updateEventPricing(eventId, { rules: updatedRules });
+}
+
+/**
+ * Update a single pricing rule by ID.
+ */
+export async function updatePricingRule(
+  eventId: string,
+  ruleId: string,
+  updates: UpdateEmbeddedRuleInput
+): Promise<EventPricingWithRules> {
+  const pricing = await getEventPricing(eventId);
+  if (!pricing) {
+    throw new AppError(
+      'Event pricing not found',
+      404,
+      true,
+      ErrorCodes.PRICING_NOT_FOUND
+    );
+  }
+
+  const ruleIndex = pricing.rules.findIndex((r) => r.id === ruleId);
+  if (ruleIndex === -1) {
+    throw new AppError('Pricing rule not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  const updatedRules = [...pricing.rules];
+  updatedRules[ruleIndex] = { ...updatedRules[ruleIndex], ...updates };
+
+  return updateEventPricing(eventId, { rules: updatedRules });
+}
+
+/**
+ * Delete a single pricing rule by ID.
+ */
+export async function deletePricingRule(
+  eventId: string,
+  ruleId: string
+): Promise<EventPricingWithRules> {
+  const pricing = await getEventPricing(eventId);
+  if (!pricing) {
+    throw new AppError(
+      'Event pricing not found',
+      404,
+      true,
+      ErrorCodes.PRICING_NOT_FOUND
+    );
+  }
+
+  const ruleExists = pricing.rules.some((r) => r.id === ruleId);
+  if (!ruleExists) {
+    throw new AppError('Pricing rule not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  const updatedRules = pricing.rules.filter((r) => r.id !== ruleId);
+  return updateEventPricing(eventId, { rules: updatedRules });
 }
 
 // ============================================================================
@@ -238,47 +246,42 @@ export async function deleteEventPricing(eventId: string): Promise<void> {
  * Calculate price breakdown for a registration.
  *
  * Formula:
- *   Base Price = Event.basePrice (or first matching rule's price)
+ *   Base Price = EventPricing.basePrice (or first matching rule's price)
  *   + Selected Access Items
  *   - Sponsorship Discounts
  *   = Total
  */
 export async function calculatePrice(
   eventId: string,
-  input: CalculatePriceRequest,
+  input: CalculatePriceRequest
 ): Promise<PriceBreakdown> {
   const { formData, selectedExtras, sponsorshipCodes } = input;
 
-  // Get event pricing configuration
+  // Get event pricing configuration with embedded rules
   const pricing = await getEventPricing(eventId);
   if (!pricing) {
     throw new AppError(
-      "Event pricing not found",
+      'Event pricing not found',
       404,
       true,
-      ErrorCodes.PRICING_NOT_FOUND,
+      ErrorCodes.PRICING_NOT_FOUND
     );
   }
 
-  const basePrice = pricing.basePrice;
-  const currency = pricing.currency;
+  const { basePrice, currency, rules } = pricing;
 
-  // Get active pricing rules (sorted by priority desc)
-  const rules = await listPricingRules(eventId, { active: true });
+  // Get active rules sorted by priority (highest first)
+  const activeRules = rules
+    .filter((r) => r.active)
+    .sort((a, b) => b.priority - a.priority);
 
   // Find first matching rule (highest priority wins)
   // If a rule matches, its price overrides the base price
-  const appliedRules: PriceBreakdown["appliedRules"] = [];
+  const appliedRules: PriceBreakdown['appliedRules'] = [];
   let calculatedBasePrice = basePrice;
 
-  for (const rule of rules) {
-    if (
-      evaluateConditions(
-        rule.conditions as PricingCondition[],
-        rule.conditionLogic as "AND" | "OR",
-        formData,
-      )
-    ) {
+  for (const rule of activeRules) {
+    if (evaluateConditions(rule.conditions, rule.conditionLogic, formData)) {
       calculatedBasePrice = rule.price;
       appliedRules.push({
         ruleId: rule.id,
@@ -295,10 +298,7 @@ export async function calculatePrice(
   const extrasTotal = extrasDetails.reduce((sum, e) => sum + e.subtotal, 0);
 
   // Validate sponsorship codes (mock for now - TODO: implement real validation)
-  const sponsorships = await validateSponsorshipCodes(
-    sponsorshipCodes,
-    eventId,
-  );
+  const sponsorships = await validateSponsorshipCodes(sponsorshipCodes, eventId);
   const sponsorshipTotal = sponsorships
     .filter((s) => s.valid)
     .reduce((sum, s) => sum + s.amount, 0);
@@ -330,11 +330,11 @@ export async function calculatePrice(
  */
 function evaluateConditions(
   conditions: PricingCondition[],
-  logic: "AND" | "OR",
-  formData: Record<string, unknown>,
+  logic: 'AND' | 'OR',
+  formData: Record<string, unknown>
 ): boolean {
   const results = conditions.map((c) => evaluateSingleCondition(c, formData));
-  return logic === "AND" ? results.every(Boolean) : results.some(Boolean);
+  return logic === 'AND' ? results.every(Boolean) : results.some(Boolean);
 }
 
 /**
@@ -342,29 +342,29 @@ function evaluateConditions(
  */
 function evaluateSingleCondition(
   condition: PricingCondition,
-  formData: Record<string, unknown>,
+  formData: Record<string, unknown>
 ): boolean {
   const value = formData[condition.fieldId];
 
   switch (condition.operator) {
-    case "equals":
+    case 'equals':
       return value === condition.value;
-    case "not_equals":
+    case 'not_equals':
       return value !== condition.value;
-    case "contains":
+    case 'contains':
       return (
-        typeof value === "string" && value.includes(String(condition.value))
+        typeof value === 'string' && value.includes(String(condition.value))
       );
-    case "greater_than":
-      return typeof value === "number" && value > Number(condition.value);
-    case "less_than":
-      return typeof value === "number" && value < Number(condition.value);
-    case "in":
+    case 'greater_than':
+      return typeof value === 'number' && value > Number(condition.value);
+    case 'less_than':
+      return typeof value === 'number' && value < Number(condition.value);
+    case 'in':
       return (
         Array.isArray(condition.value) &&
         condition.value.includes(String(value))
       );
-    case "not_in":
+    case 'not_in':
       return (
         Array.isArray(condition.value) &&
         !condition.value.includes(String(value))
@@ -378,8 +378,8 @@ function evaluateSingleCondition(
  * Calculate extras/access total from selected items.
  */
 async function calculateExtrasTotal(
-  selectedExtras: SelectedExtra[],
-): Promise<PriceBreakdown["extras"]> {
+  selectedExtras: SelectedExtra[]
+): Promise<PriceBreakdown['extras']> {
   if (!selectedExtras.length) return [];
 
   const accessIds = selectedExtras.map((e) => e.extraId);
@@ -410,14 +410,14 @@ async function calculateExtrasTotal(
  */
 async function validateSponsorshipCodes(
   codes: string[],
-  _eventId: string,
-): Promise<PriceBreakdown["sponsorships"]> {
+  _eventId: string
+): Promise<PriceBreakdown['sponsorships']> {
   // Mock validation - replace with actual database lookup
   const mockCodes: Record<string, number> = {
-    "SPO-A1X7K9": 2000,
-    "SPO-B2Y8L0": 1500,
-    "FULL-SPONSOR": 5000,
-    "STUDENT-50": 500,
+    'SPO-A1X7K9': 2000,
+    'SPO-B2Y8L0': 1500,
+    'FULL-SPONSOR': 5000,
+    'STUDENT-50': 500,
   };
 
   return codes.map((code) => ({

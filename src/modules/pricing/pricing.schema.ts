@@ -21,13 +21,13 @@ export const PricingConditionSchema = z
   .strict();
 
 // ============================================================================
-// Pricing Rules Schemas (Simplified)
+// Embedded Pricing Rule Schema
 // Rules define conditional base price overrides: if conditions match → use this price
 // ============================================================================
 
-export const CreatePricingRuleSchema = z
+export const EmbeddedPricingRuleSchema = z
   .object({
-    eventId: z.string().uuid(),
+    id: z.string().uuid(),
     name: z.string().min(1).max(200),
     description: z.string().max(1000).optional().nullable(),
     priority: z.number().int().min(0).default(0),
@@ -38,7 +38,11 @@ export const CreatePricingRuleSchema = z
   })
   .strict();
 
-export const UpdatePricingRuleSchema = z
+// For creating rules (id is optional, will be generated)
+export const CreateEmbeddedRuleSchema = EmbeddedPricingRuleSchema.omit({ id: true });
+
+// For updating a single rule
+export const UpdateEmbeddedRuleSchema = z
   .object({
     name: z.string().min(1).max(200).optional(),
     description: z.string().max(1000).optional().nullable(),
@@ -50,23 +54,8 @@ export const UpdatePricingRuleSchema = z
   })
   .strict();
 
-export const ListPricingRulesQuerySchema = z
-  .object({
-    active: z.preprocess(
-      (v) => (v === 'true' ? true : v === 'false' ? false : undefined),
-      z.boolean().optional()
-    ),
-  })
-  .strict();
-
-export const PricingRuleIdParamSchema = z
-  .object({
-    id: z.string().uuid(),
-  })
-  .strict();
-
 // ============================================================================
-// Event Pricing Schemas (Base price configuration per event)
+// Event Pricing Schemas (Unified: base price + embedded rules)
 // ============================================================================
 
 export const CreateEventPricingSchema = z
@@ -74,6 +63,7 @@ export const CreateEventPricingSchema = z
     eventId: z.string().uuid(),
     basePrice: z.number().int().min(0).default(0),
     currency: z.string().length(3).default('TND'),
+    rules: z.array(EmbeddedPricingRuleSchema).max(10).default([]),
   })
   .strict();
 
@@ -81,21 +71,20 @@ export const UpdateEventPricingSchema = z
   .object({
     basePrice: z.number().int().min(0).optional(),
     currency: z.string().length(3).optional(),
+    rules: z.array(EmbeddedPricingRuleSchema).max(10).optional(),
   })
   .strict();
-
-export const EventPricingResponseSchema = z.object({
-  id: z.string(),
-  eventId: z.string(),
-  basePrice: z.number(),
-  currency: z.string(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
 
 export const EventIdParamSchema = z
   .object({
     eventId: z.string().uuid(),
+  })
+  .strict();
+
+export const RuleIdParamSchema = z
+  .object({
+    eventId: z.string().uuid(),
+    ruleId: z.string().uuid(),
   })
   .strict();
 
@@ -153,33 +142,15 @@ export const PriceBreakdownSchema = z.object({
 });
 
 // ============================================================================
-// Response Schemas
-// ============================================================================
-
-export const PricingRuleResponseSchema = z.object({
-  id: z.string(),
-  eventId: z.string(),
-  name: z.string(),
-  description: z.any().nullable(),
-  priority: z.number(),
-  conditions: z.any(),
-  conditionLogic: z.string(),
-  price: z.number(),
-  active: z.boolean(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-// ============================================================================
 // Types
 // ============================================================================
 
 export type PricingCondition = z.infer<typeof PricingConditionSchema>;
-export type CreatePricingRuleInput = z.infer<typeof CreatePricingRuleSchema>;
-export type UpdatePricingRuleInput = z.infer<typeof UpdatePricingRuleSchema>;
+export type EmbeddedPricingRule = z.infer<typeof EmbeddedPricingRuleSchema>;
+export type CreateEmbeddedRuleInput = z.infer<typeof CreateEmbeddedRuleSchema>;
+export type UpdateEmbeddedRuleInput = z.infer<typeof UpdateEmbeddedRuleSchema>;
+export type CreateEventPricingInput = z.infer<typeof CreateEventPricingSchema>;
+export type UpdateEventPricingInput = z.infer<typeof UpdateEventPricingSchema>;
 export type CalculatePriceRequest = z.infer<typeof CalculatePriceRequestSchema>;
 export type PriceBreakdown = z.infer<typeof PriceBreakdownSchema>;
 export type SelectedExtra = z.infer<typeof SelectedExtraSchema>;
-export type CreateEventPricingInput = z.infer<typeof CreateEventPricingSchema>;
-export type UpdateEventPricingInput = z.infer<typeof UpdateEventPricingSchema>;
-export type EventPricingResponse = z.infer<typeof EventPricingResponseSchema>;
