@@ -1,18 +1,6 @@
 import { z } from 'zod';
 
 // ============================================================================
-// Multi-Language Schemas
-// ============================================================================
-
-export const MultiLangTextSchema = z
-  .object({
-    fr: z.string().optional(),
-    en: z.string().optional(),
-    ar: z.string().optional(),
-  })
-  .strict();
-
-// ============================================================================
 // Field Schemas
 // ============================================================================
 
@@ -34,7 +22,7 @@ export const FieldTypeSchema = z.enum([
 export const FieldOptionSchema = z
   .object({
     id: z.string(),
-    label: MultiLangTextSchema,
+    label: z.string(),
     priceModifier: z.number().optional(),
   })
   .strict();
@@ -75,9 +63,9 @@ export const FormFieldSchema = z
   .object({
     id: z.string(),
     type: FieldTypeSchema,
-    label: MultiLangTextSchema.optional(),
-    placeholder: MultiLangTextSchema.optional(),
-    helpText: MultiLangTextSchema.optional(),
+    label: z.string().optional(),
+    placeholder: z.string().optional(),
+    helpText: z.string().optional(),
     options: z.array(FieldOptionSchema).optional(),
     validation: FieldValidationSchema.optional(),
     conditions: z.array(FieldConditionSchema).optional(),
@@ -92,8 +80,8 @@ export const FormFieldSchema = z
 export const FormStepSchema = z
   .object({
     id: z.string(),
-    title: MultiLangTextSchema,
-    description: MultiLangTextSchema.optional(),
+    title: z.string(),
+    description: z.string().optional(),
     fields: z.array(FormFieldSchema),
   })
   .strict();
@@ -116,11 +104,8 @@ export const CreateFormSchema = z
     eventId: z.string().uuid(),
     name: z.string().min(1).max(200),
     schema: FormSchemaJsonSchema,
-    basePrice: z.number().int().min(0).default(0),
-    currency: z.string().length(3).default('MAD'),
-    successTitle: MultiLangTextSchema.optional().nullable(),
-    successMessage: MultiLangTextSchema.optional().nullable(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
+    successTitle: z.string().optional().nullable(),
+    successMessage: z.string().optional().nullable(),
   })
   .strict();
 
@@ -128,12 +113,8 @@ export const UpdateFormSchema = z
   .object({
     name: z.string().min(1).max(200).optional(),
     schema: FormSchemaJsonSchema.optional(),
-    basePrice: z.number().int().min(0).optional(),
-    currency: z.string().length(3).optional(),
-    successTitle: MultiLangTextSchema.optional().nullable(),
-    successMessage: MultiLangTextSchema.optional().nullable(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
-    active: z.boolean().optional(),
+    successTitle: z.string().optional().nullable(),
+    successMessage: z.string().optional().nullable(),
   })
   .strict();
 
@@ -142,7 +123,6 @@ export const ListFormsQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     eventId: z.string().uuid().optional(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
     search: z.string().optional(),
   })
   .strict();
@@ -162,12 +142,9 @@ export const FormResponseSchema = z.object({
   eventId: z.string(),
   name: z.string(),
   schema: z.any(), // JSONB - use any for response
-  basePrice: z.number(),
-  currency: z.string(),
+  schemaVersion: z.number(),
   successTitle: z.any().nullable(),
   successMessage: z.any().nullable(),
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
-  active: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -177,9 +154,12 @@ export const FormWithRelationsResponseSchema = FormResponseSchema.extend({
     id: z.string(),
     name: z.string(),
     slug: z.string(),
+    status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']),
     startDate: z.date(),
     endDate: z.date(),
     location: z.string().nullable(),
+    basePrice: z.number(),
+    currency: z.string(),
     client: z.object({
       id: z.string(),
       name: z.string(),
@@ -203,7 +183,6 @@ export const FormsListResponseSchema = z.object({
 // Types
 // ============================================================================
 
-export type MultiLangText = z.infer<typeof MultiLangTextSchema>;
 export type FieldType = z.infer<typeof FieldTypeSchema>;
 export type FieldOption = z.infer<typeof FieldOptionSchema>;
 export type ConditionOperator = z.infer<typeof ConditionOperatorSchema>;

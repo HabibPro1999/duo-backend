@@ -5,15 +5,13 @@ import { eventExists, getEventById } from '@events';
 import type {
   CreatePricingRuleInput,
   UpdatePricingRuleInput,
-  CreateEventExtraInput,
-  UpdateEventExtraInput,
   CalculatePriceRequest,
   PriceBreakdown,
   PricingCondition,
   SelectedExtra,
 } from './pricing.schema.js';
 import { Prisma } from '@prisma/client';
-import type { PricingRule, EventExtra } from '@prisma/client';
+import type { PricingRule } from '@prisma/client';
 
 // ============================================================================
 // Pricing Rules CRUD
@@ -21,9 +19,11 @@ import type { PricingRule, EventExtra } from '@prisma/client';
 
 /**
  * Create a new pricing rule.
+ * A pricing rule defines a conditional base price override:
+ * if conditions match → use this price instead of event's base price.
  */
 export async function createPricingRule(input: CreatePricingRuleInput): Promise<PricingRule> {
-  const { eventId, ...data } = input;
+  const { eventId, name, description, priority, conditions, conditionLogic, price, active } = input;
 
   // Validate that event exists
   const isValidEvent = await eventExists(eventId);
@@ -34,17 +34,13 @@ export async function createPricingRule(input: CreatePricingRuleInput): Promise<
   return prisma.pricingRule.create({
     data: {
       eventId,
-      name: data.name,
-      description: data.description ?? Prisma.JsonNull,
-      ruleType: data.ruleType,
-      priority: data.priority ?? 0,
-      conditions: data.conditions as Prisma.InputJsonValue,
-      conditionLogic: data.conditionLogic ?? 'AND',
-      validFrom: data.validFrom ?? null,
-      validTo: data.validTo ?? null,
-      priceType: data.priceType ?? 'FIXED',
-      priceValue: data.priceValue,
-      active: data.active ?? true,
+      name,
+      description: description ?? null,
+      priority: priority ?? 0,
+      conditions: conditions as Prisma.InputJsonValue,
+      conditionLogic: conditionLogic ?? 'AND',
+      price,
+      active: active ?? true,
     },
   });
 }
@@ -63,19 +59,13 @@ export async function updatePricingRule(
 
   const updateData: Prisma.PricingRuleUpdateInput = {
     ...(input.name !== undefined && { name: input.name }),
-    ...(input.description !== undefined && {
-      description: input.description === null ? Prisma.JsonNull : input.description,
-    }),
-    ...(input.ruleType !== undefined && { ruleType: input.ruleType }),
+    ...(input.description !== undefined && { description: input.description }),
     ...(input.priority !== undefined && { priority: input.priority }),
     ...(input.conditions !== undefined && {
       conditions: input.conditions as Prisma.InputJsonValue,
     }),
     ...(input.conditionLogic !== undefined && { conditionLogic: input.conditionLogic }),
-    ...(input.validFrom !== undefined && { validFrom: input.validFrom }),
-    ...(input.validTo !== undefined && { validTo: input.validTo }),
-    ...(input.priceType !== undefined && { priceType: input.priceType }),
-    ...(input.priceValue !== undefined && { priceValue: input.priceValue }),
+    ...(input.price !== undefined && { price: input.price }),
     ...(input.active !== undefined && { active: input.active }),
   };
 
@@ -123,161 +113,17 @@ export async function getPricingRuleById(id: string): Promise<PricingRule | null
 }
 
 // ============================================================================
-// Event Extras CRUD
-// ============================================================================
-
-/**
- * Create a new event extra.
- */
-export async function createEventExtra(input: CreateEventExtraInput): Promise<EventExtra> {
-  const { eventId, ...data } = input;
-
-  // Validate that event exists
-  const isValidEvent = await eventExists(eventId);
-  if (!isValidEvent) {
-    throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
-  }
-
-  return prisma.eventExtra.create({
-    data: {
-      eventId,
-      name: data.name as Prisma.InputJsonValue,
-      description: data.description ? (data.description as Prisma.InputJsonValue) : Prisma.JsonNull,
-      price: data.price,
-      currency: data.currency ?? 'MAD',
-      maxCapacity: data.maxCapacity ?? null,
-      availableFrom: data.availableFrom ?? null,
-      availableTo: data.availableTo ?? null,
-      conditions: data.conditions ? (data.conditions as Prisma.InputJsonValue) : Prisma.JsonNull,
-      conditionLogic: data.conditionLogic ?? 'AND',
-      sortOrder: data.sortOrder ?? 0,
-      active: data.active ?? true,
-    },
-  });
-}
-
-/**
- * Update an event extra.
- */
-export async function updateEventExtra(
-  id: string,
-  input: UpdateEventExtraInput
-): Promise<EventExtra> {
-  const extra = await prisma.eventExtra.findUnique({ where: { id } });
-  if (!extra) {
-    throw new AppError('Event extra not found', 404, true, ErrorCodes.NOT_FOUND);
-  }
-
-  const updateData: Prisma.EventExtraUpdateInput = {
-    ...(input.name !== undefined && { name: input.name as Prisma.InputJsonValue }),
-    ...(input.description !== undefined && {
-      description: input.description === null ? Prisma.JsonNull : (input.description as Prisma.InputJsonValue),
-    }),
-    ...(input.price !== undefined && { price: input.price }),
-    ...(input.currency !== undefined && { currency: input.currency }),
-    ...(input.maxCapacity !== undefined && { maxCapacity: input.maxCapacity }),
-    ...(input.availableFrom !== undefined && { availableFrom: input.availableFrom }),
-    ...(input.availableTo !== undefined && { availableTo: input.availableTo }),
-    ...(input.conditions !== undefined && {
-      conditions: input.conditions === null ? Prisma.JsonNull : (input.conditions as Prisma.InputJsonValue),
-    }),
-    ...(input.conditionLogic !== undefined && { conditionLogic: input.conditionLogic }),
-    ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
-    ...(input.active !== undefined && { active: input.active }),
-  };
-
-  return prisma.eventExtra.update({
-    where: { id },
-    data: updateData,
-  });
-}
-
-/**
- * Delete an event extra.
- */
-export async function deleteEventExtra(id: string): Promise<void> {
-  const extra = await prisma.eventExtra.findUnique({ where: { id } });
-  if (!extra) {
-    throw new AppError('Event extra not found', 404, true, ErrorCodes.NOT_FOUND);
-  }
-
-  await prisma.eventExtra.delete({ where: { id } });
-}
-
-/**
- * List event extras.
- */
-export async function listEventExtras(
-  eventId: string,
-  options?: { active?: boolean }
-): Promise<EventExtra[]> {
-  const where: { eventId: string; active?: boolean } = { eventId };
-  if (options?.active !== undefined) {
-    where.active = options.active;
-  }
-
-  return prisma.eventExtra.findMany({
-    where,
-    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-  });
-}
-
-/**
- * Get an event extra by ID.
- */
-export async function getEventExtraById(id: string): Promise<EventExtra | null> {
-  return prisma.eventExtra.findUnique({ where: { id } });
-}
-
-/**
- * Get available extras for an event, filtered by conditions.
- */
-export async function getAvailableExtras(
-  eventId: string,
-  formData: Record<string, unknown>
-): Promise<Array<EventExtra & { spotsRemaining: number | null; available: boolean }>> {
-  const extras = await prisma.eventExtra.findMany({
-    where: { eventId, active: true },
-    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-  });
-
-  const now = new Date();
-
-  return extras.map((extra) => {
-    // Check date availability
-    const dateAvailable =
-      (!extra.availableFrom || extra.availableFrom <= now) &&
-      (!extra.availableTo || extra.availableTo >= now);
-
-    // Check conditions
-    const conditionsMatch = extra.conditions
-      ? evaluateConditions(
-          extra.conditions as PricingCondition[],
-          extra.conditionLogic as 'AND' | 'OR',
-          formData
-        )
-      : true;
-
-    // Check capacity
-    const spotsRemaining = extra.maxCapacity
-      ? extra.maxCapacity - extra.registeredCount
-      : null;
-    const capacityAvailable = spotsRemaining === null || spotsRemaining > 0;
-
-    return {
-      ...extra,
-      spotsRemaining,
-      available: dateAvailable && conditionsMatch && capacityAvailable,
-    };
-  });
-}
-
-// ============================================================================
 // Price Calculation
 // ============================================================================
 
 /**
- * Calculate price breakdown for a form submission.
+ * Calculate price breakdown for a registration.
+ *
+ * Formula:
+ *   Base Price = Event.basePrice (or first matching rule's price)
+ *   + Selected Access Items
+ *   - Sponsorship Discounts
+ *   = Total
  */
 export async function calculatePrice(
   eventId: string,
@@ -285,73 +131,38 @@ export async function calculatePrice(
 ): Promise<PriceBreakdown> {
   const { formData, selectedExtras, sponsorshipCodes } = input;
 
-  // Get event to verify it exists
+  // Get event with base price
   const event = await getEventById(eventId);
   if (!event) {
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // Get form for base price
-  const form = await prisma.form.findFirst({
-    where: { eventId, active: true },
-    orderBy: { createdAt: 'desc' },
-  });
+  const basePrice = event.basePrice;
+  const currency = event.currency;
 
-  const basePrice = form?.basePrice ?? 0;
-  const currency = form?.currency ?? 'MAD';
-
-  // Get pricing rules
+  // Get active pricing rules (sorted by priority desc)
   const rules = await listPricingRules(eventId, { active: true });
-  const now = new Date();
 
+  // Find first matching rule (highest priority wins)
+  // If a rule matches, its price overrides the base price
   const appliedRules: PriceBreakdown['appliedRules'] = [];
   let calculatedBasePrice = basePrice;
 
-  // Find first matching BASE_PRICE rule (highest priority first)
-  const basePriceRules = rules
-    .filter((r) => r.ruleType === 'BASE_PRICE')
-    .filter((r) => isRuleValidForDate(r, now));
-
-  for (const rule of basePriceRules) {
+  for (const rule of rules) {
     if (evaluateConditions(rule.conditions as PricingCondition[], rule.conditionLogic as 'AND' | 'OR', formData)) {
-      calculatedBasePrice =
-        rule.priceType === 'FIXED'
-          ? rule.priceValue
-          : Math.round(basePrice * (rule.priceValue / 100));
-
+      calculatedBasePrice = rule.price;
       appliedRules.push({
         ruleId: rule.id,
         ruleName: rule.name,
-        effect: calculatedBasePrice - basePrice,
-        reason: `Base price set to ${calculatedBasePrice}`,
+        effect: rule.price - basePrice,
+        reason: `Base price set to ${rule.price}`,
       });
-      break; // Only first matching BASE_PRICE rule applies
+      break; // First match wins
     }
   }
 
-  // Apply all matching MODIFIER rules
-  const modifierRules = rules
-    .filter((r) => r.ruleType === 'MODIFIER')
-    .filter((r) => isRuleValidForDate(r, now));
-
-  for (const rule of modifierRules) {
-    if (evaluateConditions(rule.conditions as PricingCondition[], rule.conditionLogic as 'AND' | 'OR', formData)) {
-      const effect =
-        rule.priceType === 'FIXED'
-          ? rule.priceValue
-          : Math.round(calculatedBasePrice * (rule.priceValue / 100));
-
-      calculatedBasePrice += effect;
-      appliedRules.push({
-        ruleId: rule.id,
-        ruleName: rule.name,
-        effect,
-      });
-    }
-  }
-
-  // Calculate extras
-  const extrasDetails = await calculateExtrasTotal(selectedExtras, formData);
+  // Calculate access/extras total
+  const extrasDetails = await calculateExtrasTotal(selectedExtras);
   const extrasTotal = extrasDetails.reduce((sum, e) => sum + e.subtotal, 0);
 
   // Validate sponsorship codes (mock for now - TODO: implement real validation)
@@ -379,51 +190,8 @@ export async function calculatePrice(
 }
 
 // ============================================================================
-// Capacity Management
-// ============================================================================
-
-/**
- * Check if extra has available capacity.
- */
-export async function checkExtraCapacity(extraId: string, quantity: number): Promise<boolean> {
-  const extra = await prisma.eventExtra.findUnique({ where: { id: extraId } });
-  if (!extra) return false;
-  if (extra.maxCapacity === null) return true;
-  return extra.registeredCount + quantity <= extra.maxCapacity;
-}
-
-/**
- * Increment registered count for an extra (atomic).
- */
-export async function incrementExtraCount(extraId: string, quantity: number): Promise<EventExtra> {
-  return prisma.eventExtra.update({
-    where: { id: extraId },
-    data: { registeredCount: { increment: quantity } },
-  });
-}
-
-/**
- * Decrement registered count for an extra (atomic).
- */
-export async function decrementExtraCount(extraId: string, quantity: number): Promise<EventExtra> {
-  return prisma.eventExtra.update({
-    where: { id: extraId },
-    data: { registeredCount: { decrement: quantity } },
-  });
-}
-
-// ============================================================================
 // Helper Functions
 // ============================================================================
-
-/**
- * Check if a pricing rule is valid for a given date.
- */
-function isRuleValidForDate(rule: PricingRule, date: Date): boolean {
-  if (rule.validFrom && rule.validFrom > date) return false;
-  if (rule.validTo && rule.validTo < date) return false;
-  return true;
-}
 
 /**
  * Evaluate pricing conditions against form data.
@@ -467,32 +235,31 @@ function evaluateSingleCondition(
 }
 
 /**
- * Calculate extras total from selected extras.
+ * Calculate extras/access total from selected items.
  */
 async function calculateExtrasTotal(
-  selectedExtras: SelectedExtra[],
-  _formData: Record<string, unknown>
+  selectedExtras: SelectedExtra[]
 ): Promise<PriceBreakdown['extras']> {
   if (!selectedExtras.length) return [];
 
-  const extraIds = selectedExtras.map((e) => e.extraId);
-  const extras = await prisma.eventExtra.findMany({
-    where: { id: { in: extraIds }, active: true },
+  const accessIds = selectedExtras.map((e) => e.extraId);
+  const accessItems = await prisma.eventAccess.findMany({
+    where: { id: { in: accessIds }, active: true },
   });
 
-  const extrasMap = new Map(extras.map((e) => [e.id, e]));
+  const accessMap = new Map(accessItems.map((a) => [a.id, a]));
 
   return selectedExtras
     .map((selected) => {
-      const extra = extrasMap.get(selected.extraId);
-      if (!extra) return null;
+      const access = accessMap.get(selected.extraId);
+      if (!access) return null;
 
       return {
-        extraId: extra.id,
-        name: extra.name,
-        unitPrice: extra.price,
+        extraId: access.id,
+        name: access.name,
+        unitPrice: access.price,
         quantity: selected.quantity,
-        subtotal: extra.price * selected.quantity,
+        subtotal: access.price * selected.quantity,
       };
     })
     .filter((e): e is NonNullable<typeof e> => e !== null);

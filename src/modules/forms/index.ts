@@ -12,7 +12,6 @@ export {
 
 // Schemas & Types
 export {
-  MultiLangTextSchema,
   FieldTypeSchema,
   FieldOptionSchema,
   ConditionOperatorSchema,
@@ -28,7 +27,6 @@ export {
   FormResponseSchema,
   FormWithRelationsResponseSchema,
   FormsListResponseSchema,
-  type MultiLangText,
   type FieldType,
   type FieldOption,
   type ConditionOperator,

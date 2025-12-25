@@ -13,7 +13,11 @@ import { usersRoutes } from '@identity';
 import { clientsRoutes } from '@clients';
 import { eventsRoutes } from '@events';
 import { formsRoutes, formsPublicRoutes } from '@forms';
-import { pricingRulesRoutes, eventExtrasRoutes, pricingPublicRoutes } from '@pricing';
+import { pricingRulesRoutes, pricingPublicRoutes } from '@pricing';
+import { accessRoutes, accessPublicRoutes } from '@access';
+import { registrationsRoutes, registrationsPublicRoutes } from '@registrations';
+import { draftsPublicRoutes } from '@drafts';
+import { reportsRoutes } from '@reports';
 import type { AppInstance } from '@shared/types/fastify.js';
 
 export async function buildServer(): Promise<AppInstance> {
@@ -66,8 +70,21 @@ export async function buildServer(): Promise<AppInstance> {
 
   // Pricing routes
   await app.register(pricingRulesRoutes, { prefix: '/api/events' });
-  await app.register(eventExtrasRoutes, { prefix: '/api/events' });
   await app.register(pricingPublicRoutes, { prefix: '/api' });
+
+  // Access routes (replaces eventExtrasRoutes)
+  await app.register(accessRoutes, { prefix: '/api/events' });
+  await app.register(accessPublicRoutes, { prefix: '/api/public/events' });
+
+  // Registration routes
+  await app.register(registrationsRoutes, { prefix: '/api/events' });
+  await app.register(registrationsPublicRoutes, { prefix: '/api/public/forms' });
+
+  // Draft routes (for saving incomplete registrations)
+  await app.register(draftsPublicRoutes, { prefix: '/api/public/drafts' });
+
+  // Reports routes (financial reporting)
+  await app.register(reportsRoutes, { prefix: '/api/events' });
 
   // Global error handler
   app.setErrorHandler(errorHandler);

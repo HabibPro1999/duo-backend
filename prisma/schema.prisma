@@ -42,7 +42,8 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  client    Client?  @relation(fields: [clientId], references: [id])
+  client            Client?            @relation(fields: [clientId], references: [id])
+  registrationNotes RegistrationNote[]
 
   @@index([clientId])
   @@index([active, role])
@@ -54,33 +55,39 @@ model User {
 // ============================================================================
 
 model Event {
-  id              String      @id @default(uuid())
-  clientId        String      @map("client_id")
+  id              String         @id @default(uuid())
+  clientId        String         @map("client_id")
   name            String
-  slug            String      @unique
+  slug            String         @unique
   description     String?
-  maxCapacity     Int?        @map("max_capacity")
-  registeredCount Int         @default(0) @map("registered_count")
-  startDate       DateTime    @map("start_date")
-  endDate         DateTime    @map("end_date")
+  maxCapacity     Int?           @map("max_capacity")
+  registeredCount Int            @default(0) @map("registered_count")
+  startDate       DateTime       @map("start_date")
+  endDate         DateTime       @map("end_date")
   location        String?
-  status          EventStatus @default(DRAFT)
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  status          EventStatus    @default(CLOSED)
 
-  client          Client      @relation(fields: [clientId], references: [id])
-  forms           Form[]
+  // Pricing (moved from Form)
+  basePrice       Int            @default(0) @map("base_price")
+  currency        String         @default("TND")
+
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  client          Client         @relation(fields: [clientId], references: [id])
+  form            Form?          // One-to-one: each event has exactly one form
   pricingRules    PricingRule[]
-  extras          EventExtra[]
+  access          EventAccess[]
+  registrations   Registration[]
 
   @@index([clientId, status])
   @@map("events")
 }
 
 enum EventStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
+  CLOSED    // Not accepting registrations (default)
+  OPEN      // Accepting registrations
+  ARCHIVED  // Event is over, historical
 }
 
 // ============================================================================
@@ -88,89 +95,291 @@ enum EventStatus {
 // ============================================================================
 
 model Form {
-  id              String     @id @default(uuid())
-  eventId         String     @map("event_id")
+  id              String         @id @default(uuid())
+  eventId         String         @unique @map("event_id") // One form per event
   name            String
   schema          Json
-  basePrice       Int        @default(0) @map("base_price")
-  currency        String     @default("MAD")
-  successTitle    Json?      @map("success_title")
-  successMessage  Json?      @map("success_message")
-  status          FormStatus @default(DRAFT)
-  active          Boolean    @default(true)
-  useEventPricing Boolean    @default(true) @map("use_event_pricing")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
+  schemaVersion   Int            @default(1) @map("schema_version")
+  successTitle    String?        @map("success_title")
+  successMessage  String?        @map("success_message")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  event           Event      @relation(fields: [eventId], references: [id])
+  event           Event          @relation(fields: [eventId], references: [id])
+  registrations   Registration[]
+  drafts          RegistrationDraft[]
 
-  @@index([eventId, status, active])
+  @@index([eventId])
   @@map("forms")
-}
-
-enum FormStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
 }
 
 // ============================================================================
 // PRICING MODULE
 // ============================================================================
 
+// Conditional base price rules: if form fields match conditions, override base price
 model PricingRule {
-  id             String          @id @default(uuid())
-  eventId        String          @map("event_id")
+  id             String   @id @default(uuid())
+  eventId        String   @map("event_id")
   name           String
-  description    Json?           // MultiLangText {fr, en?, ar?}
-  ruleType       PricingRuleType @map("rule_type")
-  priority       Int             @default(0)
-  conditions     Json            // Array of {fieldId, operator, value}
-  conditionLogic String          @default("AND") @map("condition_logic")
-  validFrom      DateTime?       @map("valid_from")
-  validTo        DateTime?       @map("valid_to")
-  priceType      PriceType       @default(FIXED) @map("price_type")
-  priceValue     Int             @map("price_value")
-  active         Boolean         @default(true)
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  description    String?
+  priority       Int      @default(0)
+  conditions     Json     // Array of {fieldId, operator, value}
+  conditionLogic String   @default("AND") @map("condition_logic")
+  price          Int      // Fixed price when conditions match
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  event          Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
   @@map("pricing_rules")
 }
 
-enum PricingRuleType {
-  BASE_PRICE // Sets the base price when conditions match
-  MODIFIER   // Adds/subtracts from calculated price
+// ============================================================================
+// ACCESS MODULE
+// ============================================================================
+
+enum AccessType {
+  WORKSHOP
+  DINNER
+  SESSION
+  NETWORKING
+  ACCOMMODATION
+  TRANSPORT
+  OTHER
 }
 
-enum PriceType {
-  FIXED      // Absolute amount
-  PERCENTAGE // Percentage of base price
+model EventAccess {
+  id              String       @id @default(uuid())
+  eventId         String       @map("event_id")
+
+  // Type categorization
+  type            AccessType   @default(OTHER)
+
+  // Basic info
+  name            String
+  description     String?
+  location        String?
+
+  // Session scheduling (for time-based grouping)
+  startsAt        DateTime?    @map("starts_at")
+  endsAt          DateTime?    @map("ends_at")
+
+  // Pricing
+  price           Int          @default(0)
+  currency        String       @default("TND")
+
+  // Capacity
+  maxCapacity     Int?         @map("max_capacity")
+  registeredCount Int          @default(0) @map("registered_count")
+
+  // Waitlist
+  waitlistEnabled Boolean      @default(false) @map("waitlist_enabled")
+  waitlistCount   Int          @default(0) @map("waitlist_count")
+  maxWaitlist     Int?         @map("max_waitlist")
+
+  // Availability window (when can people select this)
+  availableFrom   DateTime?    @map("available_from")
+  availableTo     DateTime?    @map("available_to")
+
+  // Conditions (form-based prerequisites)
+  conditions      Json?        // Array of {fieldId, operator, value}
+  conditionLogic  String       @default("AND") @map("condition_logic")
+
+  // Display
+  sortOrder       Int          @default(0) @map("sort_order")
+  active          Boolean      @default(true)
+
+  // Timestamps
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  requiredAccess     EventAccess[]      @relation("AccessPrerequisites")
+  prerequisiteFor    EventAccess[]      @relation("AccessPrerequisites")
+  registrationAccess RegistrationAccess[]
+
+  @@index([eventId, startsAt])
+  @@index([eventId, type])
+  @@index([eventId, active])
+  @@map("event_access")
 }
 
-model EventExtra {
-  id              String    @id @default(uuid())
-  eventId         String    @map("event_id")
-  name            Json      // MultiLangText {fr, en?, ar?}
-  description     Json?     // MultiLangText
-  price           Int
-  currency        String    @default("MAD")
-  maxCapacity     Int?      @map("max_capacity")
-  registeredCount Int       @default(0) @map("registered_count")
-  availableFrom   DateTime? @map("available_from")
-  availableTo     DateTime? @map("available_to")
-  conditions      Json?     // Array of {fieldId, operator, value}
-  conditionLogic  String    @default("AND") @map("condition_logic")
-  sortOrder       Int       @default(0) @map("sort_order")
-  active          Boolean   @default(true)
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+// ============================================================================
+// REGISTRATIONS MODULE
+// ============================================================================
 
-  event           Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+  REFUNDED
+}
 
-  @@index([eventId])
-  @@map("event_extras")
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  WAIVED
+}
+
+enum AccessSelectionStatus {
+  CONFIRMED
+  WAITLISTED
+  PROMOTED
+  CANCELLED
+}
+
+model Registration {
+  id                String             @id @default(uuid())
+  formId            String             @map("form_id")
+  eventId           String             @map("event_id")
+
+  // Submission data
+  formData          Json               @map("form_data")
+  submittedAt       DateTime           @default(now()) @map("submitted_at")
+
+  // Form schema versioning
+  formSchemaVersion Int                @default(1) @map("form_schema_version")
+
+  // Denormalized registrant info (for quick access)
+  email             String
+  firstName         String?            @map("first_name")
+  lastName          String?            @map("last_name")
+  phone             String?
+
+  // Status
+  status            RegistrationStatus @default(PENDING)
+  paymentStatus     PaymentStatus      @default(PENDING) @map("payment_status")
+
+  // Payment
+  totalAmount       Int                @map("total_amount")
+  paidAmount        Int                @default(0) @map("paid_amount")
+  currency          String             @default("TND")
+  paymentMethod     String?            @map("payment_method")
+  paymentReference  String?            @map("payment_reference")
+  paymentProofUrl   String?            @map("payment_proof_url")
+
+  // Price breakdown (stored for audit)
+  priceBreakdown    Json               @map("price_breakdown")
+
+  // Denormalized financial columns (for aggregation/reporting)
+  baseAmount        Int                @default(0) @map("base_amount")
+  discountAmount    Int                @default(0) @map("discount_amount")
+  accessAmount      Int                @default(0) @map("access_amount")
+
+  // Sponsorship
+  sponsorshipCode   String?            @map("sponsorship_code")
+  sponsorshipAmount Int                @default(0) @map("sponsorship_amount")
+
+  // Timestamps
+  confirmedAt       DateTime?          @map("confirmed_at")
+  cancelledAt       DateTime?          @map("cancelled_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  form              Form               @relation(fields: [formId], references: [id])
+  event             Event              @relation(fields: [eventId], references: [id])
+  accessSelections  RegistrationAccess[]
+  notes             RegistrationNote[]
+
+  @@unique([email, eventId])
+  @@index([eventId, status])
+  @@index([eventId, status, paymentStatus])
+  @@index([eventId, submittedAt])
+  @@index([eventId, confirmedAt])
+  @@index([formId])
+  @@index([email])
+  @@index([sponsorshipCode])
+  @@map("registrations")
+}
+
+model RegistrationAccess {
+  id               String                @id @default(uuid())
+  registrationId   String                @map("registration_id")
+  accessId         String                @map("access_id")
+
+  // Status for this specific access selection
+  status           AccessSelectionStatus @default(CONFIRMED)
+
+  // Price at time of selection (for audit)
+  unitPrice        Int                   @map("unit_price")
+  quantity         Int                   @default(1)
+  subtotal         Int
+
+  // Waitlist position (if applicable)
+  waitlistPosition Int?                  @map("waitlist_position")
+
+  // Timestamps
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  // Relations
+  registration     Registration          @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  access           EventAccess           @relation(fields: [accessId], references: [id])
+
+  @@unique([registrationId, accessId])
+  @@index([accessId, status])
+  @@map("registration_access")
+}
+
+model RegistrationNote {
+  id              String       @id @default(uuid())
+  registrationId  String       @map("registration_id")
+  authorId        String       @map("author_id")
+  content         String
+  isInternal      Boolean      @default(true) @map("is_internal")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  author          User         @relation(fields: [authorId], references: [id])
+
+  @@index([registrationId])
+  @@map("registration_notes")
+}
+
+// ============================================================================
+// DRAFTS MODULE
+// ============================================================================
+
+model RegistrationDraft {
+  id               String    @id @default(uuid())
+  formId           String    @map("form_id")
+
+  // Session identification (for anonymous drafts)
+  sessionToken     String    @unique @map("session_token")
+
+  // Draft data
+  formData         Json      @map("form_data")
+  currentStep      Int       @default(0) @map("current_step")
+
+  // Optional user identification (for resumption by email)
+  email            String?
+
+  // Access selections (saved but not reserved)
+  accessSelections Json?     @map("access_selections")
+
+  // Sponsorship code (validated but not claimed)
+  sponsorshipCode  String?   @map("sponsorship_code")
+
+  // Expiration
+  expiresAt        DateTime  @map("expires_at")
+
+  // Timestamps
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  form             Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("registration_drafts")
 }

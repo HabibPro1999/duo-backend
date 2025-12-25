@@ -10,8 +10,19 @@ import type { Event, Prisma } from '@prisma/client';
  * Create a new event.
  */
 export async function createEvent(input: CreateEventInput): Promise<Event> {
-  const { clientId, name, slug, description, maxCapacity, startDate, endDate, location, status } =
-    input;
+  const {
+    clientId,
+    name,
+    slug,
+    description,
+    maxCapacity,
+    startDate,
+    endDate,
+    location,
+    status,
+    basePrice,
+    currency,
+  } = input;
 
   // Validate that client exists
   const isValidClient = await clientExists(clientId);
@@ -42,7 +53,9 @@ export async function createEvent(input: CreateEventInput): Promise<Event> {
       startDate,
       endDate,
       location: location ?? null,
-      status: status ?? 'DRAFT',
+      status: status ?? 'CLOSED',
+      basePrice: basePrice ?? 0,
+      currency: currency ?? 'TND',
     },
   });
 }

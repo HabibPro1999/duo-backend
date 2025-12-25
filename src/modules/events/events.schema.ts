@@ -18,7 +18,10 @@ export const CreateEventSchema = z
     startDate: z.coerce.date(),
     endDate: z.coerce.date(),
     location: z.string().min(1).max(500).optional().nullable(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
+    status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']).default('CLOSED'),
+    // Pricing
+    basePrice: z.number().int().min(0).default(0),
+    currency: z.string().length(3).default('TND'),
   })
   .strict()
   .refine((data) => data.endDate >= data.startDate, {
@@ -40,7 +43,10 @@ export const UpdateEventSchema = z
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
     location: z.string().min(1).max(500).optional().nullable(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+    status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']).optional(),
+    // Pricing
+    basePrice: z.number().int().min(0).optional(),
+    currency: z.string().length(3).optional(),
   })
   .strict()
   .refine(
@@ -61,7 +67,7 @@ export const ListEventsQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     clientId: z.string().uuid().optional(),
-    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
+    status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']).optional(),
     search: z.string().optional(),
   })
   .strict();
@@ -93,7 +99,9 @@ export const EventResponseSchema = z.object({
   startDate: z.date(),
   endDate: z.date(),
   location: z.string().nullable(),
-  status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
+  status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']),
+  basePrice: z.number(),
+  currency: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

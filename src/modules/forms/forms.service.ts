@@ -4,22 +4,22 @@ import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateFormInput, UpdateFormInput, ListFormsQuery } from './forms.schema.js';
-import type { Form, Prisma, Event, Client, PricingRule, EventExtra } from '@prisma/client';
+import type { Form, Prisma, Event, Client, PricingRule, EventAccess } from '@prisma/client';
 
 type FormWithRelations = Form & {
   event: Event & {
     client: Pick<Client, 'id' | 'name' | 'logo' | 'primaryColor'>;
     pricingRules: PricingRule[];
-    extras: EventExtra[];
+    access: EventAccess[];
   };
 };
 
 /**
  * Create a new form.
+ * Each event can only have one form (enforced by unique constraint on eventId).
  */
 export async function createForm(input: CreateFormInput): Promise<Form> {
-  const { eventId, name, schema, basePrice, currency, successTitle, successMessage, status } =
-    input;
+  const { eventId, name, schema, successTitle, successMessage } = input;
 
   // Validate that event exists
   const isValidEvent = await eventExists(eventId);
@@ -27,16 +27,24 @@ export async function createForm(input: CreateFormInput): Promise<Form> {
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
+  // Check if event already has a form (enforced by unique constraint, but provide better error)
+  const existingForm = await prisma.form.findUnique({ where: { eventId } });
+  if (existingForm) {
+    throw new AppError(
+      'Event already has a form. Update the existing form instead.',
+      409,
+      true,
+      ErrorCodes.CONFLICT
+    );
+  }
+
   return prisma.form.create({
     data: {
       eventId,
       name,
       schema: schema as Prisma.InputJsonValue,
-      basePrice: basePrice ?? 0,
-      currency: currency ?? 'MAD',
-      successTitle: successTitle as Prisma.InputJsonValue ?? null,
-      successMessage: successMessage as Prisma.InputJsonValue ?? null,
-      status: status ?? 'DRAFT',
+      successTitle: successTitle ?? null,
+      successMessage: successMessage ?? null,
     },
   });
 }
@@ -50,21 +58,16 @@ export async function getFormById(id: string): Promise<Form | null> {
 
 /**
  * Get form by event slug (for public access).
- * Only returns PUBLISHED and active forms with event and client data.
+ * Only returns forms for OPEN events with event and client data.
  */
 export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRelations | null> {
-  // First, find the event by slug
-  const event = await prisma.event.findUnique({
-    where: { slug: eventSlug },
-  });
-
-  if (!event) {
-    return null;
-  }
-
-  // Then find the form for this event with pricing rules and extras
+  // Find the form via event slug, including all related data
   const form = await prisma.form.findFirst({
-    where: { eventId: event.id },
+    where: {
+      event: {
+        slug: eventSlug,
+      },
+    },
     include: {
       event: {
         include: {
@@ -80,17 +83,17 @@ export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRel
             where: { active: true },
             orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
           },
-          extras: {
+          access: {
             where: { active: true },
-            orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+            orderBy: [{ startsAt: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
           },
         },
       },
     },
   });
 
-  // Only return PUBLISHED and active forms
-  if (!form || form.status !== 'PUBLISHED' || !form.active) {
+  // Only return forms for OPEN events
+  if (!form || form.event.status !== 'OPEN') {
     return null;
   }
 
@@ -99,6 +102,7 @@ export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRel
 
 /**
  * Update form.
+ * Auto-increments schemaVersion when the schema JSON changes.
  */
 export async function updateForm(id: string, input: UpdateFormInput): Promise<Form> {
   // Check if form exists
@@ -110,13 +114,20 @@ export async function updateForm(id: string, input: UpdateFormInput): Promise<Fo
   // Prepare update data
   const updateData: Prisma.FormUpdateInput = {};
   if (input.name !== undefined) updateData.name = input.name;
-  if (input.schema !== undefined) updateData.schema = input.schema as Prisma.InputJsonValue;
-  if (input.basePrice !== undefined) updateData.basePrice = input.basePrice;
-  if (input.currency !== undefined) updateData.currency = input.currency;
-  if (input.successTitle !== undefined) updateData.successTitle = input.successTitle as Prisma.InputJsonValue;
-  if (input.successMessage !== undefined) updateData.successMessage = input.successMessage as Prisma.InputJsonValue;
-  if (input.status !== undefined) updateData.status = input.status;
-  if (input.active !== undefined) updateData.active = input.active;
+  if (input.successTitle !== undefined) updateData.successTitle = input.successTitle;
+  if (input.successMessage !== undefined) updateData.successMessage = input.successMessage;
+
+  // Check if schema is being updated and has actually changed
+  if (input.schema !== undefined) {
+    const currentSchemaStr = JSON.stringify(form.schema);
+    const newSchemaStr = JSON.stringify(input.schema);
+
+    if (currentSchemaStr !== newSchemaStr) {
+      updateData.schema = input.schema as Prisma.InputJsonValue;
+      // Auto-increment schema version when schema changes
+      updateData.schemaVersion = { increment: 1 };
+    }
+  }
 
   return prisma.form.update({
     where: { id },
@@ -128,13 +139,12 @@ export async function updateForm(id: string, input: UpdateFormInput): Promise<Fo
  * List forms with pagination and filters.
  */
 export async function listForms(query: ListFormsQuery): Promise<PaginatedResult<Form>> {
-  const { page, limit, eventId, status, search } = query;
+  const { page, limit, eventId, search } = query;
   const skip = getSkip({ page, limit });
 
   const where: Prisma.FormWhereInput = {};
 
   if (eventId) where.eventId = eventId;
-  if (status) where.status = status;
   if (search) {
     where.OR = [
       { name: { contains: search, mode: 'insensitive' } },
