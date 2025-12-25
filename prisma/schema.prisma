@@ -113,13 +113,23 @@ model Form {
 // PRICING MODULE
 // ============================================================================
 
-// Event pricing configuration: base price, currency, and embedded rules
+// Event pricing configuration: base price, currency, embedded rules, and payment methods
 model EventPricing {
   id        String   @id @default(uuid())
   eventId   String   @unique @map("event_id")
   basePrice Int      @default(0) @map("base_price")
   currency  String   @default("TND")
   rules     Json     @default("[]") // Embedded pricing rules array
+
+  // Payment Methods
+  onlinePaymentEnabled Boolean  @default(false) @map("online_payment_enabled")
+  onlinePaymentUrl     String?  @map("online_payment_url")
+
+  // Bank Transfer Details (bank transfer is always enabled)
+  bankName          String?  @map("bank_name")
+  bankAccountName   String?  @map("bank_account_name")
+  bankAccountNumber String?  @map("bank_account_number")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

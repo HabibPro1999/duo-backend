@@ -64,6 +64,13 @@ export const CreateEventPricingSchema = z
     basePrice: z.number().int().min(0).default(0),
     currency: z.string().length(3).default('TND'),
     rules: z.array(EmbeddedPricingRuleSchema).max(10).default([]),
+    // Payment Methods
+    onlinePaymentEnabled: z.boolean().default(false),
+    onlinePaymentUrl: z.string().url().optional().nullable(),
+    // Bank Transfer Details
+    bankName: z.string().max(200).optional().nullable(),
+    bankAccountName: z.string().max(200).optional().nullable(),
+    bankAccountNumber: z.string().max(50).optional().nullable(),
   })
   .strict();
 
@@ -72,6 +79,13 @@ export const UpdateEventPricingSchema = z
     basePrice: z.number().int().min(0).optional(),
     currency: z.string().length(3).optional(),
     rules: z.array(EmbeddedPricingRuleSchema).max(10).optional(),
+    // Payment Methods
+    onlinePaymentEnabled: z.boolean().optional(),
+    onlinePaymentUrl: z.string().url().optional().nullable(),
+    // Bank Transfer Details
+    bankName: z.string().max(200).optional().nullable(),
+    bankAccountName: z.string().max(200).optional().nullable(),
+    bankAccountNumber: z.string().max(50).optional().nullable(),
   })
   .strict();
 

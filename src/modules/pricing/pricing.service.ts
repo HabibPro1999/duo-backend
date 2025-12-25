@@ -36,7 +36,17 @@ export type EventPricingWithRules = Omit<EventPricing, 'rules'> & {
 export async function createEventPricing(
   input: CreateEventPricingInput
 ): Promise<EventPricingWithRules> {
-  const { eventId, basePrice, currency, rules } = input;
+  const {
+    eventId,
+    basePrice,
+    currency,
+    rules,
+    onlinePaymentEnabled,
+    onlinePaymentUrl,
+    bankName,
+    bankAccountName,
+    bankAccountNumber,
+  } = input;
 
   // Validate event exists
   const isValidEvent = await eventExists(eventId);
@@ -67,6 +77,12 @@ export async function createEventPricing(
       basePrice: basePrice ?? 0,
       currency: currency ?? 'TND',
       rules: rulesWithIds as Prisma.InputJsonValue,
+      // Payment Methods
+      onlinePaymentEnabled: onlinePaymentEnabled ?? false,
+      onlinePaymentUrl: onlinePaymentUrl ?? null,
+      bankName: bankName ?? null,
+      bankAccountName: bankAccountName ?? null,
+      bankAccountNumber: bankAccountNumber ?? null,
     },
   });
 
@@ -92,7 +108,7 @@ export async function getEventPricing(
 }
 
 /**
- * Update event pricing (base price, currency, and/or rules).
+ * Update event pricing (base price, currency, rules, and payment methods).
  */
 export async function updateEventPricing(
   eventId: string,
@@ -120,6 +136,17 @@ export async function updateEventPricing(
     }));
     updateData.rules = rulesWithIds as Prisma.InputJsonValue;
   }
+
+  // Payment Methods
+  if (input.onlinePaymentEnabled !== undefined)
+    updateData.onlinePaymentEnabled = input.onlinePaymentEnabled;
+  if (input.onlinePaymentUrl !== undefined)
+    updateData.onlinePaymentUrl = input.onlinePaymentUrl;
+  if (input.bankName !== undefined) updateData.bankName = input.bankName;
+  if (input.bankAccountName !== undefined)
+    updateData.bankAccountName = input.bankAccountName;
+  if (input.bankAccountNumber !== undefined)
+    updateData.bankAccountNumber = input.bankAccountNumber;
 
   const updated = await prisma.eventPricing.update({
     where: { eventId },
