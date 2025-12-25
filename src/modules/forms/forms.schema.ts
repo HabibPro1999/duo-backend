@@ -103,7 +103,7 @@ export const CreateFormSchema = z
   .object({
     eventId: z.string().uuid(),
     name: z.string().min(1).max(200),
-    schema: FormSchemaJsonSchema,
+    schema: FormSchemaJsonSchema.optional(), // Optional - backend provides defaults
     successTitle: z.string().optional().nullable(),
     successMessage: z.string().optional().nullable(),
   })

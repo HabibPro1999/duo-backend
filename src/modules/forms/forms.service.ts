@@ -1,9 +1,10 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
-import type { CreateFormInput, UpdateFormInput, ListFormsQuery } from './forms.schema.js';
+import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson } from './forms.schema.js';
 import type { Form, Prisma, Event, Client, EventAccess, EventPricing } from '@prisma/client';
 
 type FormWithRelations = Form & {
@@ -15,8 +16,67 @@ type FormWithRelations = Form & {
 };
 
 /**
+ * Generate default form schema with standard registration fields.
+ */
+function createDefaultSchema(): FormSchemaJson {
+  return {
+    steps: [
+      {
+        id: `step_${randomUUID()}`,
+        title: 'Informations personnelles',
+        description: 'Tous les champs marqués * sont obligatoires',
+        fields: [
+          {
+            id: `text_${randomUUID()}`,
+            type: 'text',
+            label: 'Prénom',
+            placeholder: 'Votre prénom',
+            required: true,
+            width: 'half',
+          },
+          {
+            id: `text_${randomUUID()}`,
+            type: 'text',
+            label: 'Nom',
+            placeholder: 'Votre nom',
+            required: true,
+            width: 'half',
+          },
+          {
+            id: `email_${randomUUID()}`,
+            type: 'email',
+            label: 'Email',
+            placeholder: 'votre.email@exemple.com',
+            required: true,
+            width: 'full',
+          },
+          {
+            id: `phone_${randomUUID()}`,
+            type: 'phone',
+            label: 'Téléphone',
+            placeholder: '+216 XX XXX XXX',
+            required: true,
+            width: 'full',
+            phoneFormat: 'TN',
+          },
+          {
+            id: `text_${randomUUID()}`,
+            type: 'text',
+            label: 'Lieu de travail',
+            placeholder: 'Nom de votre entreprise ou établissement',
+            required: true,
+            width: 'full',
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * Create a new form.
  * Each event can only have one form (enforced by unique constraint on eventId).
+ * If no schema is provided, uses default fields (Prénom, Nom, Email, Téléphone, Lieu de travail).
  */
 export async function createForm(input: CreateFormInput): Promise<Form> {
   const { eventId, name, schema, successTitle, successMessage } = input;
@@ -38,11 +98,14 @@ export async function createForm(input: CreateFormInput): Promise<Form> {
     );
   }
 
+  // Use provided schema or generate default
+  const formSchema = schema ?? createDefaultSchema();
+
   return prisma.form.create({
     data: {
       eventId,
       name,
-      schema: schema as Prisma.InputJsonValue,
+      schema: formSchema as Prisma.InputJsonValue,
       successTitle: successTitle ?? null,
       successMessage: successMessage ?? null,
     },
