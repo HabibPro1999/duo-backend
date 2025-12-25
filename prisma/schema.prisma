@@ -67,15 +67,12 @@ model Event {
   location        String?
   status          EventStatus    @default(CLOSED)
 
-  // Pricing (moved from Form)
-  basePrice       Int            @default(0) @map("base_price")
-  currency        String         @default("TND")
-
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
   client          Client         @relation(fields: [clientId], references: [id])
   form            Form?          // One-to-one: each event has exactly one form
+  pricing         EventPricing?  // One-to-one: pricing configuration
   pricingRules    PricingRule[]
   access          EventAccess[]
   registrations   Registration[]
@@ -116,6 +113,20 @@ model Form {
 // ============================================================================
 // PRICING MODULE
 // ============================================================================
+
+// Event pricing configuration: base price, currency
+model EventPricing {
+  id        String   @id @default(uuid())
+  eventId   String   @unique @map("event_id")
+  basePrice Int      @default(0) @map("base_price")
+  currency  String   @default("TND")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_pricing")
+}
 
 // Conditional base price rules: if form fields match conditions, override base price
 model PricingRule {
@@ -175,11 +186,6 @@ model EventAccess {
   maxCapacity     Int?         @map("max_capacity")
   registeredCount Int          @default(0) @map("registered_count")
 
-  // Waitlist
-  waitlistEnabled Boolean      @default(false) @map("waitlist_enabled")
-  waitlistCount   Int          @default(0) @map("waitlist_count")
-  maxWaitlist     Int?         @map("max_waitlist")
-
   // Availability window (when can people select this)
   availableFrom   DateTime?    @map("available_from")
   availableTo     DateTime?    @map("available_to")
@@ -215,7 +221,6 @@ model EventAccess {
 enum RegistrationStatus {
   PENDING
   CONFIRMED
-  WAITLISTED
   CANCELLED
   REFUNDED
 }
@@ -226,13 +231,6 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   WAIVED
-}
-
-enum AccessSelectionStatus {
-  CONFIRMED
-  WAITLISTED
-  PROMOTED
-  CANCELLED
 }
 
 model Registration {
@@ -301,31 +299,25 @@ model Registration {
 }
 
 model RegistrationAccess {
-  id               String                @id @default(uuid())
-  registrationId   String                @map("registration_id")
-  accessId         String                @map("access_id")
-
-  // Status for this specific access selection
-  status           AccessSelectionStatus @default(CONFIRMED)
+  id             String       @id @default(uuid())
+  registrationId String       @map("registration_id")
+  accessId       String       @map("access_id")
 
   // Price at time of selection (for audit)
-  unitPrice        Int                   @map("unit_price")
-  quantity         Int                   @default(1)
-  subtotal         Int
-
-  // Waitlist position (if applicable)
-  waitlistPosition Int?                  @map("waitlist_position")
+  unitPrice      Int          @map("unit_price")
+  quantity       Int          @default(1)
+  subtotal       Int
 
   // Timestamps
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
 
   // Relations
-  registration     Registration          @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  access           EventAccess           @relation(fields: [accessId], references: [id])
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  access         EventAccess  @relation(fields: [accessId], references: [id])
 
   @@unique([registrationId, accessId])
-  @@index([accessId, status])
+  @@index([accessId])
   @@map("registration_access")
 }
 

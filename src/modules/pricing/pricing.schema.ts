@@ -66,6 +66,40 @@ export const PricingRuleIdParamSchema = z
   .strict();
 
 // ============================================================================
+// Event Pricing Schemas (Base price configuration per event)
+// ============================================================================
+
+export const CreateEventPricingSchema = z
+  .object({
+    eventId: z.string().uuid(),
+    basePrice: z.number().int().min(0).default(0),
+    currency: z.string().length(3).default('TND'),
+  })
+  .strict();
+
+export const UpdateEventPricingSchema = z
+  .object({
+    basePrice: z.number().int().min(0).optional(),
+    currency: z.string().length(3).optional(),
+  })
+  .strict();
+
+export const EventPricingResponseSchema = z.object({
+  id: z.string(),
+  eventId: z.string(),
+  basePrice: z.number(),
+  currency: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const EventIdParamSchema = z
+  .object({
+    eventId: z.string().uuid(),
+  })
+  .strict();
+
+// ============================================================================
 // Price Calculation Schemas
 // ============================================================================
 
@@ -146,3 +180,6 @@ export type UpdatePricingRuleInput = z.infer<typeof UpdatePricingRuleSchema>;
 export type CalculatePriceRequest = z.infer<typeof CalculatePriceRequestSchema>;
 export type PriceBreakdown = z.infer<typeof PriceBreakdownSchema>;
 export type SelectedExtra = z.infer<typeof SelectedExtraSchema>;
+export type CreateEventPricingInput = z.infer<typeof CreateEventPricingSchema>;
+export type UpdateEventPricingInput = z.infer<typeof UpdateEventPricingSchema>;
+export type EventPricingResponse = z.infer<typeof EventPricingResponseSchema>;

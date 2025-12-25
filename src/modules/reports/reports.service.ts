@@ -216,6 +216,7 @@ async function getAccessBreakdown(
   }
 
   // Get access breakdown through registration access
+  // Note: All registration access records are confirmed (no status field)
   const accessData = await prisma.registrationAccess.groupBy({
     by: ['accessId'],
     where: {
@@ -223,7 +224,6 @@ async function getAccessBreakdown(
         eventId,
         ...(dateFilter.length > 0 && { AND: dateFilter }),
       },
-      status: 'CONFIRMED',
     },
     _count: true,
     _sum: {

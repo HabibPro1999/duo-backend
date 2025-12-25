@@ -4,12 +4,16 @@ import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { clientExists } from '@clients';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateEventInput, UpdateEventInput, ListEventsQuery } from './events.schema.js';
-import type { Event, Prisma } from '@prisma/client';
+import type { Event, EventPricing, Prisma } from '@prisma/client';
+
+// Type for Event with pricing included
+type EventWithPricing = Event & { pricing: EventPricing | null };
 
 /**
- * Create a new event.
+ * Create a new event with pricing configuration.
+ * Creates both Event and EventPricing atomically.
  */
-export async function createEvent(input: CreateEventInput): Promise<Event> {
+export async function createEvent(input: CreateEventInput): Promise<EventWithPricing> {
   const {
     clientId,
     name,
@@ -43,36 +47,51 @@ export async function createEvent(input: CreateEventInput): Promise<Event> {
     );
   }
 
-  return prisma.event.create({
-    data: {
-      clientId,
-      name,
-      slug,
-      description: description ?? null,
-      maxCapacity: maxCapacity ?? null,
-      startDate,
-      endDate,
-      location: location ?? null,
-      status: status ?? 'CLOSED',
-      basePrice: basePrice ?? 0,
-      currency: currency ?? 'TND',
-    },
+  // Create Event and EventPricing atomically
+  return prisma.$transaction(async (tx) => {
+    const event = await tx.event.create({
+      data: {
+        clientId,
+        name,
+        slug,
+        description: description ?? null,
+        maxCapacity: maxCapacity ?? null,
+        startDate,
+        endDate,
+        location: location ?? null,
+        status: status ?? 'CLOSED',
+      },
+    });
+
+    const pricing = await tx.eventPricing.create({
+      data: {
+        eventId: event.id,
+        basePrice: basePrice ?? 0,
+        currency: currency ?? 'TND',
+      },
+    });
+
+    return { ...event, pricing };
   });
 }
 
 /**
- * Get event by ID.
+ * Get event by ID with pricing.
  */
-export async function getEventById(id: string): Promise<Event | null> {
-  return prisma.event.findUnique({ where: { id } });
+export async function getEventById(id: string): Promise<EventWithPricing | null> {
+  return prisma.event.findUnique({
+    where: { id },
+    include: { pricing: true },
+  });
 }
 
 /**
  * Get event by slug (for public access).
  */
-export async function getEventBySlug(slug: string): Promise<Event | null> {
+export async function getEventBySlug(slug: string): Promise<EventWithPricing | null> {
   return prisma.event.findUnique({
     where: { slug },
+    include: { pricing: true },
   });
 }
 

@@ -8,7 +8,6 @@ import { AccessSelectionSchema } from '@access';
 export const RegistrationStatusSchema = z.enum([
   'PENDING',
   'CONFIRMED',
-  'WAITLISTED',
   'CANCELLED',
   'REFUNDED',
 ]);
@@ -140,7 +139,6 @@ export const PriceBreakdownSchema = z.object({
       unitPrice: z.number(),
       quantity: z.number(),
       subtotal: z.number(),
-      status: z.enum(['confirmed', 'waitlisted']),
     })
   ),
   accessTotal: z.number(),

@@ -15,7 +15,6 @@ export {
   checkAccessCapacity,
   reserveAccessSpot,
   releaseAccessSpot,
-  promoteFromWaitlist,
 } from './access.service.js';
 
 // Schemas

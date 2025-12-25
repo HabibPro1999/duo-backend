@@ -100,8 +100,13 @@ export const EventResponseSchema = z.object({
   endDate: z.date(),
   location: z.string().nullable(),
   status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']),
-  basePrice: z.number(),
-  currency: z.string(),
+  pricing: z
+    .object({
+      id: z.string(),
+      basePrice: z.number(),
+      currency: z.string(),
+    })
+    .nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

@@ -23,9 +23,7 @@ type EventAccessWithPrerequisites = EventAccess & {
 type EnrichedAccess = EventAccess & {
   requiredAccess: { id: string }[];
   spotsRemaining: number | null;
-  waitlistSpotsRemaining: number | null;
   isFull: boolean;
-  canJoinWaitlist: boolean;
 };
 
 // ============================================================================
@@ -69,8 +67,6 @@ export async function createEventAccess(
       price: data.price ?? 0,
       currency: data.currency ?? 'TND',
       maxCapacity: data.maxCapacity ?? null,
-      waitlistEnabled: data.waitlistEnabled ?? false,
-      maxWaitlist: data.maxWaitlist ?? null,
       availableFrom: data.availableFrom ?? null,
       availableTo: data.availableTo ?? null,
       conditions: data.conditions
@@ -113,8 +109,6 @@ export async function updateEventAccess(
   if (data.price !== undefined) updateData.price = data.price;
   if (data.currency !== undefined) updateData.currency = data.currency;
   if (data.maxCapacity !== undefined) updateData.maxCapacity = data.maxCapacity;
-  if (data.waitlistEnabled !== undefined) updateData.waitlistEnabled = data.waitlistEnabled;
-  if (data.maxWaitlist !== undefined) updateData.maxWaitlist = data.maxWaitlist;
   if (data.availableFrom !== undefined) updateData.availableFrom = data.availableFrom;
   if (data.availableTo !== undefined) updateData.availableTo = data.availableTo;
   if (data.conditions !== undefined) {
@@ -272,20 +266,11 @@ export async function getGroupedAccess(
     const spotsRemaining = access.maxCapacity
       ? access.maxCapacity - access.registeredCount
       : null;
-    const waitlistSpotsRemaining = access.maxWaitlist
-      ? access.maxWaitlist - access.waitlistCount
-      : null;
 
     return {
       ...access,
       spotsRemaining,
-      waitlistSpotsRemaining,
       isFull: spotsRemaining !== null && spotsRemaining <= 0,
-      canJoinWaitlist:
-        spotsRemaining !== null &&
-        spotsRemaining <= 0 &&
-        access.waitlistEnabled &&
-        (waitlistSpotsRemaining === null || waitlistSpotsRemaining > 0),
     };
   });
 
@@ -323,123 +308,75 @@ export async function getGroupedAccess(
 export async function checkAccessCapacity(
   accessId: string,
   quantity: number = 1
-): Promise<{ available: boolean; waitlistAvailable: boolean; spotsRemaining: number | null }> {
+): Promise<{ available: boolean; spotsRemaining: number | null }> {
   const access = await prisma.eventAccess.findUnique({ where: { id: accessId } });
+
   if (!access) {
-    return { available: false, waitlistAvailable: false, spotsRemaining: null };
+    return { available: false, spotsRemaining: null };
   }
 
   if (access.maxCapacity === null) {
-    return { available: true, waitlistAvailable: false, spotsRemaining: null };
+    return { available: true, spotsRemaining: null }; // Unlimited
   }
 
   const spotsRemaining = access.maxCapacity - access.registeredCount;
-  const available = spotsRemaining >= quantity;
-
-  let waitlistAvailable = false;
-  if (!available && access.waitlistEnabled) {
-    const waitlistSpotsRemaining = access.maxWaitlist
-      ? access.maxWaitlist - access.waitlistCount
-      : Infinity;
-    waitlistAvailable = waitlistSpotsRemaining >= quantity;
-  }
-
-  return { available, waitlistAvailable, spotsRemaining };
+  return { available: spotsRemaining >= quantity, spotsRemaining };
 }
 
+/**
+ * Reserve access spot with atomic capacity check.
+ * Uses updateMany with WHERE clause to prevent race conditions.
+ */
 export async function reserveAccessSpot(
   accessId: string,
-  quantity: number = 1,
-  allowWaitlist: boolean = false
-): Promise<{ status: 'confirmed' | 'waitlisted'; position?: number }> {
+  quantity: number = 1
+): Promise<void> {
   return prisma.$transaction(async (tx) => {
     const access = await tx.eventAccess.findUnique({ where: { id: accessId } });
+
     if (!access) {
-      throw new AppError('Access item not found', 404, true, ErrorCodes.ACCESS_NOT_FOUND);
+      throw new AppError('Access not found', 404, true, ErrorCodes.ACCESS_NOT_FOUND);
     }
 
-    // No capacity limit
+    // No capacity limit - just increment
     if (access.maxCapacity === null) {
       await tx.eventAccess.update({
         where: { id: accessId },
         data: { registeredCount: { increment: quantity } },
       });
-      return { status: 'confirmed' as const };
+      return;
     }
 
-    const spotsRemaining = access.maxCapacity - access.registeredCount;
+    // Atomic update with capacity check
+    // This only succeeds if registeredCount + quantity <= maxCapacity
+    const updateResult = await tx.eventAccess.updateMany({
+      where: {
+        id: accessId,
+        registeredCount: { lte: access.maxCapacity - quantity },
+      },
+      data: { registeredCount: { increment: quantity } },
+    });
 
-    // Has capacity
-    if (spotsRemaining >= quantity) {
-      await tx.eventAccess.update({
-        where: { id: accessId },
-        data: { registeredCount: { increment: quantity } },
-      });
-      return { status: 'confirmed' as const };
+    if (updateResult.count === 0) {
+      throw new AppError('No spots available', 409, true, ErrorCodes.ACCESS_CAPACITY_EXCEEDED);
     }
-
-    // Check waitlist
-    if (allowWaitlist && access.waitlistEnabled) {
-      const waitlistSpotsRemaining = access.maxWaitlist
-        ? access.maxWaitlist - access.waitlistCount
-        : Infinity;
-
-      if (waitlistSpotsRemaining >= quantity) {
-        const position = access.waitlistCount + 1;
-        await tx.eventAccess.update({
-          where: { id: accessId },
-          data: { waitlistCount: { increment: quantity } },
-        });
-        return { status: 'waitlisted' as const, position };
-      }
-
-      throw new AppError('Waitlist is full', 409, true, ErrorCodes.ACCESS_WAITLIST_FULL);
-    }
-
-    throw new AppError('No spots available', 409, true, ErrorCodes.ACCESS_CAPACITY_EXCEEDED);
   });
 }
 
+/**
+ * Release access spot with floor constraint to prevent negative counts.
+ */
 export async function releaseAccessSpot(
   accessId: string,
-  quantity: number = 1,
-  wasWaitlisted: boolean = false
+  quantity: number = 1
 ): Promise<void> {
-  await prisma.eventAccess.update({
-    where: { id: accessId },
-    data: wasWaitlisted
-      ? { waitlistCount: { decrement: quantity } }
-      : { registeredCount: { decrement: quantity } },
+  await prisma.eventAccess.updateMany({
+    where: {
+      id: accessId,
+      registeredCount: { gte: quantity },
+    },
+    data: { registeredCount: { decrement: quantity } },
   });
-}
-
-export async function promoteFromWaitlist(accessId: string): Promise<string | null> {
-  // Find first waitlisted registration for this access
-  const waitlistedRegistration = await prisma.registrationAccess.findFirst({
-    where: { accessId, status: 'WAITLISTED' },
-    orderBy: { waitlistPosition: 'asc' },
-    include: { registration: { select: { email: true } } },
-  });
-
-  if (!waitlistedRegistration) return null;
-
-  await prisma.$transaction([
-    // Update registration access status
-    prisma.registrationAccess.update({
-      where: { id: waitlistedRegistration.id },
-      data: { status: 'PROMOTED', waitlistPosition: null },
-    }),
-    // Update counts
-    prisma.eventAccess.update({
-      where: { id: accessId },
-      data: {
-        registeredCount: { increment: waitlistedRegistration.quantity },
-        waitlistCount: { decrement: waitlistedRegistration.quantity },
-      },
-    }),
-  ]);
-
-  return waitlistedRegistration.registration.email;
 }
 
 // ============================================================================
@@ -550,7 +487,7 @@ export async function validateAccessSelections(
     const access = accessMap.get(selection.accessId)!;
     if (access.maxCapacity !== null) {
       const spotsRemaining = access.maxCapacity - access.registeredCount;
-      if (spotsRemaining < selection.quantity && !access.waitlistEnabled) {
+      if (spotsRemaining < selection.quantity) {
         errors.push(`${access.name} is full`);
       }
     }

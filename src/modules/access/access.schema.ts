@@ -56,8 +56,6 @@ export const CreateEventAccessSchema = z
 
     // Capacity
     maxCapacity: z.number().int().positive().optional().nullable(),
-    waitlistEnabled: z.boolean().default(false),
-    maxWaitlist: z.number().int().positive().optional().nullable(),
 
     // Availability
     availableFrom: z.coerce.date().optional().nullable(),
@@ -83,15 +81,6 @@ export const CreateEventAccessSchema = z
       return true;
     },
     { message: 'End time must be after start time', path: ['endsAt'] }
-  )
-  .refine(
-    (data) => {
-      if (data.waitlistEnabled && data.maxCapacity === null) {
-        return false;
-      }
-      return true;
-    },
-    { message: 'Waitlist requires maxCapacity to be set', path: ['waitlistEnabled'] }
   );
 
 export const UpdateEventAccessSchema = z
@@ -105,8 +94,6 @@ export const UpdateEventAccessSchema = z
     price: z.number().int().min(0).optional(),
     currency: z.string().length(3).optional(),
     maxCapacity: z.number().int().positive().optional().nullable(),
-    waitlistEnabled: z.boolean().optional(),
-    maxWaitlist: z.number().int().positive().optional().nullable(),
     availableFrom: z.coerce.date().optional().nullable(),
     availableTo: z.coerce.date().optional().nullable(),
     conditions: z.array(AccessConditionSchema).optional().nullable(),

@@ -6,6 +6,8 @@ import {
   deletePricingRule,
   listPricingRules,
   getPricingRuleById,
+  getEventPricing,
+  updateEventPricing,
   calculatePrice,
 } from './pricing.service.js';
 import {
@@ -13,9 +15,11 @@ import {
   UpdatePricingRuleSchema,
   ListPricingRulesQuerySchema,
   PricingRuleIdParamSchema,
+  UpdateEventPricingSchema,
   CalculatePriceRequestSchema,
   type CreatePricingRuleInput,
   type UpdatePricingRuleInput,
+  type UpdateEventPricingInput,
   type CalculatePriceRequest,
 } from './pricing.schema.js';
 import { z } from 'zod';
@@ -164,6 +168,66 @@ export async function pricingRulesRoutes(app: AppInstance): Promise<void> {
 
       await deletePricingRule(id);
       return reply.status(204).send();
+    }
+  );
+
+  // GET /api/events/:eventId/pricing - Get event pricing configuration
+  app.get<{ Params: { eventId: string } }>(
+    '/:eventId/pricing',
+    {
+      schema: { params: EventIdParamSchema },
+    },
+    async (request, reply) => {
+      const { eventId } = request.params;
+
+      // Get event to check ownership
+      const event = await getEventById(eventId);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+
+      // Check if user is super_admin or accessing their own client's event
+      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
+      const isOwnClient = request.user!.clientId === event.clientId;
+
+      if (!isSuperAdmin && !isOwnClient) {
+        throw app.httpErrors.forbidden('Insufficient permissions to access this event');
+      }
+
+      const pricing = await getEventPricing(eventId);
+      if (!pricing) {
+        throw app.httpErrors.notFound('Event pricing not found');
+      }
+
+      return reply.send(pricing);
+    }
+  );
+
+  // PATCH /api/events/:eventId/pricing - Update event pricing configuration
+  app.patch<{ Params: { eventId: string }; Body: UpdateEventPricingInput }>(
+    '/:eventId/pricing',
+    {
+      schema: { params: EventIdParamSchema, body: UpdateEventPricingSchema },
+    },
+    async (request, reply) => {
+      const { eventId } = request.params;
+
+      // Get event to check ownership
+      const event = await getEventById(eventId);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+
+      // Check if user is super_admin or updating their own client's event
+      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
+      const isOwnClient = request.user!.clientId === event.clientId;
+
+      if (!isSuperAdmin && !isOwnClient) {
+        throw app.httpErrors.forbidden('Insufficient permissions to update this event');
+      }
+
+      const pricing = await updateEventPricing(eventId, request.body);
+      return reply.send(pricing);
     }
   );
 }

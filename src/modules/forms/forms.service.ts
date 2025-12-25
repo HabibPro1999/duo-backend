@@ -4,11 +4,12 @@ import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateFormInput, UpdateFormInput, ListFormsQuery } from './forms.schema.js';
-import type { Form, Prisma, Event, Client, PricingRule, EventAccess } from '@prisma/client';
+import type { Form, Prisma, Event, Client, PricingRule, EventAccess, EventPricing } from '@prisma/client';
 
 type FormWithRelations = Form & {
   event: Event & {
     client: Pick<Client, 'id' | 'name' | 'logo' | 'primaryColor'>;
+    pricing: EventPricing | null;
     pricingRules: PricingRule[];
     access: EventAccess[];
   };
@@ -79,6 +80,7 @@ export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRel
               primaryColor: true,
             },
           },
+          pricing: true,
           pricingRules: {
             where: { active: true },
             orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],

@@ -26,14 +26,12 @@ type RegistrationWithRelations = Registration & {
   accessSelections: Array<{
     id: string;
     accessId: string;
-    status: string;
     unitPrice: number;
     quantity: number;
     subtotal: number;
-    waitlistPosition: number | null;
     access: {
       id: string;
-      name: Prisma.JsonValue;
+      name: string;
       type: string;
       startsAt: Date | null;
       endsAt: Date | null;
@@ -159,23 +157,17 @@ export async function createRegistration(
         );
         if (!accessItem) continue;
 
-        // Reserve spot (may be waitlisted)
-        const reservation = await reserveAccessSpot(
-          selection.accessId,
-          selection.quantity,
-          true // Allow waitlist
-        );
+        // Reserve spot (atomic operation with capacity check)
+        await reserveAccessSpot(selection.accessId, selection.quantity);
 
         // Create registration access record
         await tx.registrationAccess.create({
           data: {
             registrationId: registration.id,
             accessId: selection.accessId,
-            status: reservation.status === 'confirmed' ? 'CONFIRMED' : 'WAITLISTED',
             unitPrice: accessItem.unitPrice,
             quantity: selection.quantity,
             subtotal: accessItem.subtotal,
-            waitlistPosition: reservation.position ?? null,
           },
         });
       }
@@ -309,16 +301,11 @@ export async function cancelRegistration(id: string): Promise<RegistrationWithRe
   return prisma.$transaction(async (tx) => {
     // Release access spots
     for (const selection of registration.accessSelections) {
-      await releaseAccessSpot(
-        selection.accessId,
-        selection.quantity,
-        selection.status === 'WAITLISTED'
-      );
+      await releaseAccessSpot(selection.accessId, selection.quantity);
 
-      // Update selection status
-      await tx.registrationAccess.update({
+      // Delete selection record
+      await tx.registrationAccess.delete({
         where: { id: selection.id },
-        data: { status: 'CANCELLED' },
       });
     }
 
