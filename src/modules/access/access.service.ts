@@ -8,7 +8,11 @@ import type {
   AccessSelection,
   GroupedAccessResponse,
   AccessCondition,
+  AccessType,
+  TimeSlot,
+  TypeGroup,
 } from './access.schema.js';
+import { ACCESS_TYPE_LABELS } from './access.schema.js';
 import { Prisma } from '@prisma/client';
 import type { EventAccess } from '@prisma/client';
 
@@ -75,6 +79,7 @@ export async function createEventAccess(
       conditionLogic: data.conditionLogic ?? 'AND',
       sortOrder: data.sortOrder ?? 0,
       active: data.active ?? true,
+      groupLabel: data.groupLabel ?? null,
       requiredAccess: requiredAccessIds?.length
         ? { connect: requiredAccessIds.map((id) => ({ id })) }
         : undefined,
@@ -118,6 +123,7 @@ export async function updateEventAccess(
   if (data.conditionLogic !== undefined) updateData.conditionLogic = data.conditionLogic;
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
   if (data.active !== undefined) updateData.active = data.active;
+  if (data.groupLabel !== undefined) updateData.groupLabel = data.groupLabel;
 
   // Handle prerequisites update
   if (requiredAccessIds !== undefined) {
@@ -210,13 +216,20 @@ export async function getAccessClientId(id: string): Promise<string | null> {
 }
 
 // ============================================================================
-// Time-Based Grouping (Core Feature)
+// Hierarchical Grouping (Type → Time Slots)
 // ============================================================================
 
 /**
- * Get access items grouped by start time for frontend rendering.
- * Items with the same startsAt are mutually exclusive (radio buttons).
- * Items with different startsAt or no time can be multi-selected (checkboxes).
+ * Get access items grouped hierarchically: TYPE → TIME SLOTS
+ *
+ * Structure:
+ * - Groups are organized by type (WORKSHOP, DINNER, etc.)
+ * - Within each type, items are sub-grouped by time slot (startsAt)
+ * - If 2+ items share the same time slot → selectionType: 'single' (radio)
+ * - If 1 item in a time slot → selectionType: 'multiple' (checkbox)
+ *
+ * This allows users to select one item from each parallel time slot
+ * (e.g., pick one of 3 workshops at 12:00, AND one of 2 workshops at 14:00)
  */
 export async function getGroupedAccess(
   eventId: string,
@@ -226,7 +239,7 @@ export async function getGroupedAccess(
   const allAccess = await prisma.eventAccess.findMany({
     where: { eventId, active: true },
     include: { requiredAccess: { select: { id: true } } },
-    orderBy: [{ startsAt: 'asc' }, { sortOrder: 'asc' }],
+    orderBy: [{ type: 'asc' }, { sortOrder: 'asc' }, { startsAt: 'asc' }],
   });
 
   const now = new Date();
@@ -274,31 +287,81 @@ export async function getGroupedAccess(
     };
   });
 
-  // Group by startsAt time
-  const timeGroups = new Map<string, EnrichedAccess[]>();
-  const ungrouped: EnrichedAccess[] = [];
+  // === Hierarchical grouping ===
+
+  // Step 1: Group by TYPE (and groupLabel for OTHER type)
+  const typeMap = new Map<string, EnrichedAccess[]>();
 
   for (const access of enrichedAccess) {
-    if (access.startsAt) {
-      const timeKey = access.startsAt.toISOString();
-      if (!timeGroups.has(timeKey)) {
-        timeGroups.set(timeKey, []);
-      }
-      timeGroups.get(timeKey)!.push(access);
-    } else {
-      ungrouped.push(access);
-    }
+    // For OTHER type, use groupLabel as key to allow custom groups
+    const key =
+      access.type === 'OTHER'
+        ? `OTHER:${access.groupLabel || ''}`
+        : access.type;
+
+    if (!typeMap.has(key)) typeMap.set(key, []);
+    typeMap.get(key)!.push(access);
   }
 
-  // Convert to response format
-  const groups = Array.from(timeGroups.entries()).map(([_timeKey, items]) => ({
-    startsAt: items[0].startsAt,
-    endsAt: items[0].endsAt,
-    selectionType: (items.length > 1 ? 'single' : 'multiple') as 'single' | 'multiple',
-    items,
-  }));
+  // Step 2: For each type, sub-group by TIME SLOT
+  const groups: TypeGroup[] = Array.from(typeMap.entries()).map(
+    ([key, items]) => {
+      const type = (key.startsWith('OTHER:') ? 'OTHER' : key) as AccessType;
+      const customLabel = key.startsWith('OTHER:') ? key.slice(6) : null;
 
-  return { groups, ungrouped };
+      // Sub-group by startsAt time
+      const slotMap = new Map<string, EnrichedAccess[]>();
+      for (const item of items) {
+        const timeKey = item.startsAt?.toISOString() || 'no-time';
+        if (!slotMap.has(timeKey)) slotMap.set(timeKey, []);
+        slotMap.get(timeKey)!.push(item);
+      }
+
+      // Convert to slots array
+      const slots: TimeSlot[] = Array.from(slotMap.entries())
+        .map(([_timeKey, slotItems]) => ({
+          startsAt: slotItems[0].startsAt,
+          endsAt: slotItems[0].endsAt,
+          // 2+ items at same time = single (radio), 1 item = multiple (checkbox)
+          selectionType: (slotItems.length > 1 ? 'single' : 'multiple') as
+            | 'single'
+            | 'multiple',
+          items: slotItems.sort((a, b) => a.sortOrder - b.sortOrder),
+        }))
+        .sort((a, b) => {
+          // Sort slots by time (null times at end)
+          if (!a.startsAt && !b.startsAt) return 0;
+          if (!a.startsAt) return 1;
+          if (!b.startsAt) return -1;
+          return a.startsAt.getTime() - b.startsAt.getTime();
+        });
+
+      return {
+        type,
+        label: customLabel || ACCESS_TYPE_LABELS[type] || type,
+        slots,
+      };
+    }
+  );
+
+  // Sort groups by type order
+  const typeOrder: AccessType[] = [
+    'SESSION',
+    'WORKSHOP',
+    'DINNER',
+    'NETWORKING',
+    'ACCOMMODATION',
+    'TRANSPORT',
+    'OTHER',
+  ];
+  groups.sort((a, b) => {
+    const orderA = typeOrder.indexOf(a.type);
+    const orderB = typeOrder.indexOf(b.type);
+    if (orderA !== orderB) return orderA - orderB;
+    return a.label.localeCompare(b.label);
+  });
+
+  return { groups };
 }
 
 // ============================================================================
@@ -417,26 +480,43 @@ export async function validateAccessSelections(
     return { valid: false, errors };
   }
 
-  // Check time conflicts (items with same startsAt)
-  const timeSlots = new Map<string, string[]>();
+  // Check time conflicts WITHIN EACH TYPE (items with same startsAt in same type)
+  // Group selections by type first, then check time slots within each type
+  const selectionsByType = new Map<
+    string,
+    { access: EventAccess; selection: AccessSelection }[]
+  >();
+
   for (const selection of selections) {
     const access = accessMap.get(selection.accessId)!;
-    if (access.startsAt) {
-      const timeKey = access.startsAt.toISOString();
-      if (!timeSlots.has(timeKey)) {
-        timeSlots.set(timeKey, []);
-      }
-      timeSlots.get(timeKey)!.push(selection.accessId);
-    }
+    // For OTHER type, use groupLabel as key to allow custom groups
+    const typeKey =
+      access.type === 'OTHER'
+        ? `OTHER:${access.groupLabel || ''}`
+        : access.type;
+
+    if (!selectionsByType.has(typeKey)) selectionsByType.set(typeKey, []);
+    selectionsByType.get(typeKey)!.push({ access, selection });
   }
 
-  for (const items of timeSlots.values()) {
-    if (items.length > 1) {
-      const names = items.map((id) => {
-        const access = accessMap.get(id)!;
-        return access.name;
-      });
-      errors.push(`Time conflict: Can only select one of: ${names.join(', ')}`);
+  // For each type group, check if multiple selections have same startsAt
+  for (const typeItems of selectionsByType.values()) {
+    // Group by time slot within this type
+    const byTimeSlot = new Map<string, string[]>();
+
+    for (const { access } of typeItems) {
+      if (access.startsAt) {
+        const timeKey = access.startsAt.toISOString();
+        if (!byTimeSlot.has(timeKey)) byTimeSlot.set(timeKey, []);
+        byTimeSlot.get(timeKey)!.push(access.name);
+      }
+    }
+
+    // Check for conflicts (2+ selections in same time slot)
+    for (const names of byTimeSlot.values()) {
+      if (names.length > 1) {
+        errors.push(`Time conflict: Cannot select both "${names.join('" and "')}"`);
+      }
     }
   }
 

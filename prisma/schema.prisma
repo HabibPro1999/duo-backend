@@ -188,6 +188,9 @@ model EventAccess {
   sortOrder       Int          @default(0) @map("sort_order")
   active          Boolean      @default(true)
 
+  // Custom grouping (for OTHER type - allows custom group labels like "Excursions")
+  groupLabel      String?      @map("group_label")
+
   // Timestamps
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")

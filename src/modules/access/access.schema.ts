@@ -35,6 +35,20 @@ export const AccessTypeSchema = z.enum([
 ]);
 
 // ============================================================================
+// Type Labels (French)
+// ============================================================================
+
+export const ACCESS_TYPE_LABELS: Record<string, string> = {
+  WORKSHOP: 'Ateliers',
+  DINNER: 'Dîners',
+  SESSION: 'Sessions',
+  NETWORKING: 'Networking',
+  ACCOMMODATION: 'Hébergement',
+  TRANSPORT: 'Transport',
+  OTHER: 'Autres',
+};
+
+// ============================================================================
 // Create/Update Schemas
 // ============================================================================
 
@@ -71,6 +85,9 @@ export const CreateEventAccessSchema = z
     // Display
     sortOrder: z.number().int().default(0),
     active: z.boolean().default(true),
+
+    // Custom grouping (for OTHER type - allows custom group labels)
+    groupLabel: z.string().max(100).optional().nullable(),
   })
   .strict()
   .refine(
@@ -101,6 +118,7 @@ export const UpdateEventAccessSchema = z
     requiredAccessIds: z.array(z.string().uuid()).optional(),
     sortOrder: z.number().int().optional(),
     active: z.boolean().optional(),
+    groupLabel: z.string().max(100).optional().nullable(),
   })
   .strict();
 
@@ -131,19 +149,24 @@ export const EventIdParamSchema = z
   .strict();
 
 // ============================================================================
-// Grouped Access Response (for frontend)
+// Grouped Access Response (Hierarchical: Type → Time Slots)
 // ============================================================================
 
-export const AccessGroupSchema = z.object({
+export const TimeSlotSchema = z.object({
   startsAt: z.date().nullable(),
   endsAt: z.date().nullable(),
   selectionType: z.enum(['single', 'multiple']),
   items: z.array(z.any()),
 });
 
+export const TypeGroupSchema = z.object({
+  type: AccessTypeSchema,
+  label: z.string(),
+  slots: z.array(TimeSlotSchema),
+});
+
 export const GroupedAccessResponseSchema = z.object({
-  groups: z.array(AccessGroupSchema),
-  ungrouped: z.array(z.any()),
+  groups: z.array(TypeGroupSchema),
 });
 
 // ============================================================================
@@ -184,7 +207,8 @@ export type AccessCondition = z.infer<typeof AccessConditionSchema>;
 export type CreateEventAccessInput = z.infer<typeof CreateEventAccessSchema>;
 export type UpdateEventAccessInput = z.infer<typeof UpdateEventAccessSchema>;
 export type AccessSelection = z.infer<typeof AccessSelectionSchema>;
-export type AccessGroup = z.infer<typeof AccessGroupSchema>;
+export type TimeSlot = z.infer<typeof TimeSlotSchema>;
+export type TypeGroup = z.infer<typeof TypeGroupSchema>;
 export type GroupedAccessResponse = z.infer<typeof GroupedAccessResponseSchema>;
 export type GetGroupedAccessBody = z.infer<typeof GetGroupedAccessBodySchema>;
 export type ValidateAccessSelectionsBody = z.infer<typeof ValidateAccessSelectionsBodySchema>;
