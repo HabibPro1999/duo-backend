@@ -9,6 +9,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -30,7 +31,6 @@ export default defineConfig({
       '@pricing': path.resolve(__dirname, './src/modules/pricing/index.ts'),
       '@access': path.resolve(__dirname, './src/modules/access/index.ts'),
       '@registrations': path.resolve(__dirname, './src/modules/registrations/index.ts'),
-      '@drafts': path.resolve(__dirname, './src/modules/drafts/index.ts'),
       '@reports': path.resolve(__dirname, './src/modules/reports/index.ts'),
     },
   },
