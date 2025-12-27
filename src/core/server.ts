@@ -16,7 +16,6 @@ import { formsRoutes, formsPublicRoutes } from '@forms';
 import { pricingRulesRoutes, pricingPublicRoutes } from '@pricing';
 import { accessRoutes, accessPublicRoutes } from '@access';
 import { registrationsRoutes, registrationsPublicRoutes } from '@registrations';
-import { draftsPublicRoutes } from '@drafts';
 import { reportsRoutes } from '@reports';
 import type { AppInstance } from '@shared/types/fastify.js';
 
@@ -79,9 +78,6 @@ export async function buildServer(): Promise<AppInstance> {
   // Registration routes
   await app.register(registrationsRoutes, { prefix: '/api/events' });
   await app.register(registrationsPublicRoutes, { prefix: '/api/public/forms' });
-
-  // Draft routes (for saving incomplete registrations)
-  await app.register(draftsPublicRoutes, { prefix: '/api/public/drafts' });
 
   // Reports routes (financial reporting)
   await app.register(reportsRoutes, { prefix: '/api/events' });

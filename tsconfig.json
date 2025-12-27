@@ -32,7 +32,6 @@
       "@pricing": ["./src/modules/pricing/index.ts"],
       "@access": ["./src/modules/access/index.ts"],
       "@registrations": ["./src/modules/registrations/index.ts"],
-      "@drafts": ["./src/modules/drafts/index.ts"],
       "@reports": ["./src/modules/reports/index.ts"]
     }
   },

@@ -44,10 +44,6 @@ export default tseslint.config(
             message: 'Import from @registrations barrel, not internal files'
           },
           {
-            group: ['**/modules/drafts/**', '!**/modules/drafts/index.js'],
-            message: 'Import from @drafts barrel, not internal files'
-          },
-          {
             group: ['**/modules/reports/**', '!**/modules/reports/index.js'],
             message: 'Import from @reports barrel, not internal files'
           }

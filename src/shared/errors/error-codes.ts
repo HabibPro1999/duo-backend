@@ -52,12 +52,7 @@ export const ErrorCodes = {
   FORM_FILE_TOO_LARGE: 'FRM_9005',
   FORM_FILE_INVALID_TYPE: 'FRM_9006',
 
-  // Drafts (10xxx)
-  DRAFT_NOT_FOUND: 'DRF_10001',
-  DRAFT_EXPIRED: 'DRF_10002',
-  DRAFT_INVALID_SESSION: 'DRF_10003',
-
-  // Reports (11xxx)
+  // Reports (10xxx)
   REPORT_GENERATION_FAILED: 'RPT_11001',
   EXPORT_FAILED: 'RPT_11002',
 } as const;

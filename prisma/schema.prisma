@@ -103,7 +103,6 @@ model Form {
 
   event           Event          @relation(fields: [eventId], references: [id])
   registrations   Registration[]
-  drafts          RegistrationDraft[]
 
   @@index([eventId])
   @@map("forms")
@@ -329,42 +328,3 @@ model RegistrationNote {
   @@map("registration_notes")
 }
 
-// ============================================================================
-// DRAFTS MODULE
-// ============================================================================
-
-model RegistrationDraft {
-  id               String    @id @default(uuid())
-  formId           String    @map("form_id")
-
-  // Session identification (for anonymous drafts)
-  sessionToken     String    @unique @map("session_token")
-
-  // Draft data
-  formData         Json      @map("form_data")
-  currentStep      Int       @default(0) @map("current_step")
-
-  // Optional user identification (for resumption by email)
-  email            String?
-
-  // Access selections (saved but not reserved)
-  accessSelections Json?     @map("access_selections")
-
-  // Sponsorship code (validated but not claimed)
-  sponsorshipCode  String?   @map("sponsorship_code")
-
-  // Expiration
-  expiresAt        DateTime  @map("expires_at")
-
-  // Timestamps
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-
-  // Relations
-  form             Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
-
-  @@index([formId])
-  @@index([email])
-  @@index([expiresAt])
-  @@map("registration_drafts")
-}
