@@ -273,6 +273,12 @@ model Registration {
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
 
+  // Amendment tracking (self-service editing)
+  additionalAmountDue Int              @default(0) @map("additional_amount_due")
+  lastEditedAt        DateTime?        @map("last_edited_at")
+  editCount           Int              @default(0) @map("edit_count")
+  amendmentHistory    Json             @default("[]") @map("amendment_history")
+
   // Relations
   form              Form               @relation(fields: [formId], references: [id])
   event             Event              @relation(fields: [eventId], references: [id])

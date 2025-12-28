@@ -9,6 +9,7 @@ import {
   addRegistrationNote,
   listRegistrationNotes,
   getRegistrationClientId,
+  getRegistrationTableColumns,
 } from './registrations.service.js';
 import {
   RegistrationIdParamSchema,
@@ -35,6 +36,34 @@ const UserRole = {
 
 export async function registrationsRoutes(app: AppInstance): Promise<void> {
   app.addHook('onRequest', requireAuth);
+
+  // GET /api/events/:eventId/registrations/columns - Get table column definitions
+  app.get<{
+    Params: { eventId: string };
+  }>(
+    '/:eventId/registrations/columns',
+    {
+      schema: { params: EventIdParamSchema },
+    },
+    async (request, reply) => {
+      const { eventId } = request.params;
+
+      const event = await getEventById(eventId);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+
+      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
+      const isOwnClient = request.user!.clientId === event.clientId;
+
+      if (!isSuperAdmin && !isOwnClient) {
+        throw app.httpErrors.forbidden('Insufficient permissions');
+      }
+
+      const columns = await getRegistrationTableColumns(eventId);
+      return reply.send(columns);
+    }
+  );
 
   // GET /api/events/:eventId/registrations - List registrations for an event
   app.get<{

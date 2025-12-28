@@ -1,11 +1,18 @@
-import { createRegistration } from './registrations.service.js';
+import {
+  createRegistration,
+  getRegistrationForEdit,
+  editRegistrationPublic,
+} from './registrations.service.js';
 import { calculatePrice } from '@pricing';
 import { getFormById } from '@forms';
 import { getEventById } from '@events';
 import {
   CreateRegistrationSchema,
   FormIdParamSchema,
+  RegistrationIdPublicParamSchema,
+  PublicEditRegistrationSchema,
   type CreateRegistrationInput,
+  type PublicEditRegistrationInput,
 } from './registrations.schema.js';
 import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
 import { AppError } from '@shared/errors/app-error.js';
@@ -102,6 +109,49 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
         registration,
         priceBreakdown: registrationPriceBreakdown,
       });
+    }
+  );
+}
+
+// ============================================================================
+// Public Registration Edit Routes (Self-Service)
+// ============================================================================
+
+export async function registrationEditPublicRoutes(app: AppInstance): Promise<void> {
+  // GET /api/public/registrations/:registrationId - Get registration for editing
+  app.get<{
+    Params: { registrationId: string };
+  }>(
+    '/:registrationId',
+    {
+      schema: {
+        params: RegistrationIdPublicParamSchema,
+      },
+    },
+    async (request, reply) => {
+      const { registrationId } = request.params;
+      const result = await getRegistrationForEdit(registrationId);
+      return reply.send(result);
+    }
+  );
+
+  // PATCH /api/public/registrations/:registrationId - Edit registration
+  app.patch<{
+    Params: { registrationId: string };
+    Body: PublicEditRegistrationInput;
+  }>(
+    '/:registrationId',
+    {
+      schema: {
+        params: RegistrationIdPublicParamSchema,
+        body: PublicEditRegistrationSchema,
+      },
+    },
+    async (request, reply) => {
+      const { registrationId } = request.params;
+      const input = request.body;
+      const result = await editRegistrationPublic(registrationId, input);
+      return reply.send(result);
     }
   );
 }

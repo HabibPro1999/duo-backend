@@ -118,6 +118,110 @@ export const CreateRegistrationNoteSchema = z
   .strict();
 
 // ============================================================================
+// Amendment History Schemas (Self-Service Editing)
+// ============================================================================
+
+export const FormDataChangeSchema = z.object({
+  fieldId: z.string(),
+  oldValue: z.any(),
+  newValue: z.any(),
+});
+
+export const AccessChangeSchema = z.object({
+  type: z.enum(['added', 'removed']),
+  accessId: z.string().uuid(),
+  accessName: z.string(),
+  quantity: z.number().int().positive(),
+  priceImpact: z.number().int(),
+});
+
+export const AmendmentRecordSchema = z.object({
+  id: z.string().uuid(),
+  timestamp: z.string().datetime(),
+  changeType: z.enum(['form_data', 'access_added', 'access_removed', 'mixed']),
+  formDataChanges: z.array(FormDataChangeSchema).optional(),
+  accessChanges: z.array(AccessChangeSchema).optional(),
+  previousTotal: z.number().int(),
+  newTotal: z.number().int(),
+  previousAdditionalDue: z.number().int(),
+  newAdditionalDue: z.number().int(),
+  priceBreakdownSnapshot: z.lazy(() => PriceBreakdownSchema),
+});
+
+// ============================================================================
+// Public Edit Registration Schema (Self-Service)
+// ============================================================================
+
+export const PublicEditRegistrationSchema = z
+  .object({
+    // Form data updates (partial - only changed fields)
+    formData: z.record(z.string(), z.any()).optional(),
+
+    // Contact info updates
+    firstName: z.string().max(100).optional(),
+    lastName: z.string().max(100).optional(),
+    phone: z.string().max(50).optional(),
+    // Note: email cannot be changed (it's the unique identifier)
+
+    // Access selections (full replacement of current selections)
+    accessSelections: z.array(AccessSelectionSchema).optional(),
+  })
+  .strict()
+  .refine(
+    (data) =>
+      data.formData !== undefined ||
+      data.firstName !== undefined ||
+      data.lastName !== undefined ||
+      data.phone !== undefined ||
+      data.accessSelections !== undefined,
+    { message: 'At least one field must be provided for update' }
+  );
+
+export const RegistrationIdPublicParamSchema = z
+  .object({
+    registrationId: z.string().uuid(),
+  })
+  .strict();
+
+// ============================================================================
+// Table Column Schemas (for dynamic table rendering)
+// ============================================================================
+
+export const TableColumnTypeSchema = z.enum([
+  'text',
+  'email',
+  'phone',
+  'number',
+  'date',
+  'datetime',
+  'dropdown',
+  'radio',
+  'checkbox',
+  'currency',
+  'status',
+  'payment',
+  'file',
+  'textarea',
+]);
+
+export const TableColumnOptionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+});
+
+export const TableColumnSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: TableColumnTypeSchema,
+  options: z.array(TableColumnOptionSchema).optional(),
+});
+
+export const RegistrationColumnsResponseSchema = z.object({
+  formColumns: z.array(TableColumnSchema),
+  fixedColumns: z.array(TableColumnSchema),
+});
+
+// ============================================================================
 // Price Calculation Integration
 // ============================================================================
 
@@ -167,3 +271,11 @@ export type UpdatePaymentInput = z.infer<typeof UpdatePaymentSchema>;
 export type CreateRegistrationNoteInput = z.infer<typeof CreateRegistrationNoteSchema>;
 export type ListRegistrationsQuery = z.infer<typeof ListRegistrationsQuerySchema>;
 export type PriceBreakdown = z.infer<typeof PriceBreakdownSchema>;
+export type PublicEditRegistrationInput = z.infer<typeof PublicEditRegistrationSchema>;
+export type AmendmentRecord = z.infer<typeof AmendmentRecordSchema>;
+export type FormDataChange = z.infer<typeof FormDataChangeSchema>;
+export type AccessChange = z.infer<typeof AccessChangeSchema>;
+export type TableColumnType = z.infer<typeof TableColumnTypeSchema>;
+export type TableColumnOption = z.infer<typeof TableColumnOptionSchema>;
+export type TableColumn = z.infer<typeof TableColumnSchema>;
+export type RegistrationColumnsResponse = z.infer<typeof RegistrationColumnsResponseSchema>;
