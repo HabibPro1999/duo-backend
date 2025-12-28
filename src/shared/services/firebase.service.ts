@@ -4,9 +4,18 @@ import type { Storage } from 'firebase-admin/storage';
 import { config } from '@config/app.config.js';
 
 // Initialize Firebase Admin SDK
-// Uses GOOGLE_APPLICATION_CREDENTIALS env var for service account
+// Uses FIREBASE_SERVICE_ACCOUNT env var (JSON string) or falls back to GOOGLE_APPLICATION_CREDENTIALS
+function getCredential() {
+  if (config.firebase.serviceAccount) {
+    const serviceAccount = JSON.parse(config.firebase.serviceAccount);
+    return admin.credential.cert(serviceAccount);
+  }
+  // Fallback to application default (GOOGLE_APPLICATION_CREDENTIALS file path)
+  return admin.credential.applicationDefault();
+}
+
 const app = admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
+  credential: getCredential(),
   storageBucket: config.firebase.storageBucket,
 });
 

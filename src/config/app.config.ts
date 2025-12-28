@@ -8,6 +8,8 @@ const envSchema = z.object({
   // Firebase
   FIREBASE_PROJECT_ID: z.string(),
   FIREBASE_STORAGE_BUCKET: z.string(),
+  // Firebase service account JSON (for cloud deployments)
+  FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
 });
 
 const env = envSchema.parse(process.env);
@@ -29,5 +31,6 @@ export const config = {
   firebase: {
     projectId: env.FIREBASE_PROJECT_ID,
     storageBucket: env.FIREBASE_STORAGE_BUCKET,
+    serviceAccount: env.FIREBASE_SERVICE_ACCOUNT,
   },
 };

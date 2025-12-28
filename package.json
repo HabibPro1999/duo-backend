@@ -13,6 +13,7 @@
     "db:generate": "bun x prisma generate",
     "db:push": "bun x prisma db push",
     "db:migrate": "bun x prisma migrate dev",
+    "db:seed": "bun prisma/seed.ts",
     "test": "bun x vitest",
     "test:run": "bun x vitest run",
     "test:coverage": "bun x vitest run --coverage"
