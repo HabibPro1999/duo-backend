@@ -4,10 +4,12 @@ import type { Storage } from 'firebase-admin/storage';
 import { config } from '@config/app.config.js';
 
 // Initialize Firebase Admin SDK
-// Uses FIREBASE_SERVICE_ACCOUNT env var (JSON string) or falls back to GOOGLE_APPLICATION_CREDENTIALS
+// Uses FIREBASE_SERVICE_ACCOUNT env var (Base64-encoded JSON) or falls back to GOOGLE_APPLICATION_CREDENTIALS
 function getCredential() {
   if (config.firebase.serviceAccount) {
-    const serviceAccount = JSON.parse(config.firebase.serviceAccount);
+    // Decode Base64 to JSON string, then parse
+    const jsonString = Buffer.from(config.firebase.serviceAccount, 'base64').toString('utf-8');
+    const serviceAccount = JSON.parse(jsonString);
     return admin.credential.cert(serviceAccount);
   }
   // Fallback to application default (GOOGLE_APPLICATION_CREDENTIALS file path)
