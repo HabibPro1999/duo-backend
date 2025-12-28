@@ -14,10 +14,6 @@ RUN bun install --frozen-lockfile --production && \
 # Production image
 FROM base AS release
 
-# Security: create non-root user first
-RUN addgroup -g 1001 -S bun && \
-    adduser -S bun -u 1001
-
 # Copy dependencies
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
@@ -26,8 +22,7 @@ COPY --from=deps /app/prisma ./prisma
 COPY src ./src
 COPY tsconfig.json ./
 
-# Set ownership
-RUN chown -R bun:bun /app
+# Use existing bun user from base image
 USER bun
 
 ENV NODE_ENV=production
