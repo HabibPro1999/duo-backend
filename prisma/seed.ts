@@ -39,6 +39,24 @@ async function main() {
   console.log('🌱 Starting comprehensive seed...\n');
 
   // --------------------------------------------------------------------------
+  // 0. CLEANUP EXISTING DATA
+  // --------------------------------------------------------------------------
+  console.log('🧹 Cleaning up existing seed data...');
+
+  // Delete in order of dependencies (children first)
+  await prisma.registrationNote.deleteMany({});
+  await prisma.registrationAccess.deleteMany({});
+  await prisma.registration.deleteMany({});
+  await prisma.eventAccess.deleteMany({});
+  await prisma.eventPricing.deleteMany({});
+  await prisma.form.deleteMany({});
+  await prisma.event.deleteMany({});
+  await prisma.client.deleteMany({});
+  await prisma.user.deleteMany({ where: { role: { not: 0 } } }); // Keep super admins
+
+  console.log('   ✓ Cleanup complete\n');
+
+  // --------------------------------------------------------------------------
   // 1. CLIENT
   // --------------------------------------------------------------------------
   console.log('📦 Creating client...');
@@ -250,7 +268,7 @@ async function main() {
             conditions: [
               {
                 id: 'cond_other_specialty',
-                field: 'specialty',
+                fieldId: 'specialty',
                 operator: 'equals',
                 value: 'other',
               },
@@ -442,7 +460,7 @@ async function main() {
             conditions: [
               {
                 id: 'cond_other_diet',
-                field: 'dietary',
+                fieldId: 'dietary',
                 operator: 'equals',
                 value: 'other_diet',
               },
