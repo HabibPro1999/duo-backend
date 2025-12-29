@@ -387,11 +387,18 @@ export async function listRegistrations(
 // Table Columns (for dynamic table rendering)
 // ============================================================================
 
+type FieldCondition = {
+  fieldId: string;
+  operator: string;
+  value?: string | number | boolean;
+};
+
 type FormField = {
   id: string;
   type: string;
   label?: string;
-  options?: Array<{ id: string; label: string }>;
+  options?: Array<{ id: string; label: string; value?: string }>;
+  conditions?: FieldCondition[];
 };
 
 type FormSchemaSteps = {
@@ -404,6 +411,10 @@ export type RegistrationTableColumns = {
     label: string;
     type: string;
     options?: Array<{ id: string; label: string }>;
+    mergeWith?: {
+      fieldId: string;
+      triggerValue: string;
+    };
   }>;
   fixedColumns: Array<{
     id: string;
@@ -411,6 +422,46 @@ export type RegistrationTableColumns = {
     type: string;
   }>;
 };
+
+// ============================================================================
+// Smart Merge Helpers
+// ============================================================================
+
+const SPECIFY_OTHER_TRIGGER_VALUES = ['other', 'autre', 'other_diet'];
+
+/**
+ * Find a "specify other" child field for a given parent field.
+ * Returns the child field that:
+ * - Has conditions referencing the parent field
+ * - Uses 'equals' operator with an "other" value
+ */
+function findSpecifyOtherChild(
+  parentField: FormField,
+  allFields: FormField[]
+): FormField | null {
+  // Only for selection fields
+  if (!['dropdown', 'radio'].includes(parentField.type)) return null;
+
+  // Check if parent has an "other" option
+  const hasOtherOption = parentField.options?.some(
+    (opt) =>
+      SPECIFY_OTHER_TRIGGER_VALUES.includes(opt.id.toLowerCase()) ||
+      SPECIFY_OTHER_TRIGGER_VALUES.includes(opt.value?.toLowerCase() ?? '')
+  );
+  if (!hasOtherOption) return null;
+
+  // Find child field that depends on this parent with equals/other condition
+  return (
+    allFields.find((child) =>
+      child.conditions?.some(
+        (cond) =>
+          cond.fieldId === parentField.id &&
+          cond.operator === 'equals' &&
+          SPECIFY_OTHER_TRIGGER_VALUES.includes(String(cond.value ?? '').toLowerCase())
+      )
+    ) ?? null
+  );
+}
 
 /**
  * Get default fixed columns when no form exists.
@@ -432,6 +483,7 @@ function getDefaultFixedColumns() {
  * Get table column definitions for a registration table.
  * Returns dynamic columns from form schema + fixed columns from registration model.
  * Fixed column labels are derived from the form's first step fields.
+ * Conditional "specify other" fields are merged with their parent columns.
  */
 export async function getRegistrationTableColumns(
   eventId: string
@@ -446,6 +498,7 @@ export async function getRegistrationTableColumns(
   }
 
   const schema = form.schema as FormSchemaSteps;
+  const allFields = schema.steps.flatMap((s) => s.fields);
   const firstStep = schema.steps[0];
   const firstStepFields = firstStep?.fields ?? [];
 
@@ -466,20 +519,51 @@ export async function getRegistrationTableColumns(
     )
   );
 
-  // Extract form fields, skip display-only types and contact fields from first step
+  // Track which fields should be merged (excluded as standalone columns)
+  const mergedChildFieldIds = new Set<string>();
+
+  // First pass: identify all merged child fields
+  for (const field of allFields) {
+    const specifyOtherChild = findSpecifyOtherChild(field, allFields);
+    if (specifyOtherChild) {
+      mergedChildFieldIds.add(specifyOtherChild.id);
+    }
+  }
+
+  // Build form columns with merge metadata
   const formColumns = schema.steps.flatMap((step, stepIndex) =>
     step.fields
       .filter((f) => !['heading', 'paragraph'].includes(f.type))
       .filter((f) => !(stepIndex === 0 && contactFieldIds.has(f.id)))
-      .map((field) => ({
-        id: field.id,
-        label: field.label ?? field.id,
-        type: field.type,
-        options: field.options?.map((opt) => ({
-          id: opt.id,
-          label: opt.label,
-        })),
-      }))
+      .filter((f) => !mergedChildFieldIds.has(f.id)) // Exclude merged children
+      .map((field) => {
+        const specifyOtherChild = findSpecifyOtherChild(field, allFields);
+
+        if (specifyOtherChild) {
+          // Find the trigger value from the child's condition
+          const triggerCondition = specifyOtherChild.conditions?.find(
+            (c) => c.fieldId === field.id && c.operator === 'equals'
+          );
+
+          return {
+            id: field.id,
+            label: field.label ?? field.id,
+            type: field.type,
+            options: field.options?.map((opt) => ({ id: opt.id, label: opt.label })),
+            mergeWith: {
+              fieldId: specifyOtherChild.id,
+              triggerValue: String(triggerCondition?.value ?? 'other'),
+            },
+          };
+        }
+
+        return {
+          id: field.id,
+          label: field.label ?? field.id,
+          type: field.type,
+          options: field.options?.map((opt) => ({ id: opt.id, label: opt.label })),
+        };
+      })
   );
 
   // Fixed columns with labels from form schema
