@@ -33,3 +33,4 @@ firebase/
 # Prisma
 prisma/*.db
 prisma/*.db-journal
+prisma/seed.ts
