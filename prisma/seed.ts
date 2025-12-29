@@ -911,6 +911,241 @@ async function main() {
   console.log('     - 1 Prerequisite relationship (workshop → certificate)');
 
   // --------------------------------------------------------------------------
+  // 6. SAMPLE REGISTRATIONS
+  // --------------------------------------------------------------------------
+  console.log('📋 Creating sample registrations...');
+
+  const sampleRegistrations = [
+    {
+      email: 'ahmed.benali@email.com',
+      firstName: 'Ahmed',
+      lastName: 'Ben Ali',
+      phone: '+216 98 123 456',
+      status: 'CONFIRMED' as const,
+      paymentStatus: 'PAID' as const,
+      totalAmount: 300000,
+      paidAmount: 300000,
+      formData: {
+        text_prenom: 'Ahmed',
+        text_nom: 'Ben Ali',
+        email_contact: 'ahmed.benali@email.com',
+        phone_contact: '+216 98 123 456',
+        date_birth: '1985-03-15',
+        specialty: 'cardio_interventionnelle',
+        attendeeType: 'doctor',
+        country: 'TN',
+        institution: 'CHU Tunis',
+        dietary: 'none',
+        interests: ['echocardiography', 'heart_failure'],
+      },
+    },
+    {
+      email: 'fatima.mansouri@hospital.tn',
+      firstName: 'Fatima',
+      lastName: 'Mansouri',
+      phone: '+216 55 789 012',
+      status: 'CONFIRMED' as const,
+      paymentStatus: 'PAID' as const,
+      totalAmount: 250000,
+      paidAmount: 250000,
+      formData: {
+        text_prenom: 'Fatima',
+        text_nom: 'Mansouri',
+        email_contact: 'fatima.mansouri@hospital.tn',
+        phone_contact: '+216 55 789 012',
+        date_birth: '1978-07-22',
+        specialty: 'cardiology',
+        attendeeType: 'doctor',
+        country: 'TN',
+        institution: 'Hôpital Charles Nicolle',
+        dietary: 'vegetarian',
+        interests: ['prevention', 'imaging'],
+      },
+    },
+    {
+      email: 'karim.trabelsi@gmail.com',
+      firstName: 'Karim',
+      lastName: 'Trabelsi',
+      phone: '+216 22 456 789',
+      status: 'CONFIRMED' as const,
+      paymentStatus: 'PAID' as const,
+      totalAmount: 150000,
+      paidAmount: 150000,
+      formData: {
+        text_prenom: 'Karim',
+        text_nom: 'Trabelsi',
+        email_contact: 'karim.trabelsi@gmail.com',
+        phone_contact: '+216 22 456 789',
+        date_birth: '1992-11-08',
+        specialty: 'general_medicine',
+        attendeeType: 'resident',
+        country: 'TN',
+        institution: 'CHU Sfax',
+        dietary: 'none',
+        interests: ['echocardiography', 'arrhythmia'],
+      },
+    },
+    {
+      email: 'leila.bouazizi@med.tn',
+      firstName: 'Leila',
+      lastName: 'Bouazizi',
+      phone: '+216 50 111 222',
+      status: 'PENDING' as const,
+      paymentStatus: 'PENDING' as const,
+      totalAmount: 300000,
+      paidAmount: 0,
+      formData: {
+        text_prenom: 'Leila',
+        text_nom: 'Bouazizi',
+        email_contact: 'leila.bouazizi@med.tn',
+        phone_contact: '+216 50 111 222',
+        date_birth: '1980-05-30',
+        specialty: 'pediatric_cardiology',
+        attendeeType: 'doctor',
+        country: 'TN',
+        institution: 'Hôpital d\'Enfants Tunis',
+        dietary: 'halal',
+        interests: ['heart_failure', 'prevention'],
+      },
+    },
+    {
+      email: 'mohamed.gharbi@student.tn',
+      firstName: 'Mohamed',
+      lastName: 'Gharbi',
+      phone: '+216 99 333 444',
+      status: 'PENDING' as const,
+      paymentStatus: 'PENDING' as const,
+      totalAmount: 90000,
+      paidAmount: 0,
+      formData: {
+        text_prenom: 'Mohamed',
+        text_nom: 'Gharbi',
+        email_contact: 'mohamed.gharbi@student.tn',
+        phone_contact: '+216 99 333 444',
+        date_birth: '1999-01-12',
+        specialty: 'other',
+        otherSpecialty: 'Médecine 5ème année',
+        attendeeType: 'student',
+        country: 'TN',
+        institution: 'Faculté de Médecine de Tunis',
+        dietary: 'none',
+        interests: ['imaging', 'echocardiography'],
+      },
+    },
+    {
+      email: 'jean.dupont@aphp.fr',
+      firstName: 'Jean',
+      lastName: 'Dupont',
+      phone: '+33 6 12 34 56 78',
+      status: 'CONFIRMED' as const,
+      paymentStatus: 'WAIVED' as const,
+      totalAmount: 0,
+      paidAmount: 0,
+      formData: {
+        text_prenom: 'Jean',
+        text_nom: 'Dupont',
+        email_contact: 'jean.dupont@aphp.fr',
+        phone_contact: '+33 6 12 34 56 78',
+        date_birth: '1970-09-18',
+        specialty: 'cardio_interventionnelle',
+        attendeeType: 'doctor',
+        country: 'FR',
+        institution: 'AP-HP Paris',
+        dietary: 'none',
+        interests: ['intervention', 'arrhythmia'],
+      },
+    },
+    {
+      email: 'sarah.nejjar@um5.ac.ma',
+      firstName: 'Sarah',
+      lastName: 'Nejjar',
+      phone: '+212 6 61 23 45 67',
+      status: 'CANCELLED' as const,
+      paymentStatus: 'REFUNDED' as const,
+      totalAmount: 250000,
+      paidAmount: 0,
+      formData: {
+        text_prenom: 'Sarah',
+        text_nom: 'Nejjar',
+        email_contact: 'sarah.nejjar@um5.ac.ma',
+        phone_contact: '+212 6 61 23 45 67',
+        date_birth: '1988-04-25',
+        specialty: 'cardiology',
+        attendeeType: 'doctor',
+        country: 'MA',
+        institution: 'CHU Ibn Sina Rabat',
+        dietary: 'vegetarian',
+        interests: ['prevention', 'imaging'],
+      },
+    },
+    {
+      email: 'youssef.hadj@infirmier.tn',
+      firstName: 'Youssef',
+      lastName: 'Hadj',
+      phone: '+216 25 987 654',
+      status: 'PENDING' as const,
+      paymentStatus: 'PAID' as const,
+      totalAmount: 180000,
+      paidAmount: 180000,
+      formData: {
+        text_prenom: 'Youssef',
+        text_nom: 'Hadj',
+        email_contact: 'youssef.hadj@infirmier.tn',
+        phone_contact: '+216 25 987 654',
+        date_birth: '1995-12-03',
+        specialty: 'other',
+        otherSpecialty: 'Infirmier spécialisé cardiologie',
+        attendeeType: 'nurse',
+        country: 'TN',
+        institution: 'Clinique El Manar',
+        dietary: 'none',
+        interests: ['heart_failure', 'echocardiography'],
+      },
+    },
+  ];
+
+  for (const reg of sampleRegistrations) {
+    await prisma.registration.create({
+      data: {
+        id: uuid(),
+        formId: form.id,
+        eventId: event.id,
+        email: reg.email,
+        firstName: reg.firstName,
+        lastName: reg.lastName,
+        phone: reg.phone,
+        status: reg.status,
+        paymentStatus: reg.paymentStatus,
+        totalAmount: reg.totalAmount,
+        paidAmount: reg.paidAmount,
+        baseAmount: reg.totalAmount,
+        formData: reg.formData,
+        priceBreakdown: {
+          basePrice: reg.totalAmount,
+          appliedRules: [],
+          calculatedBasePrice: reg.totalAmount,
+          access: [],
+          accessTotal: 0,
+          subtotal: reg.totalAmount,
+          sponsorships: [],
+          sponsorshipTotal: 0,
+          total: reg.totalAmount,
+          currency: 'TND',
+        },
+        submittedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000), // Random date in last 7 days
+      },
+    });
+  }
+
+  // Update event registeredCount
+  await prisma.event.update({
+    where: { id: event.id },
+    data: { registeredCount: sampleRegistrations.length },
+  });
+
+  console.log(`   ✓ Created ${sampleRegistrations.length} sample registrations`);
+
+  // --------------------------------------------------------------------------
   // SUMMARY
   // --------------------------------------------------------------------------
   console.log('\n✅ Seed completed successfully!\n');
@@ -920,6 +1155,7 @@ async function main() {
   console.log(`   • Form: ${formSchema.steps.length} steps, all 12 field types`);
   console.log(`   • Pricing: ${pricing.basePrice / 100} TND base + 6 conditional rules`);
   console.log(`   • Access: 14 items across 7 types`);
+  console.log(`   • Registrations: ${sampleRegistrations.length} sample participants`);
   console.log('\n🔗 Test URLs:');
   console.log(`   • Registration: /api/forms/public/${event.slug}`);
   console.log(`   • Columns: /api/events/${event.id}/registrations/columns`);
