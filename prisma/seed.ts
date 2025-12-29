@@ -116,7 +116,7 @@ async function main() {
           },
           // TEXT - First name
           {
-            id: 'firstName',
+            id: 'text_prenom',
             type: 'text',
             label: 'Prénom',
             placeholder: 'Votre prénom',
@@ -135,7 +135,7 @@ async function main() {
           },
           // TEXT - Last name
           {
-            id: 'lastName',
+            id: 'text_nom',
             type: 'text',
             label: 'Nom',
             placeholder: 'Votre nom',
@@ -152,7 +152,7 @@ async function main() {
           },
           // EMAIL
           {
-            id: 'email',
+            id: 'email_contact',
             type: 'email',
             label: 'Email',
             placeholder: 'votre.email@exemple.com',
@@ -168,7 +168,7 @@ async function main() {
           },
           // PHONE
           {
-            id: 'phone',
+            id: 'phone_contact',
             type: 'phone',
             label: 'Téléphone',
             placeholder: '+216 XX XXX XXX',
