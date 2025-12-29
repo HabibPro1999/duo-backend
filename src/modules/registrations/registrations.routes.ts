@@ -4,7 +4,7 @@ import {
   getRegistrationById,
   updateRegistration,
   confirmPayment,
-  cancelRegistration,
+  deleteRegistration,
   listRegistrations,
   addRegistrationNote,
   listRegistrationNotes,
@@ -183,9 +183,9 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
     }
   );
 
-  // POST /api/registrations/:id/cancel - Cancel registration
-  app.post<{ Params: { id: string } }>(
-    '/registrations/:id/cancel',
+  // DELETE /api/registrations/:id - Delete registration (unpaid only)
+  app.delete<{ Params: { id: string } }>(
+    '/registrations/:id',
     {
       schema: { params: RegistrationIdParamSchema },
     },
@@ -204,8 +204,8 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
-      const registration = await cancelRegistration(id);
-      return reply.send(registration);
+      await deleteRegistration(id);
+      return reply.status(204).send();
     }
   );
 

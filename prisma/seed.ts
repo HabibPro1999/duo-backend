@@ -541,7 +541,7 @@ async function main() {
     data: {
       id: uuid(),
       eventId: event.id,
-      basePrice: 30000, // 300 TND (base price for doctors)
+      basePrice: 300, // 300 TND (base price for doctors)
       currency: 'TND',
       rules: [
         // Rule 1: Students get 70% discount (highest priority)
@@ -552,7 +552,7 @@ async function main() {
           priority: 100,
           conditions: [{ fieldId: 'attendeeType', operator: 'equals', value: 'student' }],
           conditionLogic: 'AND',
-          price: 9000, // 90 TND
+          price: 90, // 90 TND
           active: true,
         },
         // Rule 2: Residents get 50% discount
@@ -563,7 +563,7 @@ async function main() {
           priority: 90,
           conditions: [{ fieldId: 'attendeeType', operator: 'equals', value: 'resident' }],
           conditionLogic: 'AND',
-          price: 15000, // 150 TND
+          price: 150, // 150 TND
           active: true,
         },
         // Rule 3: Nurses get 40% discount
@@ -574,7 +574,7 @@ async function main() {
           priority: 80,
           conditions: [{ fieldId: 'attendeeType', operator: 'equals', value: 'nurse' }],
           conditionLogic: 'AND',
-          price: 18000, // 180 TND
+          price: 180, // 180 TND
           active: true,
         },
         // Rule 4: Industry pays premium
@@ -585,7 +585,7 @@ async function main() {
           priority: 70,
           conditions: [{ fieldId: 'attendeeType', operator: 'equals', value: 'industry' }],
           conditionLogic: 'AND',
-          price: 50000, // 500 TND
+          price: 500, // 500 TND
           active: true,
         },
         // Rule 5: International attendees (non-Maghreb) get special rate
@@ -599,7 +599,7 @@ async function main() {
             { fieldId: 'attendeeType', operator: 'equals', value: 'doctor' },
           ],
           conditionLogic: 'AND',
-          price: 25000, // 250 TND (discount for international doctors)
+          price: 250, // 250 TND (discount for international doctors)
           active: true,
         },
         // Rule 6: Cardiologists from Tunisia get member rate
@@ -614,7 +614,7 @@ async function main() {
             { fieldId: 'attendeeType', operator: 'equals', value: 'doctor' },
           ],
           conditionLogic: 'AND',
-          price: 25000, // 250 TND
+          price: 250, // 250 TND
           active: true,
         },
       ],
@@ -626,7 +626,7 @@ async function main() {
     },
   });
 
-  console.log(`   ✓ Pricing: Base ${pricing.basePrice / 100} TND`);
+  console.log(`   ✓ Pricing: Base ${pricing.basePrice} TND`);
   console.log(`     - ${(pricing.rules as unknown[]).length} conditional rules`);
 
   // --------------------------------------------------------------------------
@@ -680,7 +680,7 @@ async function main() {
       location: 'Salle de Formation 1',
       startsAt: futureDate(60, 14, 0), // Day 1, 14:00
       endsAt: futureDate(60, 16, 0),
-      price: 5000, // 50 TND
+      price: 50, // 50 TND
       maxCapacity: 30,
       sortOrder: 1,
       active: true,
@@ -700,7 +700,7 @@ async function main() {
       location: 'Salle de Formation 2',
       startsAt: futureDate(60, 14, 0), // Same time as workshop1 = conflict
       endsAt: futureDate(60, 16, 0),
-      price: 3000, // 30 TND
+      price: 30, // 30 TND
       maxCapacity: 40,
       sortOrder: 2,
       active: true,
@@ -717,7 +717,7 @@ async function main() {
       location: 'Salle de Simulation',
       startsAt: futureDate(60, 16, 30), // Day 1, 16:30 (different slot)
       endsAt: futureDate(60, 18, 30),
-      price: 7500, // 75 TND
+      price: 75, // 75 TND
       maxCapacity: 20,
       sortOrder: 3,
       active: true,
@@ -735,7 +735,7 @@ async function main() {
       location: 'Restaurant Panoramique',
       startsAt: futureDate(60, 20, 0), // Day 1, 20:00
       endsAt: futureDate(60, 23, 0),
-      price: 15000, // 150 TND
+      price: 150, // 150 TND
       maxCapacity: 200,
       sortOrder: 1,
       active: true,
@@ -792,7 +792,7 @@ async function main() {
       location: 'Aéroport Tunis-Carthage',
       startsAt: futureDate(59, 10, 0), // Day before event
       endsAt: futureDate(59, 22, 0),
-      price: 3000, // 30 TND
+      price: 30, // 30 TND
       maxCapacity: 50,
       sortOrder: 1,
       active: true,
@@ -810,7 +810,7 @@ async function main() {
       name: 'Chambre Simple - Hôtel Laico',
       description: '3 nuits, petit-déjeuner inclus',
       location: 'Hôtel Laico Tunis',
-      price: 45000, // 450 TND
+      price: 450, // 450 TND
       maxCapacity: 50,
       sortOrder: 1,
       active: true,
@@ -827,7 +827,7 @@ async function main() {
       name: 'Chambre Double - Hôtel Laico',
       description: '3 nuits, petit-déjeuner inclus, vue mer',
       location: 'Hôtel Laico Tunis',
-      price: 60000, // 600 TND
+      price: 600, // 600 TND
       maxCapacity: 30,
       sortOrder: 2,
       active: true,
@@ -846,7 +846,7 @@ async function main() {
       description: 'Déjeuners buffet les 3 jours du congrès',
       groupLabel: 'Restauration',
       location: 'Restaurant Principal',
-      price: 9000, // 90 TND
+      price: 90, // 90 TND
       maxCapacity: 400,
       sortOrder: 1,
       active: true,
@@ -862,7 +862,7 @@ async function main() {
       name: 'Certificat de Participation Officiel',
       description: 'Certificat signé avec crédits de formation continue',
       groupLabel: 'Certificats',
-      price: 2000, // 20 TND
+      price: 20, // 20 TND
       maxCapacity: null,
       sortOrder: 2,
       active: true,
@@ -883,7 +883,7 @@ async function main() {
       name: 'Certificat Atelier',
       description: "Certificat spécifique pour l'atelier suivi",
       groupLabel: 'Certificats',
-      price: 1500, // 15 TND
+      price: 15, // 15 TND
       maxCapacity: null,
       sortOrder: 3,
       active: true,
@@ -921,10 +921,10 @@ async function main() {
       firstName: 'Ahmed',
       lastName: 'Ben Ali',
       phone: '+216 98 123 456',
-      status: 'CONFIRMED' as const,
       paymentStatus: 'PAID' as const,
-      totalAmount: 300000,
-      paidAmount: 300000,
+      paymentMethod: 'BANK_TRANSFER' as const,
+      totalAmount: 590, // 300 base + 50 workshop + 150 gala + 90 lunch
+      paidAmount: 590,
       formData: {
         text_prenom: 'Ahmed',
         text_nom: 'Ben Ali',
@@ -944,10 +944,10 @@ async function main() {
       firstName: 'Fatima',
       lastName: 'Mansouri',
       phone: '+216 55 789 012',
-      status: 'CONFIRMED' as const,
       paymentStatus: 'PAID' as const,
-      totalAmount: 250000,
-      paidAmount: 250000,
+      paymentMethod: 'ONLINE' as const,
+      totalAmount: 280, // 250 base + 0 session + 30 workshop
+      paidAmount: 280,
       formData: {
         text_prenom: 'Fatima',
         text_nom: 'Mansouri',
@@ -967,10 +967,10 @@ async function main() {
       firstName: 'Karim',
       lastName: 'Trabelsi',
       phone: '+216 22 456 789',
-      status: 'CONFIRMED' as const,
       paymentStatus: 'PAID' as const,
-      totalAmount: 150000,
-      paidAmount: 150000,
+      paymentMethod: 'CASH' as const,
+      totalAmount: 240, // 150 base + 90 lunch
+      paidAmount: 240,
       formData: {
         text_prenom: 'Karim',
         text_nom: 'Trabelsi',
@@ -990,9 +990,8 @@ async function main() {
       firstName: 'Leila',
       lastName: 'Bouazizi',
       phone: '+216 50 111 222',
-      status: 'PENDING' as const,
       paymentStatus: 'PENDING' as const,
-      totalAmount: 300000,
+      totalAmount: 300, // 300 TND
       paidAmount: 0,
       formData: {
         text_prenom: 'Leila',
@@ -1013,9 +1012,8 @@ async function main() {
       firstName: 'Mohamed',
       lastName: 'Gharbi',
       phone: '+216 99 333 444',
-      status: 'PENDING' as const,
       paymentStatus: 'PENDING' as const,
-      totalAmount: 90000,
+      totalAmount: 90, // 90 TND (student)
       paidAmount: 0,
       formData: {
         text_prenom: 'Mohamed',
@@ -1037,9 +1035,8 @@ async function main() {
       firstName: 'Jean',
       lastName: 'Dupont',
       phone: '+33 6 12 34 56 78',
-      status: 'CONFIRMED' as const,
       paymentStatus: 'WAIVED' as const,
-      totalAmount: 0,
+      totalAmount: 630, // 0 base (waived) + 450 hotel + 30 airport + 150 gala
       paidAmount: 0,
       formData: {
         text_prenom: 'Jean',
@@ -1060,9 +1057,8 @@ async function main() {
       firstName: 'Sarah',
       lastName: 'Nejjar',
       phone: '+212 6 61 23 45 67',
-      status: 'CANCELLED' as const,
       paymentStatus: 'REFUNDED' as const,
-      totalAmount: 250000,
+      totalAmount: 250, // 250 TND
       paidAmount: 0,
       formData: {
         text_prenom: 'Sarah',
@@ -1083,10 +1079,10 @@ async function main() {
       firstName: 'Youssef',
       lastName: 'Hadj',
       phone: '+216 25 987 654',
-      status: 'PENDING' as const,
       paymentStatus: 'PAID' as const,
-      totalAmount: 180000,
-      paidAmount: 180000,
+      paymentMethod: 'BANK_TRANSFER' as const,
+      totalAmount: 180, // 180 TND (nurse)
+      paidAmount: 180,
       formData: {
         text_prenom: 'Youssef',
         text_nom: 'Hadj',
@@ -1117,8 +1113,8 @@ async function main() {
         firstName: reg.firstName,
         lastName: reg.lastName,
         phone: reg.phone,
-        status: reg.status,
         paymentStatus: reg.paymentStatus,
+        paymentMethod: 'paymentMethod' in reg ? reg.paymentMethod : null,
         totalAmount: reg.totalAmount,
         paidAmount: reg.paidAmount,
         baseAmount: reg.totalAmount,
@@ -1136,6 +1132,9 @@ async function main() {
           currency: 'TND',
         },
         submittedAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000), // Random date in last 7 days
+        paidAt: reg.paymentStatus === 'PAID' || reg.paymentStatus === 'WAIVED'
+          ? new Date(Date.now() - Math.random() * 5 * 24 * 60 * 60 * 1000)
+          : null,
       },
     });
     createdRegistrations.push({ id: registration.id, email: reg.email });
@@ -1147,9 +1146,9 @@ async function main() {
   if (ahmedReg) {
     await prisma.registrationAccess.createMany({
       data: [
-        { id: uuid(), registrationId: ahmedReg.id, accessId: workshop1.id, unitPrice: 15000, quantity: 1, subtotal: 15000 },
-        { id: uuid(), registrationId: ahmedReg.id, accessId: galaDinner.id, unitPrice: 12000, quantity: 1, subtotal: 12000 },
-        { id: uuid(), registrationId: ahmedReg.id, accessId: lunchPackage.id, unitPrice: 9000, quantity: 1, subtotal: 9000 },
+        { id: uuid(), registrationId: ahmedReg.id, accessId: workshop1.id, unitPrice: 50, quantity: 1, subtotal: 50 },
+        { id: uuid(), registrationId: ahmedReg.id, accessId: galaDinner.id, unitPrice: 150, quantity: 1, subtotal: 150 },
+        { id: uuid(), registrationId: ahmedReg.id, accessId: lunchPackage.id, unitPrice: 90, quantity: 1, subtotal: 90 },
       ],
     });
   }
@@ -1160,7 +1159,7 @@ async function main() {
     await prisma.registrationAccess.createMany({
       data: [
         { id: uuid(), registrationId: fatimaReg.id, accessId: session1A.id, unitPrice: 0, quantity: 1, subtotal: 0 },
-        { id: uuid(), registrationId: fatimaReg.id, accessId: workshop2.id, unitPrice: 15000, quantity: 1, subtotal: 15000 },
+        { id: uuid(), registrationId: fatimaReg.id, accessId: workshop2.id, unitPrice: 30, quantity: 1, subtotal: 30 },
       ],
     });
   }
@@ -1170,9 +1169,9 @@ async function main() {
   if (jeanReg) {
     await prisma.registrationAccess.createMany({
       data: [
-        { id: uuid(), registrationId: jeanReg.id, accessId: hotelSingle.id, unitPrice: 45000, quantity: 1, subtotal: 45000 },
-        { id: uuid(), registrationId: jeanReg.id, accessId: airportPickup.id, unitPrice: 3000, quantity: 1, subtotal: 3000 },
-        { id: uuid(), registrationId: jeanReg.id, accessId: galaDinner.id, unitPrice: 12000, quantity: 1, subtotal: 12000 },
+        { id: uuid(), registrationId: jeanReg.id, accessId: hotelSingle.id, unitPrice: 450, quantity: 1, subtotal: 450 },
+        { id: uuid(), registrationId: jeanReg.id, accessId: airportPickup.id, unitPrice: 30, quantity: 1, subtotal: 30 },
+        { id: uuid(), registrationId: jeanReg.id, accessId: galaDinner.id, unitPrice: 150, quantity: 1, subtotal: 150 },
       ],
     });
   }
@@ -1181,7 +1180,7 @@ async function main() {
   const karimReg = createdRegistrations.find(r => r.email === 'karim.trabelsi@gmail.com');
   if (karimReg) {
     await prisma.registrationAccess.create({
-      data: { id: uuid(), registrationId: karimReg.id, accessId: lunchPackage.id, unitPrice: 9000, quantity: 1, subtotal: 9000 },
+      data: { id: uuid(), registrationId: karimReg.id, accessId: lunchPackage.id, unitPrice: 90, quantity: 1, subtotal: 90 },
     });
   }
 
@@ -1201,7 +1200,7 @@ async function main() {
   console.log(`   • Client: ${client.name}`);
   console.log(`   • Event: ${event.name} (${event.slug})`);
   console.log(`   • Form: ${formSchema.steps.length} steps, all 12 field types`);
-  console.log(`   • Pricing: ${pricing.basePrice / 100} TND base + 6 conditional rules`);
+  console.log(`   • Pricing: ${pricing.basePrice} TND base + 6 conditional rules`);
   console.log(`   • Access: 14 items across 7 types`);
   console.log(`   • Registrations: ${sampleRegistrations.length} sample participants`);
   console.log('\n🔗 Test URLs:');

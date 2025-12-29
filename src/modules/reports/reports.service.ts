@@ -9,7 +9,6 @@ import type {
   ReportQuery,
   FinancialReportResponse,
   FinancialSummary,
-  StatusBreakdownItem,
   PaymentStatusBreakdownItem,
   AccessBreakdownItem,
   DailyTrendItem,
@@ -62,9 +61,8 @@ export async function getFinancialReport(
   };
 
   // Run all aggregation queries in parallel
-  const [summary, byStatus, byPaymentStatus, byAccessType, dailyTrend] = await Promise.all([
+  const [summary, byPaymentStatus, byAccessType, dailyTrend] = await Promise.all([
     getFinancialSummary(eventId, baseWhere),
-    getStatusBreakdown(eventId, baseWhere),
     getPaymentStatusBreakdown(eventId, baseWhere),
     getAccessBreakdown(eventId, dateRange),
     getDailyTrend(eventId, dateRange),
@@ -78,7 +76,6 @@ export async function getFinancialReport(
       endDate: dateRange.endDate?.toISOString() ?? null,
     },
     summary,
-    byStatus,
     byPaymentStatus,
     byAccessType,
     dailyTrend,
@@ -110,11 +107,10 @@ async function getFinancialSummary(
     _count: true,
   });
 
-  // Get pending amount (confirmed but not fully paid)
+  // Get pending amount (not yet paid)
   const pendingAgg = await prisma.registration.aggregate({
     where: {
       ...where,
-      status: 'CONFIRMED',
       paymentStatus: 'PENDING',
     },
     _sum: {
@@ -127,7 +123,7 @@ async function getFinancialSummary(
   const refundedAgg = await prisma.registration.aggregate({
     where: {
       ...where,
-      status: 'REFUNDED',
+      paymentStatus: 'REFUNDED',
     },
     _sum: {
       totalAmount: true,
@@ -148,30 +144,6 @@ async function getFinancialSummary(
     sponsorshipsApplied: aggregation._sum.sponsorshipAmount ?? 0,
     registrationCount: aggregation._count,
   };
-}
-
-// ============================================================================
-// Status Breakdown
-// ============================================================================
-
-async function getStatusBreakdown(
-  _eventId: string,
-  where: Record<string, unknown>
-): Promise<StatusBreakdownItem[]> {
-  const groups = await prisma.registration.groupBy({
-    by: ['status'],
-    where,
-    _count: true,
-    _sum: {
-      totalAmount: true,
-    },
-  });
-
-  return groups.map((g) => ({
-    status: g.status,
-    count: g._count,
-    totalAmount: g._sum.totalAmount ?? 0,
-  }));
 }
 
 // ============================================================================
@@ -299,8 +271,8 @@ interface RegistrationExportRow {
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
-  status: string;
   paymentStatus: string;
+  paymentMethod: string | null;
   totalAmount: number;
   paidAmount: number;
   baseAmount: number;
@@ -309,7 +281,7 @@ interface RegistrationExportRow {
   sponsorshipCode: string | null;
   sponsorshipAmount: number;
   submittedAt: Date;
-  confirmedAt: Date | null;
+  paidAt: Date | null;
 }
 
 export async function exportRegistrations(
@@ -349,8 +321,8 @@ export async function exportRegistrations(
       firstName: true,
       lastName: true,
       phone: true,
-      status: true,
       paymentStatus: true,
+      paymentMethod: true,
       totalAmount: true,
       paidAmount: true,
       baseAmount: true,
@@ -359,7 +331,7 @@ export async function exportRegistrations(
       sponsorshipCode: true,
       sponsorshipAmount: true,
       submittedAt: true,
-      confirmedAt: true,
+      paidAt: true,
     },
     orderBy: { submittedAt: 'desc' },
   });
@@ -392,8 +364,8 @@ function generateCSV(registrations: RegistrationExportRow[]): string {
     'First Name',
     'Last Name',
     'Phone',
-    'Status',
     'Payment Status',
+    'Payment Method',
     'Total Amount',
     'Paid Amount',
     'Base Amount',
@@ -402,7 +374,7 @@ function generateCSV(registrations: RegistrationExportRow[]): string {
     'Sponsorship Code',
     'Sponsorship Amount',
     'Submitted At',
-    'Confirmed At',
+    'Paid At',
   ];
 
   const rows = registrations.map((r) => [
@@ -411,8 +383,8 @@ function generateCSV(registrations: RegistrationExportRow[]): string {
     r.firstName ?? '',
     r.lastName ?? '',
     r.phone ?? '',
-    r.status,
     r.paymentStatus,
+    r.paymentMethod ?? '',
     r.totalAmount.toString(),
     r.paidAmount.toString(),
     r.baseAmount.toString(),
@@ -421,7 +393,7 @@ function generateCSV(registrations: RegistrationExportRow[]): string {
     r.sponsorshipCode ?? '',
     r.sponsorshipAmount.toString(),
     r.submittedAt.toISOString(),
-    r.confirmedAt?.toISOString() ?? '',
+    r.paidAt?.toISOString() ?? '',
   ]);
 
   // Escape CSV values

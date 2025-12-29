@@ -141,7 +141,6 @@ export async function createRegistration(
         firstName: firstName ?? null,
         lastName: lastName ?? null,
         phone: phone ?? null,
-        status: 'PENDING',
         paymentStatus: 'PENDING',
         totalAmount: priceBreakdown.total,
         currency: priceBreakdown.currency,
@@ -250,16 +249,13 @@ export async function updateRegistration(
 
   const updateData: Prisma.RegistrationUpdateInput = {};
 
-  if (input.status !== undefined) {
-    updateData.status = input.status;
-    if (input.status === 'CONFIRMED' && !registration.confirmedAt) {
-      updateData.confirmedAt = new Date();
-    }
-    if (input.status === 'CANCELLED' && !registration.cancelledAt) {
-      updateData.cancelledAt = new Date();
+  if (input.paymentStatus !== undefined) {
+    updateData.paymentStatus = input.paymentStatus;
+    // Set paidAt when payment is confirmed
+    if ((input.paymentStatus === 'PAID' || input.paymentStatus === 'WAIVED') && !registration.paidAt) {
+      updateData.paidAt = new Date();
     }
   }
-  if (input.paymentStatus !== undefined) updateData.paymentStatus = input.paymentStatus;
   if (input.paidAmount !== undefined) updateData.paidAmount = input.paidAmount;
   if (input.paymentMethod !== undefined) updateData.paymentMethod = input.paymentMethod;
   if (input.paymentReference !== undefined) updateData.paymentReference = input.paymentReference;
@@ -279,20 +275,23 @@ export async function confirmPayment(id: string, input: UpdatePaymentInput): Pro
   await prisma.registration.update({
     where: { id },
     data: {
-      status: 'CONFIRMED',
       paymentStatus: input.paymentStatus,
       paidAmount: input.paidAmount ?? registration.totalAmount,
       paymentMethod: input.paymentMethod ?? null,
       paymentReference: input.paymentReference ?? null,
       paymentProofUrl: input.paymentProofUrl ?? null,
-      confirmedAt: new Date(),
+      paidAt: new Date(),
     },
   });
 
   return getRegistrationById(id) as Promise<RegistrationWithRelations>;
 }
 
-export async function cancelRegistration(id: string): Promise<RegistrationWithRelations> {
+/**
+ * Delete a registration (only allowed for unpaid registrations).
+ * For paid registrations, use refund flow instead.
+ */
+export async function deleteRegistration(id: string): Promise<void> {
   const registration = await prisma.registration.findUnique({
     where: { id },
     include: { accessSelections: true },
@@ -301,34 +300,27 @@ export async function cancelRegistration(id: string): Promise<RegistrationWithRe
     throw new AppError('Registration not found', 404, true, ErrorCodes.REGISTRATION_NOT_FOUND);
   }
 
-  if (registration.status === 'CANCELLED') {
-    throw new AppError('Registration is already cancelled', 400, true, ErrorCodes.REGISTRATION_CANCELLED);
+  // Only allow deletion of unpaid registrations
+  if (registration.paymentStatus === 'PAID') {
+    throw new AppError(
+      'Cannot delete a paid registration. Use refund instead.',
+      400,
+      true,
+      ErrorCodes.REGISTRATION_DELETE_BLOCKED
+    );
   }
 
-  return prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     // Release access spots
     for (const selection of registration.accessSelections) {
       await releaseAccessSpot(selection.accessId, selection.quantity);
-
-      // Delete selection record
-      await tx.registrationAccess.delete({
-        where: { id: selection.id },
-      });
     }
 
     // Decrement event registered count
     await decrementRegisteredCount(registration.eventId);
 
-    // Update registration status
-    await tx.registration.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelledAt: new Date(),
-      },
-    });
-
-    return getRegistrationById(id) as Promise<RegistrationWithRelations>;
+    // Delete the registration (cascades to accessSelections and notes)
+    await tx.registration.delete({ where: { id } });
   });
 }
 
@@ -336,11 +328,10 @@ export async function listRegistrations(
   eventId: string,
   query: ListRegistrationsQuery
 ): Promise<PaginatedResult<RegistrationWithRelations>> {
-  const { page, limit, status, paymentStatus, search } = query;
+  const { page, limit, paymentStatus, search } = query;
 
   const where: Prisma.RegistrationWhereInput = { eventId };
 
-  if (status) where.status = status;
   if (paymentStatus) where.paymentStatus = paymentStatus;
   if (search) {
     where.OR = [
@@ -472,7 +463,6 @@ function getDefaultFixedColumns() {
     { id: 'firstName', label: 'First Name', type: 'text' },
     { id: 'lastName', label: 'Last Name', type: 'text' },
     { id: 'phone', label: 'Phone', type: 'phone' },
-    { id: 'status', label: 'Status', type: 'status' },
     { id: 'paymentStatus', label: 'Payment', type: 'payment' },
     { id: 'totalAmount', label: 'Amount', type: 'currency' },
     { id: 'createdAt', label: 'Registered', type: 'datetime' },
@@ -572,7 +562,6 @@ export async function getRegistrationTableColumns(
     { id: 'firstName', label: firstNameLabel, type: 'text' },
     { id: 'lastName', label: lastNameLabel, type: 'text' },
     { id: 'phone', label: phoneLabel, type: 'phone' },
-    { id: 'status', label: 'Status', type: 'status' },
     { id: 'paymentStatus', label: 'Payment', type: 'payment' },
     { id: 'totalAmount', label: 'Amount', type: 'currency' },
     { id: 'createdAt', label: 'Registered', type: 'datetime' },
@@ -694,9 +683,9 @@ export async function getRegistrationForEdit(
   let canEdit = true;
   let canRemoveAccess = true;
 
-  if (registration.status === 'CANCELLED') {
+  if (registration.paymentStatus === 'REFUNDED') {
     canEdit = false;
-    restrictions.push('Registration has been cancelled');
+    restrictions.push('Registration has been refunded');
   }
 
   if (registration.event.status !== 'OPEN') {
@@ -849,12 +838,12 @@ export async function editRegistrationPublic(
   }
 
   // 2. Validate registration can be edited
-  if (registration.status === 'CANCELLED') {
+  if (registration.paymentStatus === 'REFUNDED') {
     throw new AppError(
-      'Cancelled registrations cannot be edited',
+      'Refunded registrations cannot be edited',
       400,
       true,
-      ErrorCodes.REGISTRATION_CANCELLED
+      ErrorCodes.REGISTRATION_REFUNDED
     );
   }
 

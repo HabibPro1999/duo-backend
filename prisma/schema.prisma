@@ -210,19 +210,17 @@ model EventAccess {
 // REGISTRATIONS MODULE
 // ============================================================================
 
-enum RegistrationStatus {
-  PENDING
-  CONFIRMED
-  CANCELLED
-  REFUNDED
-}
-
 enum PaymentStatus {
   PENDING
   PAID
-  FAILED
   REFUNDED
   WAIVED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  ONLINE
+  CASH
 }
 
 model Registration {
@@ -243,15 +241,14 @@ model Registration {
   lastName          String?            @map("last_name")
   phone             String?
 
-  // Status
-  status            RegistrationStatus @default(PENDING)
+  // Status (PaymentStatus is the single source of truth)
   paymentStatus     PaymentStatus      @default(PENDING) @map("payment_status")
 
   // Payment
   totalAmount       Int                @map("total_amount")
   paidAmount        Int                @default(0) @map("paid_amount")
   currency          String             @default("TND")
-  paymentMethod     String?            @map("payment_method")
+  paymentMethod     PaymentMethod?     @map("payment_method")
   paymentReference  String?            @map("payment_reference")
   paymentProofUrl   String?            @map("payment_proof_url")
 
@@ -268,8 +265,7 @@ model Registration {
   sponsorshipAmount Int                @default(0) @map("sponsorship_amount")
 
   // Timestamps
-  confirmedAt       DateTime?          @map("confirmed_at")
-  cancelledAt       DateTime?          @map("cancelled_at")
+  paidAt            DateTime?          @map("paid_at")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
 
@@ -286,10 +282,9 @@ model Registration {
   notes             RegistrationNote[]
 
   @@unique([email, eventId])
-  @@index([eventId, status])
-  @@index([eventId, status, paymentStatus])
+  @@index([eventId, paymentStatus])
   @@index([eventId, submittedAt])
-  @@index([eventId, confirmedAt])
+  @@index([eventId, paidAt])
   @@index([formId])
   @@index([email])
   @@index([sponsorshipCode])

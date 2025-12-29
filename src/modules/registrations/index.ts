@@ -8,7 +8,7 @@ export {
   getRegistrationById,
   updateRegistration,
   confirmPayment,
-  cancelRegistration,
+  deleteRegistration,
   listRegistrations,
   addRegistrationNote,
   listRegistrationNotes,
@@ -30,10 +30,9 @@ export type {
 
 // Schemas
 export {
-  RegistrationStatusSchema,
   PaymentStatusSchema,
+  PaymentMethodSchema,
   CreateRegistrationSchema,
-  UpdateRegistrationStatusSchema,
   UpdatePaymentSchema,
   UpdateRegistrationSchema,
   ListRegistrationsQuerySchema,
@@ -57,8 +56,8 @@ export {
 
 // Types
 export type {
-  RegistrationStatus,
   PaymentStatus,
+  PaymentMethod,
   CreateRegistrationInput,
   UpdateRegistrationInput,
   UpdatePaymentInput,

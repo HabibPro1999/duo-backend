@@ -5,19 +5,17 @@ import { AccessSelectionSchema } from '@access';
 // Enums
 // ============================================================================
 
-export const RegistrationStatusSchema = z.enum([
-  'PENDING',
-  'CONFIRMED',
-  'CANCELLED',
-  'REFUNDED',
-]);
-
 export const PaymentStatusSchema = z.enum([
   'PENDING',
   'PAID',
-  'FAILED',
   'REFUNDED',
   'WAIVED',
+]);
+
+export const PaymentMethodSchema = z.enum([
+  'BANK_TRANSFER',
+  'ONLINE',
+  'CASH',
 ]);
 
 // ============================================================================
@@ -47,17 +45,11 @@ export const CreateRegistrationSchema = z
 // Update Registration Schema (Admin)
 // ============================================================================
 
-export const UpdateRegistrationStatusSchema = z
-  .object({
-    status: RegistrationStatusSchema,
-  })
-  .strict();
-
 export const UpdatePaymentSchema = z
   .object({
     paymentStatus: PaymentStatusSchema,
     paidAmount: z.number().int().min(0).optional(),
-    paymentMethod: z.string().max(100).optional(),
+    paymentMethod: PaymentMethodSchema.optional(),
     paymentReference: z.string().max(200).optional(),
     paymentProofUrl: z.string().url().optional(),
   })
@@ -65,10 +57,9 @@ export const UpdatePaymentSchema = z
 
 export const UpdateRegistrationSchema = z
   .object({
-    status: RegistrationStatusSchema.optional(),
     paymentStatus: PaymentStatusSchema.optional(),
     paidAmount: z.number().int().min(0).optional(),
-    paymentMethod: z.string().max(100).optional(),
+    paymentMethod: PaymentMethodSchema.optional(),
     paymentReference: z.string().max(200).optional(),
     paymentProofUrl: z.string().url().optional(),
   })
@@ -82,7 +73,6 @@ export const ListRegistrationsQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
-    status: RegistrationStatusSchema.optional(),
     paymentStatus: PaymentStatusSchema.optional(),
     search: z.string().max(200).optional(),
   })
@@ -263,8 +253,8 @@ export const PriceBreakdownSchema = z.object({
 // Types
 // ============================================================================
 
-export type RegistrationStatus = z.infer<typeof RegistrationStatusSchema>;
 export type PaymentStatus = z.infer<typeof PaymentStatusSchema>;
+export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type CreateRegistrationInput = z.infer<typeof CreateRegistrationSchema>;
 export type UpdateRegistrationInput = z.infer<typeof UpdateRegistrationSchema>;
 export type UpdatePaymentInput = z.infer<typeof UpdatePaymentSchema>;

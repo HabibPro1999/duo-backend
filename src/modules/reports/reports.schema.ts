@@ -39,12 +39,6 @@ export const FinancialSummarySchema = z.object({
   registrationCount: z.number(),
 });
 
-export const StatusBreakdownItemSchema = z.object({
-  status: z.string(),
-  count: z.number(),
-  totalAmount: z.number(),
-});
-
 export const PaymentStatusBreakdownItemSchema = z.object({
   paymentStatus: z.string(),
   count: z.number(),
@@ -71,7 +65,6 @@ export const FinancialReportResponseSchema = z.object({
     endDate: z.string().datetime().nullable(),
   }),
   summary: FinancialSummarySchema,
-  byStatus: z.array(StatusBreakdownItemSchema),
   byPaymentStatus: z.array(PaymentStatusBreakdownItemSchema),
   byAccessType: z.array(AccessBreakdownItemSchema),
   dailyTrend: z.array(DailyTrendItemSchema),
@@ -90,7 +83,6 @@ export const ExportResponseSchema = z.object({
 export type ReportQuery = z.infer<typeof ReportQuerySchema>;
 export type ExportQuery = z.infer<typeof ExportQuerySchema>;
 export type FinancialSummary = z.infer<typeof FinancialSummarySchema>;
-export type StatusBreakdownItem = z.infer<typeof StatusBreakdownItemSchema>;
 export type PaymentStatusBreakdownItem = z.infer<typeof PaymentStatusBreakdownItemSchema>;
 export type AccessBreakdownItem = z.infer<typeof AccessBreakdownItemSchema>;
 export type DailyTrendItem = z.infer<typeof DailyTrendItemSchema>;
