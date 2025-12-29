@@ -413,8 +413,25 @@ export type RegistrationTableColumns = {
 };
 
 /**
+ * Get default fixed columns when no form exists.
+ */
+function getDefaultFixedColumns() {
+  return [
+    { id: 'email', label: 'Email', type: 'email' },
+    { id: 'firstName', label: 'First Name', type: 'text' },
+    { id: 'lastName', label: 'Last Name', type: 'text' },
+    { id: 'phone', label: 'Phone', type: 'phone' },
+    { id: 'status', label: 'Status', type: 'status' },
+    { id: 'paymentStatus', label: 'Payment', type: 'payment' },
+    { id: 'totalAmount', label: 'Amount', type: 'currency' },
+    { id: 'createdAt', label: 'Registered', type: 'datetime' },
+  ];
+}
+
+/**
  * Get table column definitions for a registration table.
  * Returns dynamic columns from form schema + fixed columns from registration model.
+ * Fixed column labels are derived from the form's first step fields.
  */
 export async function getRegistrationTableColumns(
   eventId: string
@@ -424,16 +441,36 @@ export async function getRegistrationTableColumns(
     select: { schema: true },
   });
 
-  if (!form) {
-    throw new AppError('Form not found for this event', 404, true, ErrorCodes.NOT_FOUND);
+  if (!form?.schema) {
+    return { formColumns: [], fixedColumns: getDefaultFixedColumns() };
   }
 
   const schema = form.schema as FormSchemaSteps;
+  const firstStep = schema.steps[0];
+  const firstStepFields = firstStep?.fields ?? [];
 
-  // Extract form fields, skip display-only types (heading, paragraph)
-  const formColumns = schema.steps.flatMap((step) =>
+  // Extract contact field labels from first step by type
+  const emailField = firstStepFields.find((f) => f.type === 'email');
+  const textFields = firstStepFields.filter((f) => f.type === 'text');
+  const phoneField = firstStepFields.find((f) => f.type === 'phone');
+
+  const emailLabel = emailField?.label ?? 'Email';
+  const firstNameLabel = textFields[0]?.label ?? 'First Name';
+  const lastNameLabel = textFields[1]?.label ?? 'Last Name';
+  const phoneLabel = phoneField?.label ?? 'Phone';
+
+  // Track contact field IDs to exclude from formColumns (avoid duplicates)
+  const contactFieldIds = new Set<string>(
+    [emailField?.id, textFields[0]?.id, textFields[1]?.id, phoneField?.id].filter(
+      (id): id is string => Boolean(id)
+    )
+  );
+
+  // Extract form fields, skip display-only types and contact fields from first step
+  const formColumns = schema.steps.flatMap((step, stepIndex) =>
     step.fields
       .filter((f) => !['heading', 'paragraph'].includes(f.type))
+      .filter((f) => !(stepIndex === 0 && contactFieldIds.has(f.id)))
       .map((field) => ({
         id: field.id,
         label: field.label ?? field.id,
@@ -445,12 +482,12 @@ export async function getRegistrationTableColumns(
       }))
   );
 
-  // Fixed columns from registration model (always present)
+  // Fixed columns with labels from form schema
   const fixedColumns = [
-    { id: 'email', label: 'Email', type: 'email' },
-    { id: 'firstName', label: 'First Name', type: 'text' },
-    { id: 'lastName', label: 'Last Name', type: 'text' },
-    { id: 'phone', label: 'Phone', type: 'phone' },
+    { id: 'email', label: emailLabel, type: 'email' },
+    { id: 'firstName', label: firstNameLabel, type: 'text' },
+    { id: 'lastName', label: lastNameLabel, type: 'text' },
+    { id: 'phone', label: phoneLabel, type: 'phone' },
     { id: 'status', label: 'Status', type: 'status' },
     { id: 'paymentStatus', label: 'Payment', type: 'payment' },
     { id: 'totalAmount', label: 'Amount', type: 'currency' },
