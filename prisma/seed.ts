@@ -44,8 +44,6 @@ async function main() {
   console.log('🧹 Cleaning up existing seed data...');
 
   // Delete in order of dependencies (children first)
-  await prisma.registrationNote.deleteMany({});
-  await prisma.registrationAccess.deleteMany({});
   await prisma.registration.deleteMany({});
   await prisma.eventAccess.deleteMany({});
   await prisma.eventPricing.deleteMany({});
@@ -1100,11 +1098,34 @@ async function main() {
     },
   ];
 
-  // Create registrations with some having access selections
-  const createdRegistrations: { id: string; email: string }[] = [];
+  // Define access selections per registration
+  type AccessSelection = { accessId: string; name: string; unitPrice: number; quantity: number; subtotal: number };
+  const accessSelectionsMap: Record<string, AccessSelection[]> = {
+    'ahmed.benali@email.com': [
+      { accessId: workshop1.id, name: 'Atelier: Échocardiographie Avancée', unitPrice: 50, quantity: 1, subtotal: 50 },
+      { accessId: galaDinner.id, name: 'Dîner de Gala', unitPrice: 150, quantity: 1, subtotal: 150 },
+      { accessId: lunchPackage.id, name: 'Forfait Déjeuners (3 jours)', unitPrice: 90, quantity: 1, subtotal: 90 },
+    ],
+    'fatima.mansouri@hospital.tn': [
+      { accessId: session1A.id, name: 'Keynote: Avancées en Cardiologie Interventionnelle', unitPrice: 0, quantity: 1, subtotal: 0 },
+      { accessId: workshop2.id, name: 'Atelier: ECG Interprétation', unitPrice: 30, quantity: 1, subtotal: 30 },
+    ],
+    'jean.dupont@aphp.fr': [
+      { accessId: hotelSingle.id, name: 'Chambre Simple - Hôtel Laico', unitPrice: 450, quantity: 1, subtotal: 450 },
+      { accessId: airportPickup.id, name: 'Navette Aéroport', unitPrice: 30, quantity: 1, subtotal: 30 },
+      { accessId: galaDinner.id, name: 'Dîner de Gala', unitPrice: 150, quantity: 1, subtotal: 150 },
+    ],
+    'karim.trabelsi@gmail.com': [
+      { accessId: lunchPackage.id, name: 'Forfait Déjeuners (3 jours)', unitPrice: 90, quantity: 1, subtotal: 90 },
+    ],
+  };
 
+  // Create registrations with access selections in accessTypeIds and priceBreakdown
   for (const reg of sampleRegistrations) {
-    const registration = await prisma.registration.create({
+    const accessSelections = accessSelectionsMap[reg.email] ?? [];
+    const accessTotal = accessSelections.reduce((sum, a) => sum + a.subtotal, 0);
+
+    await prisma.registration.create({
       data: {
         id: uuid(),
         formId: form.id,
@@ -1117,14 +1138,16 @@ async function main() {
         paymentMethod: 'paymentMethod' in reg ? reg.paymentMethod : null,
         totalAmount: reg.totalAmount,
         paidAmount: reg.paidAmount,
-        baseAmount: reg.totalAmount,
+        baseAmount: reg.totalAmount - accessTotal,
+        accessAmount: accessTotal,
         formData: reg.formData,
+        accessTypeIds: accessSelections.map(a => a.accessId),
         priceBreakdown: {
-          basePrice: reg.totalAmount,
+          basePrice: reg.totalAmount - accessTotal,
           appliedRules: [],
-          calculatedBasePrice: reg.totalAmount,
-          access: [],
-          accessTotal: 0,
+          calculatedBasePrice: reg.totalAmount - accessTotal,
+          accessItems: accessSelections,
+          accessTotal,
           subtotal: reg.totalAmount,
           sponsorships: [],
           sponsorshipTotal: 0,
@@ -1136,51 +1159,6 @@ async function main() {
           ? new Date(Date.now() - Math.random() * 5 * 24 * 60 * 60 * 1000)
           : null,
       },
-    });
-    createdRegistrations.push({ id: registration.id, email: reg.email });
-  }
-
-  // Add access selections for some registrations
-  // Ahmed Ben Ali: Workshop + Gala Dinner + Lunch
-  const ahmedReg = createdRegistrations.find(r => r.email === 'ahmed.benali@email.com');
-  if (ahmedReg) {
-    await prisma.registrationAccess.createMany({
-      data: [
-        { id: uuid(), registrationId: ahmedReg.id, accessId: workshop1.id, unitPrice: 50, quantity: 1, subtotal: 50 },
-        { id: uuid(), registrationId: ahmedReg.id, accessId: galaDinner.id, unitPrice: 150, quantity: 1, subtotal: 150 },
-        { id: uuid(), registrationId: ahmedReg.id, accessId: lunchPackage.id, unitPrice: 90, quantity: 1, subtotal: 90 },
-      ],
-    });
-  }
-
-  // Fatima Mansouri: Session + Workshop
-  const fatimaReg = createdRegistrations.find(r => r.email === 'fatima.mansouri@hospital.tn');
-  if (fatimaReg) {
-    await prisma.registrationAccess.createMany({
-      data: [
-        { id: uuid(), registrationId: fatimaReg.id, accessId: session1A.id, unitPrice: 0, quantity: 1, subtotal: 0 },
-        { id: uuid(), registrationId: fatimaReg.id, accessId: workshop2.id, unitPrice: 30, quantity: 1, subtotal: 30 },
-      ],
-    });
-  }
-
-  // Jean Dupont (international): Hotel + Airport Transfer + Gala
-  const jeanReg = createdRegistrations.find(r => r.email === 'jean.dupont@aphp.fr');
-  if (jeanReg) {
-    await prisma.registrationAccess.createMany({
-      data: [
-        { id: uuid(), registrationId: jeanReg.id, accessId: hotelSingle.id, unitPrice: 450, quantity: 1, subtotal: 450 },
-        { id: uuid(), registrationId: jeanReg.id, accessId: airportPickup.id, unitPrice: 30, quantity: 1, subtotal: 30 },
-        { id: uuid(), registrationId: jeanReg.id, accessId: galaDinner.id, unitPrice: 150, quantity: 1, subtotal: 150 },
-      ],
-    });
-  }
-
-  // Karim Trabelsi (resident): Just lunch
-  const karimReg = createdRegistrations.find(r => r.email === 'karim.trabelsi@gmail.com');
-  if (karimReg) {
-    await prisma.registrationAccess.create({
-      data: { id: uuid(), registrationId: karimReg.id, accessId: lunchPackage.id, unitPrice: 90, quantity: 1, subtotal: 90 },
     });
   }
 

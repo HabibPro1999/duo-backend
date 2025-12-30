@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { prisma } from '@/database/client.js';
+import { Prisma } from '@prisma/client';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import type {
@@ -178,33 +179,36 @@ async function getAccessBreakdown(
   eventId: string,
   dateRange: DateRange
 ): Promise<AccessBreakdownItem[]> {
-  // Build date filter for registrations
-  const dateFilter = [];
-  if (dateRange.startDate) {
-    dateFilter.push({ submittedAt: { gte: dateRange.startDate } });
-  }
-  if (dateRange.endDate) {
-    dateFilter.push({ submittedAt: { lte: dateRange.endDate } });
-  }
+  // Build the query with optional date conditions
+  const startDateCondition = dateRange.startDate
+    ? Prisma.sql`AND r.submitted_at >= ${dateRange.startDate}`
+    : Prisma.empty;
+  const endDateCondition = dateRange.endDate
+    ? Prisma.sql`AND r.submitted_at <= ${dateRange.endDate}`
+    : Prisma.empty;
 
-  // Get access breakdown through registration access
-  // Note: All registration access records are confirmed (no status field)
-  const accessData = await prisma.registrationAccess.groupBy({
-    by: ['accessId'],
-    where: {
-      registration: {
-        eventId,
-        ...(dateFilter.length > 0 && { AND: dateFilter }),
-      },
-    },
-    _count: true,
-    _sum: {
-      subtotal: true,
-    },
-  });
+  // Query access breakdown from priceBreakdown JSON using raw SQL
+  // This unnests the accessItems array from priceBreakdown JSON
+  const accessData = await prisma.$queryRaw<
+    { access_id: string; count: bigint; total_amount: bigint }[]
+  >(Prisma.sql`
+    SELECT
+      (item->>'accessId')::TEXT AS access_id,
+      COUNT(*) AS count,
+      COALESCE(SUM((item->>'subtotal')::INTEGER), 0) AS total_amount
+    FROM registrations r,
+    LATERAL jsonb_array_elements(r.price_breakdown->'accessItems') AS item
+    WHERE r.event_id = ${eventId}
+      AND jsonb_array_length(COALESCE(r.price_breakdown->'accessItems', '[]'::jsonb)) > 0
+      ${startDateCondition}
+      ${endDateCondition}
+    GROUP BY (item->>'accessId')::TEXT
+  `);
 
   // Get access names
-  const accessIds = accessData.map((a) => a.accessId);
+  const accessIds = accessData.map((a) => a.access_id);
+  if (accessIds.length === 0) return [];
+
   const accessItems = await prisma.eventAccess.findMany({
     where: { id: { in: accessIds } },
     select: {
@@ -217,11 +221,11 @@ async function getAccessBreakdown(
   const accessMap = new Map(accessItems.map((a) => [a.id, a]));
 
   return accessData.map((g) => {
-    const access = accessMap.get(g.accessId);
+    const access = accessMap.get(g.access_id);
     return {
       accessType: access?.name ?? access?.type ?? 'Unknown',
-      count: g._count,
-      totalAmount: g._sum.subtotal ?? 0,
+      count: Number(g.count),
+      totalAmount: Number(g.total_amount),
     };
   });
 }

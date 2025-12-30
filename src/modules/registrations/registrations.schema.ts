@@ -62,6 +62,7 @@ export const UpdateRegistrationSchema = z
     paymentMethod: PaymentMethodSchema.optional(),
     paymentReference: z.string().max(200).optional(),
     paymentProofUrl: z.string().url().optional(),
+    note: z.string().max(2000).nullable().optional(),
   })
   .strict();
 
@@ -95,48 +96,6 @@ export const FormIdParamSchema = z
     formId: z.string().uuid(),
   })
   .strict();
-
-// ============================================================================
-// Note Schemas
-// ============================================================================
-
-export const CreateRegistrationNoteSchema = z
-  .object({
-    content: z.string().min(1).max(5000),
-    isInternal: z.boolean().default(true),
-  })
-  .strict();
-
-// ============================================================================
-// Amendment History Schemas (Self-Service Editing)
-// ============================================================================
-
-export const FormDataChangeSchema = z.object({
-  fieldId: z.string(),
-  oldValue: z.any(),
-  newValue: z.any(),
-});
-
-export const AccessChangeSchema = z.object({
-  type: z.enum(['added', 'removed']),
-  accessId: z.string().uuid(),
-  accessName: z.string(),
-  quantity: z.number().int().positive(),
-  priceImpact: z.number().int(),
-});
-
-export const AmendmentRecordSchema = z.object({
-  id: z.string().uuid(),
-  timestamp: z.string().datetime(),
-  changeType: z.enum(['form_data', 'access_added', 'access_removed', 'mixed']),
-  formDataChanges: z.array(FormDataChangeSchema).optional(),
-  accessChanges: z.array(AccessChangeSchema).optional(),
-  previousTotal: z.number().int(),
-  newTotal: z.number().int(),
-  previousAdditionalDue: z.number().int(),
-  newAdditionalDue: z.number().int(),
-  priceBreakdownSnapshot: z.lazy(() => PriceBreakdownSchema),
-});
 
 // ============================================================================
 // Public Edit Registration Schema (Self-Service)
@@ -258,13 +217,9 @@ export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type CreateRegistrationInput = z.infer<typeof CreateRegistrationSchema>;
 export type UpdateRegistrationInput = z.infer<typeof UpdateRegistrationSchema>;
 export type UpdatePaymentInput = z.infer<typeof UpdatePaymentSchema>;
-export type CreateRegistrationNoteInput = z.infer<typeof CreateRegistrationNoteSchema>;
 export type ListRegistrationsQuery = z.infer<typeof ListRegistrationsQuerySchema>;
 export type PriceBreakdown = z.infer<typeof PriceBreakdownSchema>;
 export type PublicEditRegistrationInput = z.infer<typeof PublicEditRegistrationSchema>;
-export type AmendmentRecord = z.infer<typeof AmendmentRecordSchema>;
-export type FormDataChange = z.infer<typeof FormDataChangeSchema>;
-export type AccessChange = z.infer<typeof AccessChangeSchema>;
 export type TableColumnType = z.infer<typeof TableColumnTypeSchema>;
 export type TableColumnOption = z.infer<typeof TableColumnOptionSchema>;
 export type TableColumn = z.infer<typeof TableColumnSchema>;

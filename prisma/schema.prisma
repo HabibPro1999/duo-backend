@@ -43,7 +43,6 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   client            Client?            @relation(fields: [clientId], references: [id])
-  registrationNotes RegistrationNote[]
 
   @@index([clientId])
   @@index([active, role])
@@ -198,7 +197,6 @@ model EventAccess {
   event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   requiredAccess     EventAccess[]      @relation("AccessPrerequisites")
   prerequisiteFor    EventAccess[]      @relation("AccessPrerequisites")
-  registrationAccess RegistrationAccess[]
 
   @@index([eventId, startsAt])
   @@index([eventId, type])
@@ -269,17 +267,18 @@ model Registration {
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
 
-  // Amendment tracking (self-service editing)
-  additionalAmountDue Int              @default(0) @map("additional_amount_due")
+  // Self-service editing timestamp
   lastEditedAt        DateTime?        @map("last_edited_at")
-  editCount           Int              @default(0) @map("edit_count")
-  amendmentHistory    Json             @default("[]") @map("amendment_history")
+
+  // Admin note (single text field)
+  note              String?
+
+  // Access type IDs (simple array for querying)
+  accessTypeIds     String[]           @default([]) @map("access_type_ids")
 
   // Relations
   form              Form               @relation(fields: [formId], references: [id])
   event             Event              @relation(fields: [eventId], references: [id])
-  accessSelections  RegistrationAccess[]
-  notes             RegistrationNote[]
 
   @@unique([email, eventId])
   @@index([eventId, paymentStatus])
@@ -289,43 +288,5 @@ model Registration {
   @@index([email])
   @@index([sponsorshipCode])
   @@map("registrations")
-}
-
-model RegistrationAccess {
-  id             String       @id @default(uuid())
-  registrationId String       @map("registration_id")
-  accessId       String       @map("access_id")
-
-  // Price at time of selection (for audit)
-  unitPrice      Int          @map("unit_price")
-  quantity       Int          @default(1)
-  subtotal       Int
-
-  // Timestamps
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
-
-  // Relations
-  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  access         EventAccess  @relation(fields: [accessId], references: [id])
-
-  @@unique([registrationId, accessId])
-  @@index([accessId])
-  @@map("registration_access")
-}
-
-model RegistrationNote {
-  id              String       @id @default(uuid())
-  registrationId  String       @map("registration_id")
-  authorId        String       @map("author_id")
-  content         String
-  isInternal      Boolean      @default(true) @map("is_internal")
-  createdAt       DateTime     @default(now()) @map("created_at")
-
-  registration    Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  author          User         @relation(fields: [authorId], references: [id])
-
-  @@index([registrationId])
-  @@map("registration_notes")
 }
 

@@ -6,8 +6,6 @@ import {
   confirmPayment,
   deleteRegistration,
   listRegistrations,
-  addRegistrationNote,
-  listRegistrationNotes,
   getRegistrationClientId,
   getRegistrationTableColumns,
 } from './registrations.service.js';
@@ -16,11 +14,9 @@ import {
   EventIdParamSchema,
   UpdateRegistrationSchema,
   UpdatePaymentSchema,
-  CreateRegistrationNoteSchema,
   ListRegistrationsQuerySchema,
   type UpdateRegistrationInput,
   type UpdatePaymentInput,
-  type CreateRegistrationNoteInput,
   type ListRegistrationsQuery,
 } from './registrations.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
@@ -107,7 +103,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const registration = await getRegistrationById(id, true);
+      const registration = await getRegistrationById(id);
       if (!registration) {
         throw app.httpErrors.notFound('Registration not found');
       }
@@ -206,62 +202,6 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
 
       await deleteRegistration(id);
       return reply.status(204).send();
-    }
-  );
-
-  // POST /api/registrations/:id/notes - Add note to registration
-  app.post<{ Params: { id: string }; Body: CreateRegistrationNoteInput }>(
-    '/registrations/:id/notes',
-    {
-      schema: {
-        params: RegistrationIdParamSchema,
-        body: CreateRegistrationNoteSchema,
-      },
-    },
-    async (request, reply) => {
-      const { id } = request.params;
-      const input = request.body;
-
-      const clientId = await getRegistrationClientId(id);
-      if (!clientId) {
-        throw app.httpErrors.notFound('Registration not found');
-      }
-
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
-      }
-
-      const note = await addRegistrationNote(id, request.user!.id, input);
-      return reply.status(201).send(note);
-    }
-  );
-
-  // GET /api/registrations/:id/notes - List notes for registration
-  app.get<{ Params: { id: string } }>(
-    '/registrations/:id/notes',
-    {
-      schema: { params: RegistrationIdParamSchema },
-    },
-    async (request, reply) => {
-      const { id } = request.params;
-
-      const clientId = await getRegistrationClientId(id);
-      if (!clientId) {
-        throw app.httpErrors.notFound('Registration not found');
-      }
-
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
-      }
-
-      const notes = await listRegistrationNotes(id);
-      return reply.send(notes);
     }
   );
 }

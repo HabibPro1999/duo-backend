@@ -10,20 +10,15 @@ import {
 } from '@access';
 import { calculatePrice } from '@pricing';
 import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
-import { randomUUID } from 'crypto';
 import type {
   CreateRegistrationInput,
   UpdateRegistrationInput,
   UpdatePaymentInput,
-  CreateRegistrationNoteInput,
   ListRegistrationsQuery,
   PriceBreakdown,
   PublicEditRegistrationInput,
-  AmendmentRecord,
-  FormDataChange,
-  AccessChange,
 } from './registrations.schema.js';
-import type { Registration, RegistrationNote, Prisma } from '@prisma/client';
+import type { Registration, Prisma } from '@prisma/client';
 
 // ============================================================================
 // Types
@@ -43,13 +38,6 @@ type RegistrationWithRelations = Registration & {
       startsAt: Date | null;
       endsAt: Date | null;
     };
-  }>;
-  notes?: Array<{
-    id: string;
-    content: string;
-    isInternal: boolean;
-    createdAt: Date;
-    author: { id: string; name: string };
   }>;
   form: {
     id: string;
@@ -77,6 +65,110 @@ function calculateDiscountAmount(appliedRules: PriceBreakdown['appliedRules']): 
       .filter((rule) => rule.effect < 0)
       .reduce((sum, rule) => sum + rule.effect, 0)
   );
+}
+
+/**
+ * Enrich a registration with accessSelections derived from priceBreakdown.
+ * Fetches access details from EventAccess table and reconstructs the shape
+ * that was previously provided by the RegistrationAccess relation.
+ */
+async function enrichWithAccessSelections(
+  registration: Registration & {
+    form: { id: string; name: string };
+    event: { id: string; name: string; slug: string; clientId: string };
+  }
+): Promise<RegistrationWithRelations> {
+  const priceBreakdown = registration.priceBreakdown as PriceBreakdown;
+
+  // If no access items, return empty array
+  if (!priceBreakdown.accessItems || priceBreakdown.accessItems.length === 0) {
+    return { ...registration, accessSelections: [] };
+  }
+
+  // Fetch access details for display
+  const accessIds = priceBreakdown.accessItems.map((item) => item.accessId);
+  const accessDetails = await prisma.eventAccess.findMany({
+    where: { id: { in: accessIds } },
+    select: { id: true, name: true, type: true, startsAt: true, endsAt: true },
+  });
+
+  const accessMap = new Map(accessDetails.map((a) => [a.id, a]));
+
+  // Reconstruct accessSelections from priceBreakdown
+  const accessSelections = priceBreakdown.accessItems.map((item) => ({
+    id: `${registration.id}-${item.accessId}`,
+    accessId: item.accessId,
+    unitPrice: item.unitPrice,
+    quantity: item.quantity,
+    subtotal: item.subtotal,
+    access: accessMap.get(item.accessId) ?? {
+      id: item.accessId,
+      name: item.name,
+      type: 'OTHER',
+      startsAt: null,
+      endsAt: null,
+    },
+  }));
+
+  return { ...registration, accessSelections };
+}
+
+/**
+ * Enrich multiple registrations with accessSelections in a single batch.
+ * More efficient than calling enrichWithAccessSelections for each one.
+ */
+async function enrichManyWithAccessSelections(
+  registrations: Array<
+    Registration & {
+      form: { id: string; name: string };
+      event: { id: string; name: string; slug: string; clientId: string };
+    }
+  >
+): Promise<RegistrationWithRelations[]> {
+  // Collect all unique access IDs across all registrations
+  const allAccessIds = new Set<string>();
+  for (const reg of registrations) {
+    const priceBreakdown = reg.priceBreakdown as PriceBreakdown;
+    if (priceBreakdown.accessItems) {
+      for (const item of priceBreakdown.accessItems) {
+        allAccessIds.add(item.accessId);
+      }
+    }
+  }
+
+  // Fetch all access details in one query
+  const accessDetails = await prisma.eventAccess.findMany({
+    where: { id: { in: Array.from(allAccessIds) } },
+    select: { id: true, name: true, type: true, startsAt: true, endsAt: true },
+  });
+
+  const accessMap = new Map(accessDetails.map((a) => [a.id, a]));
+
+  // Enrich each registration
+  return registrations.map((registration) => {
+    const priceBreakdown = registration.priceBreakdown as PriceBreakdown;
+
+    if (!priceBreakdown.accessItems || priceBreakdown.accessItems.length === 0) {
+      return { ...registration, accessSelections: [] };
+    }
+
+    const accessSelections = priceBreakdown.accessItems.map((item) => ({
+      id: `${registration.id}-${item.accessId}`,
+      accessId: item.accessId,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+      subtotal: item.subtotal,
+      access: accessMap.get(item.accessId) ?? {
+        id: item.accessId,
+        name: item.name,
+        type: 'OTHER',
+        startsAt: null,
+        endsAt: null,
+      },
+    }));
+
+    return { ...registration, accessSelections };
+  });
 }
 
 // ============================================================================
@@ -151,91 +243,52 @@ export async function createRegistration(
         accessAmount: priceBreakdown.accessTotal,
         sponsorshipCode: sponsorshipCode ?? null,
         sponsorshipAmount: priceBreakdown.sponsorshipTotal,
+        // Access type IDs for querying
+        accessTypeIds: accessSelections?.map((s) => s.accessId) ?? [],
       },
     });
 
-    // Reserve access spots and create selection records
+    // Reserve access spots (capacity tracking)
     if (accessSelections && accessSelections.length > 0) {
       for (const selection of accessSelections) {
-        // Find matching access item in price breakdown
-        const accessItem = priceBreakdown.accessItems.find(
-          (item) => item.accessId === selection.accessId
-        );
-        if (!accessItem) continue;
-
-        // Reserve spot (atomic operation with capacity check)
         await reserveAccessSpot(selection.accessId, selection.quantity);
-
-        // Create registration access record
-        await tx.registrationAccess.create({
-          data: {
-            registrationId: registration.id,
-            accessId: selection.accessId,
-            unitPrice: accessItem.unitPrice,
-            quantity: selection.quantity,
-            subtotal: accessItem.subtotal,
-          },
-        });
       }
     }
 
     // Increment event registered count
     await incrementRegisteredCount(eventId);
 
-    // Return full registration with relations
-    return tx.registration.findUnique({
+    // Return full registration with derived accessSelections
+    const createdReg = await tx.registration.findUnique({
       where: { id: registration.id },
       include: {
-        accessSelections: {
-          include: {
-            access: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                startsAt: true,
-                endsAt: true,
-              },
-            },
-          },
-        },
         form: { select: { id: true, name: true } },
         event: { select: { id: true, name: true, slug: true, clientId: true } },
       },
-    }) as Promise<RegistrationWithRelations>;
+    });
+
+    if (!createdReg) {
+      throw new AppError('Registration creation failed', 500, true, ErrorCodes.INTERNAL_ERROR);
+    }
+
+    return enrichWithAccessSelections(createdReg);
   });
 }
 
 export async function getRegistrationById(
-  id: string,
-  includeNotes: boolean = false
+  id: string
 ): Promise<RegistrationWithRelations | null> {
-  return prisma.registration.findUnique({
+  const registration = await prisma.registration.findUnique({
     where: { id },
     include: {
-      accessSelections: {
-        include: {
-          access: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              startsAt: true,
-              endsAt: true,
-            },
-          },
-        },
-      },
       form: { select: { id: true, name: true } },
       event: { select: { id: true, name: true, slug: true, clientId: true } },
-      notes: includeNotes
-        ? {
-            include: { author: { select: { id: true, name: true } } },
-            orderBy: { createdAt: 'desc' },
-          }
-        : false,
     },
-  }) as Promise<RegistrationWithRelations | null>;
+  });
+
+  if (!registration) return null;
+
+  return enrichWithAccessSelections(registration);
 }
 
 export async function updateRegistration(
@@ -260,6 +313,7 @@ export async function updateRegistration(
   if (input.paymentMethod !== undefined) updateData.paymentMethod = input.paymentMethod;
   if (input.paymentReference !== undefined) updateData.paymentReference = input.paymentReference;
   if (input.paymentProofUrl !== undefined) updateData.paymentProofUrl = input.paymentProofUrl;
+  if (input.note !== undefined) updateData.note = input.note;
 
   await prisma.registration.update({ where: { id }, data: updateData });
 
@@ -294,7 +348,12 @@ export async function confirmPayment(id: string, input: UpdatePaymentInput): Pro
 export async function deleteRegistration(id: string): Promise<void> {
   const registration = await prisma.registration.findUnique({
     where: { id },
-    include: { accessSelections: true },
+    select: {
+      id: true,
+      eventId: true,
+      paymentStatus: true,
+      priceBreakdown: true,
+    },
   });
   if (!registration) {
     throw new AppError('Registration not found', 404, true, ErrorCodes.REGISTRATION_NOT_FOUND);
@@ -311,15 +370,18 @@ export async function deleteRegistration(id: string): Promise<void> {
   }
 
   await prisma.$transaction(async (tx) => {
-    // Release access spots
-    for (const selection of registration.accessSelections) {
-      await releaseAccessSpot(selection.accessId, selection.quantity);
+    // Release access spots (get from priceBreakdown)
+    const priceBreakdown = registration.priceBreakdown as PriceBreakdown;
+    if (priceBreakdown.accessItems) {
+      for (const item of priceBreakdown.accessItems) {
+        await releaseAccessSpot(item.accessId, item.quantity);
+      }
     }
 
     // Decrement event registered count
     await decrementRegisteredCount(registration.eventId);
 
-    // Delete the registration (cascades to accessSelections and notes)
+    // Delete the registration
     await tx.registration.delete({ where: { id } });
   });
 }
@@ -350,19 +412,6 @@ export async function listRegistrations(
       skip,
       take: limit,
       include: {
-        accessSelections: {
-          include: {
-            access: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                startsAt: true,
-                endsAt: true,
-              },
-            },
-          },
-        },
         form: { select: { id: true, name: true } },
         event: { select: { id: true, name: true, slug: true, clientId: true } },
       },
@@ -371,7 +420,10 @@ export async function listRegistrations(
     prisma.registration.count({ where }),
   ]);
 
-  return paginate(data as RegistrationWithRelations[], total, { page, limit });
+  // Enrich with accessSelections derived from priceBreakdown
+  const enrichedData = await enrichManyWithAccessSelections(data);
+
+  return paginate(enrichedData, total, { page, limit });
 }
 
 // ============================================================================
@@ -571,40 +623,6 @@ export async function getRegistrationTableColumns(
 }
 
 // ============================================================================
-// Notes
-// ============================================================================
-
-export async function addRegistrationNote(
-  registrationId: string,
-  authorId: string,
-  input: CreateRegistrationNoteInput
-): Promise<RegistrationNote> {
-  const registration = await prisma.registration.findUnique({ where: { id: registrationId } });
-  if (!registration) {
-    throw new AppError('Registration not found', 404, true, ErrorCodes.REGISTRATION_NOT_FOUND);
-  }
-
-  return prisma.registrationNote.create({
-    data: {
-      registrationId,
-      authorId,
-      content: input.content,
-      isInternal: input.isInternal ?? true,
-    },
-  });
-}
-
-export async function listRegistrationNotes(
-  registrationId: string
-): Promise<Array<RegistrationNote & { author: { id: string; name: string } }>> {
-  return prisma.registrationNote.findMany({
-    where: { registrationId },
-    include: { author: { select: { id: true, name: true } } },
-    orderBy: { createdAt: 'desc' },
-  });
-}
-
-// ============================================================================
 // Helpers
 // ============================================================================
 
@@ -657,19 +675,6 @@ export async function getRegistrationForEdit(
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: {
-      accessSelections: {
-        include: {
-          access: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              startsAt: true,
-              endsAt: true,
-            },
-          },
-        },
-      },
       form: { select: { id: true, name: true, schema: true } },
       event: { select: { id: true, name: true, slug: true, clientId: true, status: true } },
     },
@@ -678,6 +683,35 @@ export async function getRegistrationForEdit(
   if (!registration) {
     throw new AppError('Registration not found', 404, true, ErrorCodes.REGISTRATION_NOT_FOUND);
   }
+
+  // Enrich with accessSelections derived from priceBreakdown
+  const priceBreakdown = registration.priceBreakdown as PriceBreakdown;
+  const accessIds = priceBreakdown.accessItems?.map((item) => item.accessId) ?? [];
+  const accessDetails = accessIds.length > 0
+    ? await prisma.eventAccess.findMany({
+        where: { id: { in: accessIds } },
+        select: { id: true, name: true, type: true, startsAt: true, endsAt: true },
+      })
+    : [];
+
+  const accessMap = new Map(accessDetails.map((a) => [a.id, a]));
+
+  const accessSelections = (priceBreakdown.accessItems ?? []).map((item) => ({
+    id: `${registration.id}-${item.accessId}`,
+    accessId: item.accessId,
+    unitPrice: item.unitPrice,
+    quantity: item.quantity,
+    subtotal: item.subtotal,
+    access: accessMap.get(item.accessId) ?? {
+      id: item.accessId,
+      name: item.name,
+      type: 'OTHER',
+      startsAt: null,
+      endsAt: null,
+    },
+  }));
+
+  const enrichedRegistration = { ...registration, accessSelections };
 
   const restrictions: string[] = [];
   let canEdit = true;
@@ -700,102 +734,16 @@ export async function getRegistrationForEdit(
   }
 
   return {
-    registration: registration as RegistrationForEdit,
+    registration: enrichedRegistration as RegistrationForEdit,
     canEdit,
     canRemoveAccess,
     editRestrictions: restrictions,
   };
 }
 
-/**
- * Build amendment record for tracking registration changes.
- */
-function buildAmendmentRecord(
-  registration: Registration & { accessSelections: Array<{ accessId: string; quantity: number; subtotal: number; access: { name: string } }> },
-  input: PublicEditRegistrationInput,
-  currentFormData: Record<string, unknown>,
-  accessToAdd: Array<{ accessId: string; quantity: number }>,
-  accessToRemove: Array<{ accessId: string; quantity: number; subtotal: number; access: { name: string } }>,
-  newPriceBreakdown: PriceBreakdown,
-  isPaid: boolean
-): AmendmentRecord {
-  // Detect form data changes
-  const formDataChanges: FormDataChange[] = [];
-  if (input.formData) {
-    for (const [fieldId, newValue] of Object.entries(input.formData)) {
-      const oldValue = currentFormData[fieldId];
-      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-        formDataChanges.push({ fieldId, oldValue, newValue });
-      }
-    }
-  }
-
-  // Build access changes
-  const accessChanges: AccessChange[] = [];
-
-  for (const selection of accessToAdd) {
-    const accessItem = newPriceBreakdown.accessItems.find(
-      (i) => i.accessId === selection.accessId
-    );
-    accessChanges.push({
-      type: 'added',
-      accessId: selection.accessId,
-      accessName: typeof accessItem?.name === 'string' ? accessItem.name : 'Unknown',
-      quantity: selection.quantity,
-      priceImpact: accessItem?.subtotal ?? 0,
-    });
-  }
-
-  for (const selection of accessToRemove) {
-    accessChanges.push({
-      type: 'removed',
-      accessId: selection.accessId,
-      accessName: selection.access.name,
-      quantity: selection.quantity,
-      priceImpact: -selection.subtotal,
-    });
-  }
-
-  // Determine change type
-  let changeType: AmendmentRecord['changeType'] = 'form_data';
-  const hasFormChanges = formDataChanges.length > 0;
-  const hasAdditions = accessChanges.some((c) => c.type === 'added');
-  const hasRemovals = accessChanges.some((c) => c.type === 'removed');
-
-  if (hasFormChanges && accessChanges.length > 0) {
-    changeType = 'mixed';
-  } else if (hasAdditions && hasRemovals) {
-    changeType = 'mixed';
-  } else if (hasAdditions) {
-    changeType = 'access_added';
-  } else if (hasRemovals) {
-    changeType = 'access_removed';
-  }
-
-  const previousAdditionalDue = registration.additionalAmountDue ?? 0;
-  const newAdditionalDue = isPaid
-    ? Math.max(0, newPriceBreakdown.total - registration.totalAmount)
-    : 0;
-
-  return {
-    id: randomUUID(),
-    timestamp: new Date().toISOString(),
-    changeType,
-    formDataChanges: formDataChanges.length > 0 ? formDataChanges : undefined,
-    accessChanges: accessChanges.length > 0 ? accessChanges : undefined,
-    previousTotal: registration.totalAmount,
-    newTotal: newPriceBreakdown.total,
-    previousAdditionalDue,
-    newAdditionalDue,
-    priceBreakdownSnapshot: newPriceBreakdown,
-  };
-}
-
 export type EditRegistrationPublicResult = {
   registration: RegistrationWithRelations;
   priceBreakdown: PriceBreakdown;
-  amendment: AmendmentRecord;
-  additionalAmountDue: number;
 };
 
 /**
@@ -811,23 +759,10 @@ export async function editRegistrationPublic(
   registrationId: string,
   input: PublicEditRegistrationInput
 ): Promise<EditRegistrationPublicResult> {
-  // 1. Get current registration with relations
+  // 1. Get current registration
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: {
-      accessSelections: {
-        include: {
-          access: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              startsAt: true,
-              endsAt: true,
-            },
-          },
-        },
-      },
       form: { select: { id: true, eventId: true, schema: true } },
       event: { select: { id: true, status: true } },
     },
@@ -882,14 +817,17 @@ export async function editRegistrationPublic(
     }
   }
 
-  // 6. Process access selection changes
-  const currentAccessIds = new Set(registration.accessSelections.map((s) => s.accessId));
+  // 6. Process access selection changes (derive current from priceBreakdown)
+  const currentPriceBreakdown = registration.priceBreakdown as PriceBreakdown;
+  const currentAccessItems = currentPriceBreakdown.accessItems ?? [];
+  const currentAccessIds = new Set(currentAccessItems.map((item) => item.accessId));
+
   const newAccessSelections = input.accessSelections ??
-    registration.accessSelections.map((s) => ({ accessId: s.accessId, quantity: s.quantity }));
+    currentAccessItems.map((item) => ({ accessId: item.accessId, quantity: item.quantity }));
   const newAccessIds = new Set(newAccessSelections.map((s) => s.accessId));
 
   const accessToAdd = newAccessSelections.filter((s) => !currentAccessIds.has(s.accessId));
-  const accessToRemove = registration.accessSelections.filter((s) => !newAccessIds.has(s.accessId));
+  const accessToRemove = currentAccessItems.filter((item) => !newAccessIds.has(item.accessId));
 
   // 7. Enforce paid registration rules
   if (isPaid && accessToRemove.length > 0) {
@@ -900,7 +838,7 @@ export async function editRegistrationPublic(
       ErrorCodes.REGISTRATION_ACCESS_REMOVAL_BLOCKED,
       {
         message: 'Paid registrations can only add new access items',
-        attemptedRemovals: accessToRemove.map((s) => s.accessId),
+        attemptedRemovals: accessToRemove.map((item) => item.accessId),
       }
     );
   }
@@ -955,69 +893,22 @@ export async function editRegistrationPublic(
     currency: calculatedPrice.currency,
   };
 
-  // 10. Build amendment record
-  const amendment = buildAmendmentRecord(
-    registration,
-    input,
-    currentFormData,
-    accessToAdd,
-    accessToRemove,
-    newPriceBreakdown,
-    isPaid
-  );
-
-  // 11. Execute transaction
+  // 10. Execute transaction
   await prisma.$transaction(async (tx) => {
     // Reserve new access spots
     for (const selection of accessToAdd) {
       await reserveAccessSpot(selection.accessId, selection.quantity);
-
-      // Create registration access record
-      const accessItem = newPriceBreakdown.accessItems.find(
-        (item) => item.accessId === selection.accessId
-      );
-      if (accessItem) {
-        await tx.registrationAccess.create({
-          data: {
-            registrationId,
-            accessId: selection.accessId,
-            unitPrice: accessItem.unitPrice,
-            quantity: selection.quantity,
-            subtotal: accessItem.subtotal,
-          },
-        });
-      }
     }
 
     // Release removed access spots (only if not paid)
     if (!isPaid) {
-      for (const selection of accessToRemove) {
-        await releaseAccessSpot(selection.accessId, selection.quantity);
-        await tx.registrationAccess.deleteMany({
-          where: {
-            registrationId,
-            accessId: selection.accessId,
-          },
-        });
+      for (const item of accessToRemove) {
+        await releaseAccessSpot(item.accessId, item.quantity);
       }
     }
 
-    // Calculate financial updates
-    const currentAmendmentHistory = (registration.amendmentHistory || []) as AmendmentRecord[];
-    const newAmendmentHistory = [...currentAmendmentHistory, amendment];
-
-    let newTotalAmount: number;
-    let newAdditionalAmountDue: number;
-
-    if (isPaid) {
-      // Paid: Keep original total, track additional as additionalAmountDue
-      newTotalAmount = registration.totalAmount;
-      newAdditionalAmountDue = Math.max(0, newPriceBreakdown.total - registration.totalAmount);
-    } else {
-      // Unpaid: Update total directly
-      newTotalAmount = newPriceBreakdown.total;
-      newAdditionalAmountDue = 0;
-    }
+    // Calculate new total
+    const newTotalAmount = isPaid ? registration.totalAmount : newPriceBreakdown.total;
 
     // Update registration
     await tx.registration.update({
@@ -1028,14 +919,13 @@ export async function editRegistrationPublic(
         lastName: input.lastName ?? registration.lastName,
         phone: input.phone ?? registration.phone,
         totalAmount: newTotalAmount,
-        additionalAmountDue: newAdditionalAmountDue,
         priceBreakdown: newPriceBreakdown as unknown as Prisma.InputJsonValue,
         baseAmount: newPriceBreakdown.calculatedBasePrice,
         accessAmount: newPriceBreakdown.accessTotal,
         discountAmount: calculateDiscountAmount(newPriceBreakdown.appliedRules),
+        sponsorshipAmount: newPriceBreakdown.sponsorshipTotal,
+        accessTypeIds: newAccessSelections.map((s) => s.accessId),
         lastEditedAt: new Date(),
-        editCount: { increment: 1 },
-        amendmentHistory: newAmendmentHistory as unknown as Prisma.InputJsonValue,
       },
     });
   });
@@ -1046,7 +936,5 @@ export async function editRegistrationPublic(
   return {
     registration: updatedRegistration!,
     priceBreakdown: newPriceBreakdown,
-    amendment,
-    additionalAmountDue: isPaid ? Math.max(0, newPriceBreakdown.total - registration.totalAmount) : 0,
   };
 }

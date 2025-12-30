@@ -10,8 +10,6 @@ export {
   confirmPayment,
   deleteRegistration,
   listRegistrations,
-  addRegistrationNote,
-  listRegistrationNotes,
   getRegistrationClientId,
   registrationExists,
   // Self-service editing
@@ -39,14 +37,10 @@ export {
   RegistrationIdParamSchema,
   EventIdParamSchema,
   FormIdParamSchema,
-  CreateRegistrationNoteSchema,
   PriceBreakdownSchema,
   // Self-service editing schemas
   PublicEditRegistrationSchema,
   RegistrationIdPublicParamSchema,
-  AmendmentRecordSchema,
-  FormDataChangeSchema,
-  AccessChangeSchema,
   // Table column schemas
   TableColumnTypeSchema,
   TableColumnOptionSchema,
@@ -61,14 +55,10 @@ export type {
   CreateRegistrationInput,
   UpdateRegistrationInput,
   UpdatePaymentInput,
-  CreateRegistrationNoteInput,
   ListRegistrationsQuery,
   PriceBreakdown,
   // Self-service editing types
   PublicEditRegistrationInput,
-  AmendmentRecord,
-  FormDataChange,
-  AccessChange,
   // Table column types
   TableColumnType,
   TableColumnOption,

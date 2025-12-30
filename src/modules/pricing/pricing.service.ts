@@ -378,24 +378,6 @@ function evaluateSingleCondition(
       return value === condition.value;
     case 'not_equals':
       return value !== condition.value;
-    case 'contains':
-      return (
-        typeof value === 'string' && value.includes(String(condition.value))
-      );
-    case 'greater_than':
-      return typeof value === 'number' && value > Number(condition.value);
-    case 'less_than':
-      return typeof value === 'number' && value < Number(condition.value);
-    case 'in':
-      return (
-        Array.isArray(condition.value) &&
-        condition.value.includes(String(value))
-      );
-    case 'not_in':
-      return (
-        Array.isArray(condition.value) &&
-        !condition.value.includes(String(value))
-      );
     default:
       return false;
   }

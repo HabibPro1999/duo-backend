@@ -7,16 +7,8 @@ import { z } from 'zod';
 export const PricingConditionSchema = z
   .object({
     fieldId: z.string().min(1),
-    operator: z.enum([
-      'equals',
-      'not_equals',
-      'contains',
-      'greater_than',
-      'less_than',
-      'in',
-      'not_in',
-    ]),
-    value: z.union([z.string(), z.number(), z.array(z.string())]),
+    operator: z.enum(['equals', 'not_equals']),
+    value: z.union([z.string(), z.number()]),
   })
   .strict();
 
