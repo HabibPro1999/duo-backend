@@ -485,11 +485,9 @@ function findSpecifyOtherChild(
   // Only for selection fields
   if (!['dropdown', 'radio'].includes(parentField.type)) return null;
 
-  // Check if parent has an "other" option
-  const hasOtherOption = parentField.options?.some(
-    (opt) =>
-      SPECIFY_OTHER_TRIGGER_VALUES.includes(opt.id.toLowerCase()) ||
-      SPECIFY_OTHER_TRIGGER_VALUES.includes(opt.value?.toLowerCase() ?? '')
+  // Check if parent has an "other" option (by option.id)
+  const hasOtherOption = parentField.options?.some((opt) =>
+    SPECIFY_OTHER_TRIGGER_VALUES.includes(opt.id.toLowerCase())
   );
   if (!hasOtherOption) return null;
 

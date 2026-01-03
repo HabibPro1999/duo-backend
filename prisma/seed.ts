@@ -225,31 +225,26 @@ async function main() {
             options: [
               {
                 id: 'cardiology',
-                value: 'cardiology',
                 label: 'Cardiologie',
                 description: 'Spécialiste du cœur et du système cardiovasculaire',
               },
               {
                 id: 'neurology',
-                value: 'neurology',
                 label: 'Neurologie',
                 description: 'Spécialiste du système nerveux',
               },
               {
                 id: 'pediatrics',
-                value: 'pediatrics',
                 label: 'Pédiatrie',
                 description: 'Médecine des enfants',
               },
               {
                 id: 'general',
-                value: 'general',
                 label: 'Médecine générale',
                 description: 'Médecin généraliste',
               },
               {
                 id: 'other',
-                value: 'other',
                 label: 'Autre',
                 description: 'Autre spécialité non listée',
               },
@@ -286,31 +281,26 @@ async function main() {
             options: [
               {
                 id: 'doctor',
-                value: 'doctor',
                 label: 'Médecin',
                 description: 'Médecin en exercice',
               },
               {
                 id: 'resident',
-                value: 'resident',
                 label: 'Résident',
                 description: 'Médecin en formation',
               },
               {
                 id: 'student',
-                value: 'student',
                 label: 'Étudiant',
                 description: 'Étudiant en médecine',
               },
               {
                 id: 'nurse',
-                value: 'nurse',
                 label: 'Infirmier(ère)',
                 description: 'Personnel infirmier',
               },
               {
                 id: 'industry',
-                value: 'industry',
                 label: 'Industrie',
                 description: "Représentant de l'industrie pharmaceutique",
               },
@@ -345,12 +335,12 @@ async function main() {
             width: 'half',
             searchable: true,
             options: [
-              { id: 'TN', value: 'TN', label: 'Tunisie' },
-              { id: 'DZ', value: 'DZ', label: 'Algérie' },
-              { id: 'MA', value: 'MA', label: 'Maroc' },
-              { id: 'LY', value: 'LY', label: 'Libye' },
-              { id: 'FR', value: 'FR', label: 'France' },
-              { id: 'OTHER', value: 'OTHER', label: 'Autre' },
+              { id: 'TN', label: 'Tunisie' },
+              { id: 'DZ', label: 'Algérie' },
+              { id: 'MA', label: 'Maroc' },
+              { id: 'LY', label: 'Libye' },
+              { id: 'FR', label: 'France' },
+              { id: 'OTHER', label: 'Autre' },
             ],
           },
           // TEXT - Institution
@@ -394,31 +384,26 @@ async function main() {
             options: [
               {
                 id: 'interventional',
-                value: 'interventional',
                 label: 'Cardiologie interventionnelle',
                 description: 'Cathétérisme, angioplastie, stenting',
               },
               {
                 id: 'imaging',
-                value: 'imaging',
                 label: 'Imagerie cardiaque',
                 description: 'Échocardiographie, IRM, scanner',
               },
               {
                 id: 'electrophysiology',
-                value: 'electrophysiology',
                 label: 'Électrophysiologie',
                 description: 'Arythmies, pacemakers, défibrillateurs',
               },
               {
                 id: 'prevention',
-                value: 'prevention',
                 label: 'Prévention cardiovasculaire',
                 description: 'Facteurs de risque, hygiène de vie',
               },
               {
                 id: 'heart_failure',
-                value: 'heart_failure',
                 label: 'Insuffisance cardiaque',
                 description: 'Diagnostic et traitement',
               },
@@ -440,11 +425,11 @@ async function main() {
             width: 'full',
             layout: 'horizontal',
             options: [
-              { id: 'none', value: 'none', label: 'Aucune restriction' },
-              { id: 'vegetarian', value: 'vegetarian', label: 'Végétarien' },
-              { id: 'vegan', value: 'vegan', label: 'Végan' },
-              { id: 'halal', value: 'halal', label: 'Halal' },
-              { id: 'other_diet', value: 'other_diet', label: 'Autre' },
+              { id: 'none', label: 'Aucune restriction' },
+              { id: 'vegetarian', label: 'Végétarien' },
+              { id: 'vegan', label: 'Végan' },
+              { id: 'halal', label: 'Halal' },
+              { id: 'other_diet', label: 'Autre' },
             ],
           },
           // TEXT - Other dietary (conditional)

@@ -53,7 +53,7 @@ function formatFileSize(bytes: number): string {
 
 /**
  * Evaluate a single field condition against form data.
- * Matches frontend evaluateCondition logic.
+ * Uses direct comparison - condition.value should match option.id.
  */
 function evaluateSingleCondition(
   condition: FieldCondition,
