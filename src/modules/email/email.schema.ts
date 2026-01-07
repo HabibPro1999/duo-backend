@@ -97,6 +97,7 @@ export const UpdateEmailTemplateSchema = z
     description: z.string().max(1000).optional().nullable(),
     subject: z.string().min(1).max(500).optional(),
     content: TiptapDocumentSchema.optional(),
+    category: EmailTemplateCategorySchema.optional(),
     trigger: AutomaticEmailTriggerSchema.optional().nullable(),
     isActive: z.boolean().optional(),
   })
