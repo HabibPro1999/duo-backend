@@ -1,0 +1,193 @@
+// =============================================================================
+// TIPTAP DOCUMENT STRUCTURE
+// =============================================================================
+
+export interface TiptapDocument {
+  type: 'doc'
+  content: TiptapNode[]
+}
+
+export interface TiptapNode {
+  type: string // 'paragraph', 'heading', 'text', 'mention', etc.
+  attrs?: Record<string, unknown>
+  marks?: TiptapMark[]
+  content?: TiptapNode[]
+  text?: string
+}
+
+export interface TiptapMark {
+  type: string // 'bold', 'italic', 'textStyle', 'link', etc.
+  attrs?: Record<string, unknown>
+}
+
+// Variable mention node
+export interface VariableMentionNode extends TiptapNode {
+  type: 'mention'
+  attrs: {
+    id: string // Variable ID: 'firstName', 'eventName', etc.
+    label: string // Display label: 'First Name', 'Event Name'
+  }
+}
+
+// =============================================================================
+// EMAIL CONTEXT (Variables)
+// =============================================================================
+
+export interface EmailContext {
+  // Base registration fields
+  firstName: string
+  lastName: string
+  fullName: string
+  email: string
+  phone: string
+
+  // Payment information
+  totalAmount: string // Formatted: "250 TND"
+  paidAmount: string // Formatted: "250 TND"
+  amountDue: string // Formatted: "0 TND"
+  paymentStatus: string // Human readable: "Confirmed", "Pending"
+  paymentMethod: string // "Bank Transfer", "Online", etc.
+
+  // Event information
+  eventName: string
+  eventDate: string // Formatted date
+  eventEndDate: string // Formatted date
+  eventLocation: string
+  eventDescription: string
+
+  // Registration metadata
+  registrationId: string
+  registrationDate: string // Formatted date
+  registrationNumber: string // Sequential number if applicable
+
+  // Access/workshop selections
+  selectedAccess: string // Comma-separated list
+  selectedWorkshops: string // Filtered to workshops only
+  selectedDinners: string // Filtered to dinners only
+
+  // Dynamic form fields (flattened from formData)
+  // e.g., form_specialty, form_institution, form_dietary_requirements
+  [key: `form_${string}`]: string
+
+  // Action links
+  registrationLink: string
+  editRegistrationLink: string
+  paymentLink: string
+
+  // Client/Organization
+  organizerName: string
+  organizerEmail: string
+  organizerPhone: string
+}
+
+// =============================================================================
+// MJML COMPILATION RESULT
+// =============================================================================
+
+export interface MjmlCompilationResult {
+  html: string
+  errors: Array<{ message: string; line: number }>
+}
+
+// =============================================================================
+// RECIPIENT FILTERING
+// =============================================================================
+
+export interface RecipientFilter {
+  // Note: eventId is passed separately to filter functions, not stored in the filter object
+
+  // Payment status filter
+  paymentStatus?: string[] // ['PENDING', 'PAID', etc.]
+
+  // Date range filters
+  registeredAfter?: Date
+  registeredBefore?: Date
+
+  // Access/workshop filters
+  hasAccessTypes?: string[] // Must have ALL of these
+  hasAnyAccessTypes?: string[] // Must have ANY of these
+  excludeAccessTypes?: string[] // Must NOT have any of these
+
+  // Form field filters (dynamic based on form schema)
+  formFieldFilters?: FormFieldFilter[]
+
+  // Manual selection
+  includeRegistrationIds?: string[] // Include specific registrations
+  excludeRegistrationIds?: string[] // Exclude specific registrations
+}
+
+export interface FormFieldFilter {
+  fieldId: string
+  operator:
+    | 'equals'
+    | 'not_equals'
+    | 'contains'
+    | 'not_contains'
+    | 'in'
+    | 'not_in'
+    | 'is_empty'
+    | 'is_not_empty'
+  value?: string | number | boolean | string[]
+}
+
+// =============================================================================
+// EMAIL TEMPLATE TYPES
+// =============================================================================
+
+export type EmailTemplateCategory = 'AUTOMATIC' | 'MANUAL'
+
+export type AutomaticEmailTrigger =
+  | 'REGISTRATION_CREATED'
+  | 'PAYMENT_PROOF_SUBMITTED'
+  | 'PAYMENT_CONFIRMED'
+
+export interface CreateEmailTemplateInput {
+  clientId: string
+  eventId?: string
+  name: string
+  description?: string
+  subject: string
+  content: TiptapDocument
+  category: EmailTemplateCategory
+  trigger?: AutomaticEmailTrigger
+  isActive?: boolean
+}
+
+export interface UpdateEmailTemplateInput {
+  name?: string
+  description?: string
+  subject?: string
+  content?: TiptapDocument
+  isActive?: boolean
+}
+
+export interface EmailTemplate {
+  id: string
+  clientId: string
+  eventId: string | null
+  name: string
+  description: string | null
+  subject: string
+  content: unknown // JSON
+  mjmlContent: string | null
+  htmlContent: string | null
+  plainContent: string | null
+  category: EmailTemplateCategory
+  trigger: AutomaticEmailTrigger | null
+  isDefault: boolean
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+// =============================================================================
+// VARIABLE DEFINITIONS
+// =============================================================================
+
+export interface VariableDefinition {
+  id: string
+  label: string
+  category: 'registration' | 'event' | 'payment' | 'access' | 'form' | 'links'
+  description?: string
+  example?: string
+}

@@ -46,6 +46,10 @@ export default tseslint.config(
           {
             group: ['**/modules/reports/**', '!**/modules/reports/index.js'],
             message: 'Import from @reports barrel, not internal files'
+          },
+          {
+            group: ['**/modules/email/**', '!**/modules/email/index.js'],
+            message: 'Import from @email barrel, not internal files'
           }
         ]
       }]
