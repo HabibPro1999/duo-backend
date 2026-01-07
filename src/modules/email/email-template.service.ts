@@ -226,21 +226,10 @@ export async function updateEmailTemplate(
 export async function deleteEmailTemplate(id: string): Promise<void> {
   const existing = await prisma.emailTemplate.findUnique({
     where: { id },
-    include: { campaigns: { select: { id: true }, take: 1 } },
   });
 
   if (!existing) {
     throw new AppError('Email template not found', 404, true, ErrorCodes.NOT_FOUND);
-  }
-
-  // Check if template is used in any campaigns
-  if (existing.campaigns.length > 0) {
-    throw new AppError(
-      'Cannot delete template that is used in campaigns',
-      409,
-      true,
-      ErrorCodes.CONFLICT
-    );
   }
 
   await prisma.emailTemplate.delete({ where: { id } });

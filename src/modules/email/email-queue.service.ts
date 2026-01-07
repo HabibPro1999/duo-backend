@@ -7,6 +7,7 @@ import { prisma } from '@/database/client.js'
 import { logger } from '@shared/utils/logger.js'
 import { sendEmail } from './email-sendgrid.service.js'
 import { resolveVariables, buildEmailContextWithAccess } from './email-variable.service.js'
+import { getTemplateByTrigger } from './email-template.service.js'
 import { Prisma } from '@prisma/client'
 import type { EmailContext, AutomaticEmailTrigger } from './email.types.js'
 
@@ -72,6 +73,39 @@ export async function queueEmail(input: QueueEmailInput) {
       contextSnapshot: input.contextSnapshot ?? Prisma.JsonNull
     }
   })
+}
+
+// =============================================================================
+// QUEUE TRIGGERED EMAIL (For Automatic Sends)
+// =============================================================================
+
+/**
+ * Queue an email based on a trigger event (e.g., REGISTRATION_CREATED).
+ * Looks up the active template for the event+trigger, returns false if none exists.
+ */
+export async function queueTriggeredEmail(
+  trigger: AutomaticEmailTrigger,
+  eventId: string,
+  registration: { id: string; email: string; firstName?: string | null; lastName?: string | null }
+): Promise<boolean> {
+  // 1. Get active template for this event + trigger
+  const template = await getTemplateByTrigger(eventId, trigger)
+  if (!template) {
+    logger.debug({ trigger, eventId }, 'No email template configured for trigger')
+    return false
+  }
+
+  // 2. Queue the email
+  await queueEmail({
+    trigger,
+    templateId: template.id,
+    registrationId: registration.id,
+    recipientEmail: registration.email,
+    recipientName: [registration.firstName, registration.lastName].filter(Boolean).join(' ') || undefined,
+  })
+
+  logger.info({ trigger, eventId, registrationId: registration.id }, 'Queued triggered email')
+  return true
 }
 
 // =============================================================================

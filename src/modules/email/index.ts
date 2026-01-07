@@ -76,6 +76,7 @@ export {
 export {
   queueEmail,
   queueBulkEmails,
+  queueTriggeredEmail,
   processEmailQueue,
   updateEmailStatusFromWebhook,
   getQueueStats,

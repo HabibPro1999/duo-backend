@@ -1,6 +1,7 @@
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
+import { logger } from '@shared/utils/logger.js';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import { incrementRegisteredCount, decrementRegisteredCount } from '@events';
 import {
@@ -9,6 +10,7 @@ import {
   releaseAccessSpot,
 } from '@access';
 import { calculatePrice } from '@pricing';
+import { queueTriggeredEmail } from '@/modules/email/index.js';
 import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
 import type {
   CreateRegistrationInput,
@@ -221,7 +223,7 @@ export async function createRegistration(
   }
 
   // Create registration with access selections in a transaction
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Create registration
     const registration = await tx.registration.create({
       data: {
@@ -273,6 +275,18 @@ export async function createRegistration(
 
     return enrichWithAccessSelections(createdReg);
   });
+
+  // Queue confirmation email (fire and forget - don't block registration response)
+  queueTriggeredEmail('REGISTRATION_CREATED', eventId, {
+    id: result.id,
+    email,
+    firstName,
+    lastName,
+  }).catch((err) => {
+    logger.error({ err, registrationId: result.id }, 'Failed to queue confirmation email');
+  });
+
+  return result;
 }
 
 export async function getRegistrationById(
