@@ -297,10 +297,10 @@ export async function listSponsorships(
 // ============================================================================
 
 /**
- * Get sponsorship details including batch info and usages.
+ * Get sponsorship details including batch info, usages, and resolved access items.
  */
-export async function getSponsorshipById(id: string): Promise<SponsorshipWithUsages | null> {
-  return prisma.sponsorship.findUnique({
+export async function getSponsorshipById(id: string) {
+  const sponsorship = await prisma.sponsorship.findUnique({
     where: { id },
     include: {
       batch: true,
@@ -318,6 +318,21 @@ export async function getSponsorshipById(id: string): Promise<SponsorshipWithUsa
       },
     },
   });
+
+  if (!sponsorship) return null;
+
+  // Resolve coveredAccessIds to full access item objects
+  const coveredAccessItems = sponsorship.coveredAccessIds.length > 0
+    ? await prisma.eventAccess.findMany({
+        where: { id: { in: sponsorship.coveredAccessIds } },
+        select: { id: true, name: true, price: true },
+      })
+    : [];
+
+  return {
+    ...sponsorship,
+    coveredAccessItems,
+  };
 }
 
 // ============================================================================
