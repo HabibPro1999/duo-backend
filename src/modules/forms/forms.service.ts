@@ -201,12 +201,13 @@ export async function updateForm(id: string, input: UpdateFormInput): Promise<Fo
  * List forms with pagination and filters.
  */
 export async function listForms(query: ListFormsQuery): Promise<PaginatedResult<Form>> {
-  const { page, limit, eventId, search } = query;
+  const { page, limit, eventId, search, type } = query;
   const skip = getSkip({ page, limit });
 
   const where: Prisma.FormWhereInput = {};
 
   if (eventId) where.eventId = eventId;
+  if (type) where.type = type;
   if (search) {
     where.OR = [
       { name: { contains: search, mode: 'insensitive' } },

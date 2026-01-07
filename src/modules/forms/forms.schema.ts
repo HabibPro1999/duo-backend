@@ -156,6 +156,7 @@ export const ListFormsQuerySchema = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
     eventId: z.string().uuid().optional(),
     search: z.string().optional(),
+    type: z.enum(['REGISTRATION', 'SPONSOR']).optional(),
   })
   .strict();
 
