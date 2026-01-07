@@ -4,7 +4,7 @@ import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
-import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson } from './forms.schema.js';
+import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson, SponsorFormSchemaJson } from './forms.schema.js';
 import type { Form, Prisma, Event, Client, EventAccess, EventPricing } from '@prisma/client';
 
 type FormWithRelations = Form & {
@@ -257,4 +257,162 @@ export async function getFormClientId(id: string): Promise<string | null> {
     },
   });
   return form?.event.clientId ?? null;
+}
+
+// ============================================================================
+// Sponsor Form Functions
+// ============================================================================
+
+/**
+ * Create default sponsor form schema with standard lab and beneficiary fields.
+ */
+export function createDefaultSponsorSchema(): SponsorFormSchemaJson {
+  return {
+    formType: 'SPONSOR',
+    sponsorSteps: [
+      {
+        id: `step_${randomUUID()}`,
+        title: 'Informations du laboratoire',
+        fields: [
+          {
+            id: 'labName',
+            type: 'text',
+            label: 'Nom du laboratoire',
+            gridColumn: 'full',
+          },
+          {
+            id: 'contactName',
+            type: 'text',
+            label: 'Nom du contact',
+            gridColumn: 'half',
+          },
+          {
+            id: 'email',
+            type: 'email',
+            label: 'Email',
+            gridColumn: 'half',
+          },
+          {
+            id: 'phone',
+            type: 'phone',
+            label: 'Téléphone',
+            gridColumn: 'half',
+          },
+        ],
+      },
+    ],
+    beneficiaryTemplate: {
+      fields: [
+        {
+          id: 'name',
+          type: 'text',
+          label: 'Nom et prénom',
+          gridColumn: 'full',
+        },
+        {
+          id: 'email',
+          type: 'email',
+          label: 'Email',
+          gridColumn: 'half',
+        },
+        {
+          id: 'phone',
+          type: 'phone',
+          label: 'Téléphone',
+          gridColumn: 'half',
+        },
+        {
+          id: 'address',
+          type: 'textarea',
+          label: 'Adresse',
+          gridColumn: 'full',
+        },
+      ],
+      minCount: 1,
+      maxCount: 100,
+    },
+  };
+}
+
+/**
+ * Get sponsor form by event slug (for public access).
+ * Only returns forms for OPEN events with event, pricing, and access data.
+ */
+export async function getSponsorFormByEventSlug(slug: string): Promise<FormWithRelations | null> {
+  const form = await prisma.form.findFirst({
+    where: {
+      type: 'SPONSOR',
+      event: {
+        slug,
+        status: 'OPEN',
+      },
+      active: true,
+    },
+    include: {
+      event: {
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              logo: true,
+              primaryColor: true,
+            },
+          },
+          pricing: true,
+          access: {
+            where: { active: true },
+            orderBy: [{ startsAt: 'asc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+          },
+        },
+      },
+    },
+  });
+
+  return form;
+}
+
+/**
+ * Get sponsor form by event ID (for admin access).
+ */
+export async function getSponsorFormByEventId(eventId: string): Promise<Form | null> {
+  return prisma.form.findFirst({
+    where: { eventId, type: 'SPONSOR' },
+  });
+}
+
+/**
+ * Create sponsor form with default schema.
+ */
+export async function createSponsorForm(eventId: string, name?: string): Promise<Form> {
+  // Validate that event exists
+  const isValidEvent = await eventExists(eventId);
+  if (!isValidEvent) {
+    throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  // Check if event already has a sponsor form
+  const existingForm = await prisma.form.findFirst({
+    where: { eventId, type: 'SPONSOR' },
+  });
+  if (existingForm) {
+    throw new AppError(
+      'Event already has a sponsor form. Update the existing form instead.',
+      409,
+      true,
+      ErrorCodes.CONFLICT
+    );
+  }
+
+  const schema = createDefaultSponsorSchema();
+
+  return prisma.form.create({
+    data: {
+      eventId,
+      type: 'SPONSOR',
+      name: name || 'Formulaire Sponsor',
+      schema: schema as unknown as Prisma.JsonObject,
+      active: true,
+    },
+  });
 }

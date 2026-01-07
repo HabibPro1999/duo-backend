@@ -1,5 +1,5 @@
 import { requireAuth } from '@shared/middleware/auth.middleware.js';
-import { getEventById } from '@events';
+import { getEventById, EventIdParamSchema } from '@events';
 import {
   createForm,
   getFormById,
@@ -7,6 +7,8 @@ import {
   updateForm,
   deleteForm,
   getFormClientId,
+  getSponsorFormByEventId,
+  createSponsorForm,
 } from './forms.service.js';
 import {
   CreateFormSchema,
@@ -163,6 +165,66 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
 
       await deleteForm(request.params.id);
       return reply.status(204).send();
+    }
+  );
+
+  // ============================================================================
+  // Sponsor Form Routes
+  // ============================================================================
+
+  // GET /api/forms/events/:id/sponsor - Get sponsor form for event
+  app.get<{ Params: { id: string } }>(
+    '/events/:id/sponsor',
+    {
+      schema: { params: EventIdParamSchema },
+    },
+    async (request, reply) => {
+      // Get event to check ownership
+      const event = await getEventById(request.params.id);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+
+      // Check if user is super_admin or accessing their own client's event
+      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
+      const isOwnClient = request.user!.clientId === event.clientId;
+
+      if (!isSuperAdmin && !isOwnClient) {
+        throw app.httpErrors.forbidden('Insufficient permissions to access this event');
+      }
+
+      const form = await getSponsorFormByEventId(request.params.id);
+      if (!form) {
+        throw app.httpErrors.notFound('Sponsor form not found for this event');
+      }
+
+      return reply.send(form);
+    }
+  );
+
+  // POST /api/forms/events/:id/sponsor - Create sponsor form for event
+  app.post<{ Params: { id: string }; Body: { name?: string } }>(
+    '/events/:id/sponsor',
+    {
+      schema: { params: EventIdParamSchema },
+    },
+    async (request, reply) => {
+      // Get event to check ownership
+      const event = await getEventById(request.params.id);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+
+      // Check if user is super_admin or creating form for their own client's event
+      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
+      const isOwnClient = request.user!.clientId === event.clientId;
+
+      if (!isSuperAdmin && !isOwnClient) {
+        throw app.httpErrors.forbidden('Insufficient permissions to create form for this event');
+      }
+
+      const form = await createSponsorForm(request.params.id, request.body?.name);
+      return reply.status(201).send(form);
     }
   );
 }

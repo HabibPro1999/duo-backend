@@ -96,6 +96,38 @@ export const FormSchemaJsonSchema = z.object({
 }).passthrough();
 
 // ============================================================================
+// Sponsor Form Schemas
+// ============================================================================
+
+// Beneficiary template for sponsor forms
+export const BeneficiaryTemplateSchema = z
+  .object({
+    fields: z.array(FormFieldSchema),
+    minCount: z.number().int().min(1).default(1),
+    maxCount: z.number().int().max(500).default(100),
+  })
+  .strict();
+
+// Summary settings for sponsor forms
+export const SponsorSummarySettingsSchema = z
+  .object({
+    title: z.string().optional(),
+    showPriceBreakdown: z.boolean().default(true),
+    termsText: z.string().optional(),
+  })
+  .strict();
+
+// Sponsor form schema structure
+export const SponsorFormSchemaJsonSchema = z
+  .object({
+    formType: z.literal('SPONSOR'),
+    sponsorSteps: z.array(FormStepSchema),
+    beneficiaryTemplate: BeneficiaryTemplateSchema,
+    summarySettings: SponsorSummarySettingsSchema.optional(),
+  })
+  .strict();
+
+// ============================================================================
 // Request Schemas
 // ============================================================================
 
@@ -191,6 +223,9 @@ export type FieldValidation = z.infer<typeof FieldValidationSchema>;
 export type FormField = z.infer<typeof FormFieldSchema>;
 export type FormStep = z.infer<typeof FormStepSchema>;
 export type FormSchemaJson = z.infer<typeof FormSchemaJsonSchema>;
+export type BeneficiaryTemplate = z.infer<typeof BeneficiaryTemplateSchema>;
+export type SponsorSummarySettings = z.infer<typeof SponsorSummarySettingsSchema>;
+export type SponsorFormSchemaJson = z.infer<typeof SponsorFormSchemaJsonSchema>;
 export type CreateFormInput = z.infer<typeof CreateFormSchema>;
 export type UpdateFormInput = z.infer<typeof UpdateFormSchema>;
 export type ListFormsQuery = z.infer<typeof ListFormsQuerySchema>;
