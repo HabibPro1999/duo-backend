@@ -34,7 +34,7 @@ const UserRole = {
 } as const;
 
 // ============================================================================
-// Admin Routes (Authenticated)
+// Event-scoped Sponsorship Routes (mounted at /api/events)
 // ============================================================================
 
 export async function sponsorshipsRoutes(app: AppInstance): Promise<void> {
@@ -72,10 +72,18 @@ export async function sponsorshipsRoutes(app: AppInstance): Promise<void> {
       return reply.send(sponsorships);
     }
   );
+}
+
+// ============================================================================
+// Sponsorship Detail Routes (mounted at /api/sponsorships)
+// ============================================================================
+
+export async function sponsorshipDetailRoutes(app: AppInstance): Promise<void> {
+  app.addHook('onRequest', requireAuth);
 
   // GET /api/sponsorships/:id - Get sponsorship detail
   app.get<{ Params: { id: string } }>(
-    '/sponsorships/:id',
+    '/:id',
     {
       schema: { params: SponsorshipIdParamSchema },
     },
@@ -101,7 +109,7 @@ export async function sponsorshipsRoutes(app: AppInstance): Promise<void> {
 
   // PATCH /api/sponsorships/:id - Update sponsorship
   app.patch<{ Params: { id: string }; Body: UpdateSponsorshipInput }>(
-    '/sponsorships/:id',
+    '/:id',
     {
       schema: {
         params: SponsorshipIdParamSchema,
@@ -131,7 +139,7 @@ export async function sponsorshipsRoutes(app: AppInstance): Promise<void> {
 
   // DELETE /api/sponsorships/:id - Delete sponsorship
   app.delete<{ Params: { id: string } }>(
-    '/sponsorships/:id',
+    '/:id',
     {
       schema: { params: SponsorshipIdParamSchema },
     },

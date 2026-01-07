@@ -74,6 +74,7 @@ export type {
 // Routes
 export {
   sponsorshipsRoutes,
+  sponsorshipDetailRoutes,
   registrationSponsorshipsRoutes,
 } from './sponsorships.routes.js';
 

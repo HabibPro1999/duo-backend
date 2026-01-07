@@ -24,6 +24,7 @@ import { reportsRoutes } from '@reports';
 import { emailRoutes } from '@email';
 import {
   sponsorshipsRoutes,
+  sponsorshipDetailRoutes,
   registrationSponsorshipsRoutes,
   sponsorshipsPublicRoutes,
   sponsorshipsPublicBySlugRoutes,
@@ -99,6 +100,7 @@ export async function buildServer(): Promise<AppInstance> {
 
   // Sponsorship routes
   await app.register(sponsorshipsRoutes, { prefix: '/api/events' });
+  await app.register(sponsorshipDetailRoutes, { prefix: '/api/sponsorships' });
   await app.register(registrationSponsorshipsRoutes, { prefix: '/api/registrations' });
   await app.register(sponsorshipsPublicRoutes, { prefix: '/api/public/events' });
   await app.register(sponsorshipsPublicBySlugRoutes, { prefix: '/api/public/events' });
