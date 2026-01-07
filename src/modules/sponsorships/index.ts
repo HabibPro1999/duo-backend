@@ -16,6 +16,7 @@ export {
   unlinkSponsorshipFromRegistration,
   getAvailableSponsorships,
   getSponsorshipClientId,
+  getLinkedSponsorships,
 } from './sponsorships.service.js';
 
 // Service types

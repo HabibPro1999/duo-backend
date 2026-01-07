@@ -966,3 +966,48 @@ async function recalculateUsageAmounts(sponsorshipId: string): Promise<void> {
     });
   }
 }
+
+// ============================================================================
+// Get Linked Sponsorships for Registration (Admin)
+// ============================================================================
+
+/**
+ * Get all sponsorships linked to a registration.
+ */
+export async function getLinkedSponsorships(registrationId: string) {
+  const usages = await prisma.sponsorshipUsage.findMany({
+    where: { registrationId },
+    include: {
+      sponsorship: {
+        include: {
+          batch: {
+            select: {
+              id: true,
+              labName: true,
+              contactName: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Transform to the expected format
+  return usages.map((usage) => ({
+    id: usage.sponsorship.id,
+    code: usage.sponsorship.code,
+    status: usage.sponsorship.status,
+    beneficiaryName: usage.sponsorship.beneficiaryName,
+    beneficiaryEmail: usage.sponsorship.beneficiaryEmail,
+    coversBasePrice: usage.sponsorship.coversBasePrice,
+    coveredAccessIds: usage.sponsorship.coveredAccessIds,
+    totalAmount: usage.sponsorship.totalAmount,
+    batch: usage.sponsorship.batch,
+    usage: {
+      id: usage.id,
+      amountApplied: usage.amountApplied,
+      appliedAt: usage.appliedAt,
+    },
+  }));
+}

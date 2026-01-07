@@ -10,6 +10,7 @@ import {
   unlinkSponsorshipFromRegistration,
   getAvailableSponsorships,
   getSponsorshipClientId,
+  getLinkedSponsorships,
 } from './sponsorships.service.js';
 import { getRegistrationById } from '@registrations';
 import {
@@ -197,6 +198,32 @@ export async function registrationSponsorshipsRoutes(app: AppInstance): Promise<
         registrationId
       );
       return reply.send({ sponsorships });
+    }
+  );
+
+  // GET /api/registrations/:registrationId/sponsorships - Get linked sponsorships
+  app.get<{ Params: { registrationId: string } }>(
+    '/:registrationId/sponsorships',
+    {
+      schema: { params: RegistrationIdParamSchema },
+    },
+    async (request, reply) => {
+      const { registrationId } = request.params;
+
+      const registration = await getRegistrationById(registrationId);
+      if (!registration) {
+        throw app.httpErrors.notFound('Registration not found');
+      }
+
+      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
+      const isOwnClient = request.user!.clientId === registration.event.clientId;
+
+      if (!isSuperAdmin && !isOwnClient) {
+        throw app.httpErrors.forbidden('Insufficient permissions');
+      }
+
+      const linkedSponsorships = await getLinkedSponsorships(registrationId);
+      return reply.send(linkedSponsorships);
     }
   );
 
