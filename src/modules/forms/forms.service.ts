@@ -87,8 +87,10 @@ export async function createForm(input: CreateFormInput): Promise<Form> {
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // Check if event already has a form (enforced by unique constraint, but provide better error)
-  const existingForm = await prisma.form.findUnique({ where: { eventId } });
+  // Check if event already has a registration form (enforced by unique constraint, but provide better error)
+  const existingForm = await prisma.form.findFirst({
+    where: { eventId, type: 'REGISTRATION' },
+  });
   if (existingForm) {
     throw new AppError(
       'Event already has a form. Update the existing form instead.',

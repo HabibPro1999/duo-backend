@@ -387,9 +387,10 @@ model Registration {
   accessTypeIds String[] @default([]) @map("access_type_ids")
 
   // Relations
-  form      Form       @relation(fields: [formId], references: [id])
-  event     Event      @relation(fields: [eventId], references: [id])
-  emailLogs EmailLog[]
+  form              Form               @relation(fields: [formId], references: [id])
+  event             Event              @relation(fields: [eventId], references: [id])
+  emailLogs         EmailLog[]
+  sponsorshipUsages SponsorshipUsage[]
 
   @@unique([email, eventId])
   @@index([eventId, paymentStatus])

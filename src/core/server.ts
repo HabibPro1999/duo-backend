@@ -22,6 +22,12 @@ import {
 } from '@registrations';
 import { reportsRoutes } from '@reports';
 import { emailRoutes } from '@email';
+import {
+  sponsorshipsRoutes,
+  registrationSponsorshipsRoutes,
+  sponsorshipsPublicRoutes,
+  sponsorshipsPublicBySlugRoutes,
+} from '@sponsorships';
 import type { AppInstance } from '@shared/types/fastify.js';
 
 export async function buildServer(): Promise<AppInstance> {
@@ -90,6 +96,12 @@ export async function buildServer(): Promise<AppInstance> {
 
   // Email routes (templates and campaigns)
   await app.register(emailRoutes, { prefix: '/api/events' });
+
+  // Sponsorship routes
+  await app.register(sponsorshipsRoutes, { prefix: '/api/events' });
+  await app.register(registrationSponsorshipsRoutes, { prefix: '/api/registrations' });
+  await app.register(sponsorshipsPublicRoutes, { prefix: '/api/public/events' });
+  await app.register(sponsorshipsPublicBySlugRoutes, { prefix: '/api/public/events' });
 
   // Global error handler
   app.setErrorHandler(errorHandler);

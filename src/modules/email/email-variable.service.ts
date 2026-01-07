@@ -64,8 +64,8 @@ export async function getAvailableVariables(eventId: string): Promise<VariableDe
   const variables = [...BASE_VARIABLES]
 
   // Get form schema to extract field-based variables
-  const form = await prisma.form.findUnique({
-    where: { eventId },
+  const form = await prisma.form.findFirst({
+    where: { eventId, type: 'REGISTRATION' },
     select: { schema: true }
   })
 

@@ -29,6 +29,7 @@
       "@pricing": ["./src/modules/pricing/index.ts"],
       "@access": ["./src/modules/access/index.ts"],
       "@registrations": ["./src/modules/registrations/index.ts"],
+      "@sponsorships": ["./src/modules/sponsorships/index.ts"],
       "@reports": ["./src/modules/reports/index.ts"],
       "@email": ["./src/modules/email/index.ts"]
     }

@@ -528,8 +528,8 @@ function getDefaultFixedColumns() {
 export async function getRegistrationTableColumns(
   eventId: string
 ): Promise<RegistrationTableColumns> {
-  const form = await prisma.form.findUnique({
-    where: { eventId },
+  const form = await prisma.form.findFirst({
+    where: { eventId, type: 'REGISTRATION' },
     select: { schema: true },
   });
 
