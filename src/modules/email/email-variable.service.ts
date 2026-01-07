@@ -144,7 +144,7 @@ export function buildEmailContext(registration: RegistrationWithRelations): Emai
     // Payment
     totalAmount: formatCurrency(registration.totalAmount, registration.currency),
     paidAmount: formatCurrency(registration.paidAmount, registration.currency),
-    amountDue: formatCurrency(registration.totalAmount - registration.paidAmount, registration.currency),
+    amountDue: formatCurrency(registration.totalAmount - (registration.sponsorshipAmount || 0) - registration.paidAmount, registration.currency),
     paymentStatus: formatPaymentStatus(registration.paymentStatus),
     paymentMethod: registration.paymentMethod || '',
 
