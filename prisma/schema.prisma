@@ -72,13 +72,15 @@ model Event {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  client         Client          @relation(fields: [clientId], references: [id])
-  form           Form? // One-to-one: each event has exactly one form
-  pricing        EventPricing? // One-to-one: pricing configuration (includes embedded rules)
-  access         EventAccess[]
-  registrations  Registration[]
-  emailTemplates EmailTemplate[]
-  emailCampaigns EmailCampaign[]
+  client             Client             @relation(fields: [clientId], references: [id])
+  forms              Form[] // Multiple forms per event (REGISTRATION, SPONSOR)
+  pricing            EventPricing? // One-to-one: pricing configuration (includes embedded rules)
+  access             EventAccess[]
+  registrations      Registration[]
+  emailTemplates     EmailTemplate[]
+  emailCampaigns     EmailCampaign[]
+  sponsorshipBatches SponsorshipBatch[]
+  sponsorships       Sponsorship[]
 
   @@index([clientId, status])
   @@map("events")
@@ -91,23 +93,42 @@ enum EventStatus {
 }
 
 // ============================================================================
+// SPONSORSHIP MODULE - ENUMS
+// ============================================================================
+
+enum FormType {
+  REGISTRATION
+  SPONSOR
+}
+
+enum SponsorshipStatus {
+  PENDING // Created, not yet linked to registration
+  USED // Linked to one or more registrations
+  CANCELLED // Admin cancelled
+}
+
+// ============================================================================
 // FORMS MODULE
 // ============================================================================
 
 model Form {
   id             String   @id @default(uuid())
-  eventId        String   @unique @map("event_id") // One form per event
+  eventId        String   @map("event_id")
+  type           FormType @default(REGISTRATION)
   name           String
   schema         Json
   schemaVersion  Int      @default(1) @map("schema_version")
   successTitle   String?  @map("success_title")
   successMessage String?  @map("success_message")
+  active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  event         Event          @relation(fields: [eventId], references: [id])
-  registrations Registration[]
+  event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registrations      Registration[]
+  sponsorshipBatches SponsorshipBatch[]
 
+  @@unique([eventId, type]) // One form per type per event
   @@index([eventId])
   @@map("forms")
 }
@@ -207,6 +228,90 @@ model EventAccess {
   @@index([eventId, type])
   @@index([eventId, active])
   @@map("event_access")
+}
+
+// ============================================================================
+// SPONSORSHIP MODULE
+// ============================================================================
+
+model SponsorshipBatch {
+  id          String   @id @default(uuid())
+  eventId     String   @map("event_id")
+  formId      String   @map("form_id")
+
+  // Sponsor (Lab) Information
+  labName     String   @map("lab_name")
+  contactName String   @map("contact_name")
+  email       String
+  phone       String?
+
+  // Full form submission (includes custom fields)
+  formData    Json     @map("form_data")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  event        Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  form         Form          @relation(fields: [formId], references: [id])
+  sponsorships Sponsorship[]
+
+  @@index([eventId])
+  @@index([email])
+  @@map("sponsorship_batches")
+}
+
+model Sponsorship {
+  id                 String            @id @default(uuid())
+  batchId            String            @map("batch_id")
+  eventId            String            @map("event_id")
+
+  // Unique code (admin-only visible)
+  code               String            @unique
+  status             SponsorshipStatus @default(PENDING)
+
+  // Beneficiary Information
+  beneficiaryName    String            @map("beneficiary_name")
+  beneficiaryEmail   String            @map("beneficiary_email")
+  beneficiaryPhone   String?           @map("beneficiary_phone")
+  beneficiaryAddress String?           @map("beneficiary_address")
+
+  // Coverage
+  coversBasePrice    Boolean           @default(true) @map("covers_base_price")
+  coveredAccessIds   String[]          @default([]) @map("covered_access_ids") // Array of EventAccess IDs
+  totalAmount        Int               @map("total_amount") // Calculated: base (if covered) + sum(access prices)
+
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  batch  SponsorshipBatch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  event  Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  usages SponsorshipUsage[]
+
+  @@index([eventId])
+  @@index([batchId])
+  @@index([code])
+  @@index([status])
+  @@index([beneficiaryEmail])
+  @@map("sponsorships")
+}
+
+model SponsorshipUsage {
+  id             String   @id @default(uuid())
+  sponsorshipId  String   @map("sponsorship_id")
+  registrationId String   @map("registration_id")
+
+  amountApplied  Int      @map("amount_applied") // How much from this sponsorship was applied
+  appliedAt      DateTime @default(now()) @map("applied_at")
+  appliedBy      String   @map("applied_by") // User ID who linked it
+
+  // Relations
+  sponsorship  Sponsorship  @relation(fields: [sponsorshipId], references: [id], onDelete: Cascade)
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@unique([sponsorshipId, registrationId]) // One link per pair
+  @@index([registrationId])
+  @@map("sponsorship_usages")
 }
 
 // ============================================================================

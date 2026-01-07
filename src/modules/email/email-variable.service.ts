@@ -116,7 +116,6 @@ function getExampleForFieldType(type: string): string {
 export function buildEmailContext(registration: RegistrationWithRelations): EmailContext {
   const formData = (registration.formData as Record<string, unknown>) || {}
   const baseUrl = process.env.PUBLIC_FORMS_URL || 'https://events.example.com'
-  const adminUrl = process.env.ADMIN_URL || 'https://admin.example.com'
 
   // Build base context
   const context: EmailContext = {
@@ -149,10 +148,10 @@ export function buildEmailContext(registration: RegistrationWithRelations): Emai
     selectedWorkshops: '',
     selectedDinners: '',
 
-    // Links
-    registrationLink: `${adminUrl}/registrations/${registration.id}`,
-    editRegistrationLink: `${baseUrl}/edit/${registration.id}`,
-    paymentLink: `${baseUrl}/pay/${registration.id}`,
+    // Links (uses registration ID as token placeholder - implement proper tokens later)
+    registrationLink: `${baseUrl}/registration/${registration.id}/${registration.id}`,
+    editRegistrationLink: `${baseUrl}/registration/${registration.id}/${registration.id}`,
+    paymentLink: `${baseUrl}/payment/${registration.id}/${registration.id}`,
 
     // Organization
     organizerName: registration.event.client.name,
@@ -319,9 +318,9 @@ export function getSampleEmailContext(): EmailContext {
     selectedWorkshops: 'Workshop A',
     selectedDinners: 'Gala Dinner',
 
-    registrationLink: 'https://admin.example.com/registrations/abc123',
-    editRegistrationLink: 'https://events.example.com/edit/abc123',
-    paymentLink: 'https://events.example.com/pay/abc123',
+    registrationLink: 'https://events.example.com/registration/abc123/abc123',
+    editRegistrationLink: 'https://events.example.com/registration/abc123/abc123',
+    paymentLink: 'https://events.example.com/payment/abc123/abc123',
 
     organizerName: 'Medical Events Co.',
     organizerEmail: 'contact@medicalevents.com',
