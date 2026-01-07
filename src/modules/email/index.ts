@@ -9,19 +9,15 @@
 export {
   EmailTemplateCategorySchema,
   AutomaticEmailTriggerSchema,
-  CampaignStatusSchema,
   EmailStatusSchema,
   TiptapDocumentSchema,
   CreateEmailTemplateSchema,
   UpdateEmailTemplateSchema,
   ListEmailTemplatesQuerySchema,
-  RecipientFilterSchema,
-  CreateEmailCampaignSchema,
-  UpdateEmailCampaignSchema,
-  ListEmailCampaignsQuerySchema,
+  BulkSendEmailSchema,
+  BulkSendFilterSchema,
   TestSendEmailSchema,
   EmailTemplateIdParamSchema,
-  EmailCampaignIdParamSchema,
   EventIdParamSchema,
 } from './email.schema.js';
 
@@ -32,16 +28,13 @@ export {
 export type {
   EmailTemplateCategory,
   AutomaticEmailTrigger,
-  CampaignStatus,
   EmailStatus,
   TiptapDocument,
-  RecipientFilter,
   CreateEmailTemplateInput,
   UpdateEmailTemplateInput,
   ListEmailTemplatesQuery,
-  CreateEmailCampaignInput,
-  UpdateEmailCampaignInput,
-  ListEmailCampaignsQuery,
+  BulkSendEmailInput,
+  BulkSendFilter,
   TestSendEmailInput,
 } from './email.schema.js';
 
@@ -77,29 +70,6 @@ export {
 } from './email-variable.service.js';
 
 // ============================================================================
-// Email Campaign Service
-// ============================================================================
-
-export {
-  createEmailCampaign,
-  getEmailCampaignById,
-  getCampaignClientId,
-  listEmailCampaigns,
-  countRecipients,
-  getFilteredRecipients,
-  startCampaign,
-  cancelCampaign,
-  getCampaignProgress,
-  finalizeCampaignIfComplete,
-  deleteEmailCampaign,
-} from './email-campaign.service.js';
-
-export type {
-  CreateCampaignInput,
-  CampaignProgress,
-} from './email-campaign.service.js';
-
-// ============================================================================
 // Email Queue Service
 // ============================================================================
 
@@ -108,7 +78,6 @@ export {
   queueBulkEmails,
   processEmailQueue,
   updateEmailStatusFromWebhook,
-  updateCampaignStats,
   getQueueStats,
 } from './email-queue.service.js';
 
@@ -169,8 +138,6 @@ export type {
   VariableMentionNode,
   EmailContext,
   MjmlCompilationResult,
-  RecipientFilter as RecipientFilterType,
-  FormFieldFilter,
   VariableDefinition,
 } from './email.types.js';
 

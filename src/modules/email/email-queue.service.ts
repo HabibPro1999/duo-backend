@@ -44,9 +44,8 @@ function isValidEmailContext(obj: unknown): obj is EmailContext {
 // =============================================================================
 
 export interface QueueEmailInput {
-  // Source (one required)
-  trigger?: AutomaticEmailTrigger
-  campaignId?: string
+  // Source
+  trigger?: AutomaticEmailTrigger // null = manual send
 
   // Target
   registrationId?: string
@@ -64,7 +63,6 @@ export async function queueEmail(input: QueueEmailInput) {
   return prisma.emailLog.create({
     data: {
       trigger: input.trigger,
-      campaignId: input.campaignId,
       templateId: input.templateId,
       registrationId: input.registrationId,
       recipientEmail: input.recipientEmail,
@@ -77,11 +75,10 @@ export async function queueEmail(input: QueueEmailInput) {
 }
 
 // =============================================================================
-// QUEUE BULK EMAILS (For Campaigns)
+// QUEUE BULK EMAILS (For Manual Sends)
 // =============================================================================
 
 export async function queueBulkEmails(
-  campaignId: string,
   templateId: string,
   registrations: Array<{
     id: string
@@ -91,7 +88,6 @@ export async function queueBulkEmails(
   }>
 ): Promise<number> {
   const emailLogs = registrations.map(reg => ({
-    campaignId,
     templateId,
     registrationId: reg.id,
     recipientEmail: reg.email,
@@ -324,51 +320,9 @@ export async function updateEmailStatusFromWebhook(
       where: { id: emailLogId },
       data: updates
     })
-
-    // Update campaign statistics if this email belongs to a campaign
-    const emailLog = await prisma.emailLog.findUnique({
-      where: { id: emailLogId },
-      select: { campaignId: true }
-    })
-
-    if (emailLog?.campaignId) {
-      await updateCampaignStats(emailLog.campaignId)
-    }
   } catch (error) {
     logger.error({ emailLogId, event, error }, 'Failed to update email status from webhook')
   }
-}
-
-// =============================================================================
-// CAMPAIGN STATISTICS
-// =============================================================================
-
-export async function updateCampaignStats(campaignId: string) {
-  const stats = await prisma.emailLog.groupBy({
-    by: ['status'],
-    where: { campaignId },
-    _count: { status: true }
-  })
-
-  const statusCounts = stats.reduce((acc: Record<string, number>, s: { status: string; _count: { status: number } }) => {
-    acc[s.status] = s._count.status
-    return acc
-  }, {} as Record<string, number>)
-
-  await prisma.emailCampaign.update({
-    where: { id: campaignId },
-    data: {
-      sentCount: (statusCounts['SENT'] || 0) +
-                 (statusCounts['DELIVERED'] || 0) +
-                 (statusCounts['OPENED'] || 0) +
-                 (statusCounts['CLICKED'] || 0),
-      failedCount: (statusCounts['FAILED'] || 0) +
-                   (statusCounts['BOUNCED'] || 0) +
-                   (statusCounts['DROPPED'] || 0),
-      openedCount: statusCounts['OPENED'] || 0,
-      clickedCount: statusCounts['CLICKED'] || 0
-    }
-  })
 }
 
 // =============================================================================

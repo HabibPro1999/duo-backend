@@ -25,7 +25,6 @@ model Client {
   users          User[]
   events         Event[]
   emailTemplates EmailTemplate[]
-  emailCampaigns EmailCampaign[]
 
   @@map("clients")
 }
@@ -44,8 +43,7 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  client         Client?         @relation(fields: [clientId], references: [id])
-  emailCampaigns EmailCampaign[]
+  client Client? @relation(fields: [clientId], references: [id])
 
   @@index([clientId])
   @@index([active, role])
@@ -78,7 +76,6 @@ model Event {
   access             EventAccess[]
   registrations      Registration[]
   emailTemplates     EmailTemplate[]
-  emailCampaigns     EmailCampaign[]
   sponsorshipBatches SponsorshipBatch[]
   sponsorships       Sponsorship[]
 
@@ -417,16 +414,6 @@ enum AutomaticEmailTrigger {
   PAYMENT_CONFIRMED // When admin confirms/validates payment
 }
 
-enum CampaignStatus {
-  DRAFT // Being prepared, not yet sent
-  SCHEDULED // Waiting for scheduled time
-  PROCESSING // Currently sending emails
-  COMPLETED // All emails processed
-  PARTIALLY_COMPLETED // Completed with some failures
-  FAILED // Critical error, stopped
-  CANCELLED // Manually cancelled by admin
-}
-
 enum EmailStatus {
   QUEUED // In queue, waiting to be processed
   SENDING // Currently being sent to SendGrid
@@ -475,9 +462,8 @@ model EmailTemplate {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  client    Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  event     Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  campaigns EmailCampaign[]
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  event     Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
   emailLogs EmailLog[]
 
   // Constraints
@@ -488,60 +474,11 @@ model EmailTemplate {
   @@map("email_templates")
 }
 
-model EmailCampaign {
-  id         String @id @default(uuid())
-  clientId   String @map("client_id")
-  eventId    String @map("event_id")
-  templateId String @map("template_id")
-
-  // Campaign identification
-  name String // "Payment Reminder - March 2025"
-
-  // Recipient filtering criteria (applied at send time)
-  filters Json // RecipientFilter object (see types)
-
-  // Statistics (updated during/after sending)
-  recipientCount Int @default(0) @map("recipient_count") // Total matching recipients
-  sentCount      Int @default(0) @map("sent_count") // Successfully sent
-  failedCount    Int @default(0) @map("failed_count") // Failed to send
-  openedCount    Int @default(0) @map("opened_count") // Opened (from webhooks)
-  clickedCount   Int @default(0) @map("clicked_count") // Clicked (from webhooks)
-
-  // Campaign status
-  status CampaignStatus @default(DRAFT)
-
-  // Scheduling
-  scheduledFor DateTime? @map("scheduled_for") // NULL = send immediately when triggered
-  startedAt    DateTime? @map("started_at") // When sending started
-  completedAt  DateTime? @map("completed_at") // When all emails processed
-
-  // Audit
-  createdById String @map("created_by_id")
-
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  event     Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  template  EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  createdBy User          @relation(fields: [createdById], references: [id])
-  emailLogs EmailLog[]
-
-  // Indexes
-  @@index([clientId, status])
-  @@index([eventId])
-  @@index([status, scheduledFor])
-  @@map("email_campaigns")
-}
-
 model EmailLog {
   id String @id @default(uuid())
 
-  // Source identification (one of these should be set)
-  campaignId String?               @map("campaign_id") // If from manual campaign
-  trigger    AutomaticEmailTrigger? // If from automatic trigger
+  // Source identification
+  trigger AutomaticEmailTrigger? // If from automatic trigger (null = manual send)
 
   // Template used
   templateId String? @map("template_id")
@@ -578,12 +515,10 @@ model EmailLog {
   failedAt    DateTime? @map("failed_at")
 
   // Relations
-  campaign     EmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   template     EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   registration Registration?  @relation(fields: [registrationId], references: [id], onDelete: SetNull)
 
   // Indexes
-  @@index([campaignId, status])
   @@index([registrationId])
   @@index([status, queuedAt]) // For queue processing
   @@index([recipientEmail])

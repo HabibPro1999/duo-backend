@@ -14,39 +14,22 @@ import {
   getSampleEmailContext,
   resolveVariables,
 } from './email-variable.service.js';
-import {
-  createEmailCampaign,
-  getEmailCampaignById,
-  getCampaignClientId,
-  listEmailCampaigns,
-  startCampaign,
-  cancelCampaign,
-  getCampaignProgress,
-  countRecipients,
-  getFilteredRecipients,
-  deleteEmailCampaign,
-  type CreateCampaignInput,
-} from './email-campaign.service.js';
-import type { RecipientFilter as ServiceRecipientFilter } from './email.types.js';
 import { sendEmail } from './email-sendgrid.service.js';
+import { queueBulkEmails } from './email-queue.service.js';
+import { prisma } from '@/database/client.js';
 import {
   EventIdParamSchema,
   EmailTemplateIdParamSchema,
-  EmailCampaignIdParamSchema,
   CreateEmailTemplateSchema,
   UpdateEmailTemplateSchema,
   ListEmailTemplatesQuerySchema,
-  CreateEmailCampaignSchema,
-  ListEmailCampaignsQuerySchema,
-  RecipientFilterSchema,
   TestSendEmailSchema,
+  BulkSendEmailSchema,
   type CreateEmailTemplateInput,
   type UpdateEmailTemplateInput,
   type ListEmailTemplatesQuery,
-  type CreateEmailCampaignInput,
-  type ListEmailCampaignsQuery,
-  type RecipientFilter,
   type TestSendEmailInput,
+  type BulkSendEmailInput,
 } from './email.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
 
@@ -324,25 +307,28 @@ export async function emailRoutes(app: AppInstance): Promise<void> {
   );
 
   // ==========================================================================
-  // EMAIL CAMPAIGNS
+  // BULK EMAIL SEND (Simple - no campaigns)
   // ==========================================================================
 
-  // GET /api/events/:eventId/email-campaigns - List campaigns
-  app.get<{
-    Params: { eventId: string };
-    Querystring: ListEmailCampaignsQuery;
+  // POST /api/events/:eventId/email-templates/:templateId/send - Send to recipients
+  app.post<{
+    Params: { eventId: string; templateId: string };
+    Body: BulkSendEmailInput;
   }>(
-    '/:eventId/email-campaigns',
+    '/:eventId/email-templates/:templateId/send',
     {
       schema: {
-        params: EventIdParamSchema,
-        querystring: ListEmailCampaignsQuerySchema,
+        params: EventIdParamSchema.extend({
+          templateId: EmailTemplateIdParamSchema.shape.templateId,
+        }),
+        body: BulkSendEmailSchema,
       },
     },
     async (request, reply) => {
-      const { eventId } = request.params;
-      const query = request.query;
+      const { eventId, templateId } = request.params;
+      const { registrationIds, filters } = request.body;
 
+      // Verify event access
       const event = await getEventById(eventId);
       if (!event) {
         throw app.httpErrors.notFound('Event not found');
@@ -355,223 +341,75 @@ export async function emailRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
-      const campaigns = await listEmailCampaigns(eventId, query);
-      return reply.send(campaigns);
-    }
-  );
-
-  // POST /api/events/:eventId/email-campaigns - Create campaign
-  app.post<{
-    Params: { eventId: string };
-    Body: Omit<CreateEmailCampaignInput, 'eventId'>;
-  }>(
-    '/:eventId/email-campaigns',
-    {
-      schema: {
-        params: EventIdParamSchema,
-        body: CreateEmailCampaignSchema.omit({ eventId: true }),
-      },
-    },
-    async (request, reply) => {
-      const { eventId } = request.params;
-      const input = request.body;
-
-      const event = await getEventById(eventId);
-      if (!event) {
-        throw app.httpErrors.notFound('Event not found');
+      // Verify template exists and belongs to this event/client
+      const template = await getEmailTemplateById(templateId);
+      if (!template) {
+        throw app.httpErrors.notFound('Email template not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
+      if (template.clientId !== event.clientId) {
+        throw app.httpErrors.forbidden('Template does not belong to this client');
       }
 
-      const campaignInput: CreateCampaignInput = {
-        ...input,
-        eventId,
-        createdById: request.user!.id,
-        filters: { ...input.filters, eventId } as ServiceRecipientFilter,
-      };
-      const campaign = await createEmailCampaign(campaignInput);
-      return reply.status(201).send(campaign);
-    }
-  );
+      // Get registrations based on IDs or filters
+      let registrations: Array<{
+        id: string;
+        email: string;
+        firstName: string | null;
+        lastName: string | null;
+      }>;
 
-  // POST /api/events/:eventId/email-campaigns/preview-recipients - Preview filtered recipients
-  app.post<{
-    Params: { eventId: string };
-    Body: { filters: RecipientFilter };
-  }>(
-    '/:eventId/email-campaigns/preview-recipients',
-    {
-      schema: {
-        params: EventIdParamSchema,
-        body: {
-          type: 'object',
-          properties: {
-            filters: RecipientFilterSchema,
+      if (registrationIds && registrationIds.length > 0) {
+        // Send to specific registrations
+        registrations = await prisma.registration.findMany({
+          where: {
+            id: { in: registrationIds },
+            eventId,
           },
-          required: ['filters'],
-        },
-      },
-    },
-    async (request, reply) => {
-      const { eventId } = request.params;
-      const { filters } = request.body;
-
-      const event = await getEventById(eventId);
-      if (!event) {
-        throw app.httpErrors.notFound('Event not found');
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+      } else if (filters) {
+        // Send based on filters
+        registrations = await prisma.registration.findMany({
+          where: {
+            eventId,
+            ...(filters.paymentStatus && { paymentStatus: { in: filters.paymentStatus } }),
+            ...(filters.accessTypeIds && filters.accessTypeIds.length > 0 && {
+              accessTypeIds: { hasSome: filters.accessTypeIds },
+            }),
+          },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+      } else {
+        throw app.httpErrors.badRequest('Either registrationIds or filters must be provided');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
+      if (registrations.length === 0) {
+        return reply.send({
+          success: true,
+          queued: 0,
+          message: 'No recipients matched the criteria',
+        });
       }
 
-      // Get count and sample of recipients
-      const serviceFilters = { ...filters, eventId } as ServiceRecipientFilter;
-      const count = await countRecipients(eventId, serviceFilters);
-      const recipients = await getFilteredRecipients(eventId, serviceFilters);
+      // Queue emails
+      const queued = await queueBulkEmails(templateId, registrations);
 
-      // Return count and a sample (first 10)
       return reply.send({
-        count,
-        sample: recipients.slice(0, 10),
+        success: true,
+        queued,
+        message: `${queued} emails queued for sending`,
       });
-    }
-  );
-
-  // GET /api/events/email-campaigns/:campaignId - Get campaign
-  app.get<{ Params: { campaignId: string } }>(
-    '/email-campaigns/:campaignId',
-    {
-      schema: { params: EmailCampaignIdParamSchema },
-    },
-    async (request, reply) => {
-      const { campaignId } = request.params;
-
-      const campaign = await getEmailCampaignById(campaignId);
-      if (!campaign) {
-        throw app.httpErrors.notFound('Email campaign not found');
-      }
-
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === campaign.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
-      }
-
-      return reply.send(campaign);
-    }
-  );
-
-  // POST /api/events/email-campaigns/:campaignId/start - Start campaign
-  app.post<{ Params: { campaignId: string } }>(
-    '/email-campaigns/:campaignId/start',
-    {
-      schema: { params: EmailCampaignIdParamSchema },
-    },
-    async (request, reply) => {
-      const { campaignId } = request.params;
-
-      const clientId = await getCampaignClientId(campaignId);
-      if (!clientId) {
-        throw app.httpErrors.notFound('Email campaign not found');
-      }
-
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
-      }
-
-      await startCampaign(campaignId);
-      return reply.send({ success: true, message: 'Campaign started' });
-    }
-  );
-
-  // POST /api/events/email-campaigns/:campaignId/cancel - Cancel campaign
-  app.post<{ Params: { campaignId: string } }>(
-    '/email-campaigns/:campaignId/cancel',
-    {
-      schema: { params: EmailCampaignIdParamSchema },
-    },
-    async (request, reply) => {
-      const { campaignId } = request.params;
-
-      const clientId = await getCampaignClientId(campaignId);
-      if (!clientId) {
-        throw app.httpErrors.notFound('Email campaign not found');
-      }
-
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
-      }
-
-      await cancelCampaign(campaignId);
-      return reply.send({ success: true, message: 'Campaign cancelled' });
-    }
-  );
-
-  // GET /api/events/email-campaigns/:campaignId/progress - Get progress
-  app.get<{ Params: { campaignId: string } }>(
-    '/email-campaigns/:campaignId/progress',
-    {
-      schema: { params: EmailCampaignIdParamSchema },
-    },
-    async (request, reply) => {
-      const { campaignId } = request.params;
-
-      const clientId = await getCampaignClientId(campaignId);
-      if (!clientId) {
-        throw app.httpErrors.notFound('Email campaign not found');
-      }
-
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
-      }
-
-      const progress = await getCampaignProgress(campaignId);
-      return reply.send(progress);
-    }
-  );
-
-  // DELETE /api/events/email-campaigns/:campaignId - Delete campaign
-  app.delete<{ Params: { campaignId: string } }>(
-    '/email-campaigns/:campaignId',
-    {
-      schema: { params: EmailCampaignIdParamSchema },
-    },
-    async (request, reply) => {
-      const { campaignId } = request.params;
-
-      const clientId = await getCampaignClientId(campaignId);
-      if (!clientId) {
-        throw app.httpErrors.notFound('Email campaign not found');
-      }
-
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
-        throw app.httpErrors.forbidden('Insufficient permissions');
-      }
-
-      await deleteEmailCampaign(campaignId);
-      return reply.status(204).send();
     }
   );
 }
