@@ -53,7 +53,12 @@ export const BASE_VARIABLES: VariableDefinition[] = [
   // Organization
   { id: 'organizerName', label: 'Organizer Name', category: 'event', description: 'Name of organizing company', example: 'Medical Events Co.' },
   { id: 'organizerEmail', label: 'Organizer Email', category: 'event', description: 'Contact email', example: 'contact@events.com' },
-  { id: 'organizerPhone', label: 'Organizer Phone', category: 'event', description: 'Contact phone', example: '+216 71 123 456' }
+  { id: 'organizerPhone', label: 'Organizer Phone', category: 'event', description: 'Contact phone', example: '+216 71 123 456' },
+
+  // Bank Details
+  { id: 'bankName', label: 'Bank Name', category: 'bank', description: 'Name of the bank', example: 'Banque de Tunisie' },
+  { id: 'bankAccountName', label: 'Account Holder', category: 'bank', description: 'Name on the bank account', example: 'Medical Events SARL' },
+  { id: 'bankAccountNumber', label: 'Account Number', category: 'bank', description: 'Bank account number/IBAN', example: 'TN59 1234 5678 9012 3456 7890' }
 ]
 
 // =============================================================================
@@ -156,7 +161,12 @@ export function buildEmailContext(registration: RegistrationWithRelations): Emai
     // Organization
     organizerName: registration.event.client.name,
     organizerEmail: registration.event.client.email || '',
-    organizerPhone: registration.event.client.phone || ''
+    organizerPhone: registration.event.client.phone || '',
+
+    // Bank Details (populated in buildEmailContextWithAccess)
+    bankName: '',
+    bankAccountName: '',
+    bankAccountNumber: ''
   }
 
   // Add dynamic form fields
@@ -172,6 +182,18 @@ export async function buildEmailContextWithAccess(
   registration: RegistrationWithRelations
 ): Promise<EmailContext> {
   const context = buildEmailContext(registration)
+
+  // Fetch pricing for bank details
+  const pricing = await prisma.eventPricing.findUnique({
+    where: { eventId: registration.eventId },
+    select: { bankName: true, bankAccountName: true, bankAccountNumber: true }
+  })
+
+  if (pricing) {
+    context.bankName = pricing.bankName || ''
+    context.bankAccountName = pricing.bankAccountName || ''
+    context.bankAccountNumber = pricing.bankAccountNumber || ''
+  }
 
   // Resolve access type IDs to names
   if (registration.accessTypeIds && registration.accessTypeIds.length > 0) {
@@ -324,6 +346,10 @@ export function getSampleEmailContext(): EmailContext {
 
     organizerName: 'Medical Events Co.',
     organizerEmail: 'contact@medicalevents.com',
-    organizerPhone: '+216 71 123 456'
+    organizerPhone: '+216 71 123 456',
+
+    bankName: 'Banque de Tunisie',
+    bankAccountName: 'Medical Events SARL',
+    bankAccountNumber: 'TN59 1234 5678 9012 3456 7890'
   }
 }

@@ -78,6 +78,11 @@ export interface EmailContext {
   organizerName: string
   organizerEmail: string
   organizerPhone: string
+
+  // Bank Details
+  bankName: string
+  bankAccountName: string
+  bankAccountNumber: string
 }
 
 // =============================================================================
@@ -187,7 +192,7 @@ export interface EmailTemplate {
 export interface VariableDefinition {
   id: string
   label: string
-  category: 'registration' | 'event' | 'payment' | 'access' | 'form' | 'links'
+  category: 'registration' | 'event' | 'payment' | 'access' | 'form' | 'links' | 'bank'
   description?: string
   example?: string
 }
