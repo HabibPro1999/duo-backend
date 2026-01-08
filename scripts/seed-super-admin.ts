@@ -1,6 +1,6 @@
 /// <reference types="node" />
 /**
- * Seed script to create the initial super admin user.
+ * Seed script to create the initial super admin use
  * Run with: npx tsx scripts/seed-super-admin.ts
  */
 import 'dotenv/config';

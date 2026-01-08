@@ -36,6 +36,11 @@ export const ErrorCodes = {
   ACCESS_CIRCULAR_DEPENDENCY: 'ACC_7007',
   ACCESS_HAS_REGISTRATIONS: 'ACC_7008',
 
+  // Events (8xxx)
+  EVENT_HAS_REGISTRATIONS: 'EVT_8000',
+  EVENT_NOT_OPEN: 'EVT_8001',
+  EVENT_FULL: 'EVT_8002',
+
   // Registration (8xxx)
   REGISTRATION_NOT_FOUND: 'REG_8001',
   REGISTRATION_ALREADY_EXISTS: 'REG_8002',
@@ -55,9 +60,31 @@ export const ErrorCodes = {
   FORM_FILE_TOO_LARGE: 'FRM_9005',
   FORM_FILE_INVALID_TYPE: 'FRM_9006',
 
-  // Reports (10xxx)
+  // File Upload (10xxx)
+  INVALID_FILE_TYPE: 'FIL_10001',
+  FILE_TOO_LARGE: 'FIL_10002',
+
+  // Reports (11xxx)
   REPORT_GENERATION_FAILED: 'RPT_11001',
   EXPORT_FAILED: 'RPT_11002',
+  EXPORT_TOO_LARGE: 'RPT_11003',
+
+  // State Transitions (12xxx)
+  INVALID_STATUS_TRANSITION: 'STT_12001',
+  INVALID_PAYMENT_TRANSITION: 'STT_12002',
+
+  // Dependencies (13xxx)
+  CLIENT_HAS_DEPENDENCIES: 'DEP_13001',
+
+  // Sponsorship (14xxx)
+  SPONSORSHIP_NOT_APPLICABLE: 'SPO_14001',
+  SPONSORSHIP_STATUS_CONFLICT: 'SPO_14002',
+
+  // Email (15xxx)
+  MJML_COMPILATION_ERROR: 'EML_15001',
+
+  // Concurrency (16xxx)
+  CONCURRENT_MODIFICATION: 'CON_16001',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

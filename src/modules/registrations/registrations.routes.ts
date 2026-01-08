@@ -174,7 +174,13 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
-      const registration = await confirmPayment(id, input);
+      // Pass user ID and IP for audit logging
+      const registration = await confirmPayment(
+        id,
+        input,
+        request.user!.id,
+        request.ip
+      );
       return reply.send(registration);
     }
   );

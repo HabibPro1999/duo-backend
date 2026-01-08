@@ -38,6 +38,9 @@ export const CreateRegistrationSchema = z
 
     // Sponsorship
     sponsorshipCode: z.string().max(50).optional(),
+
+    // Idempotency key for safe retries (prevents duplicate registrations)
+    idempotencyKey: z.string().uuid().optional(),
   })
   .strict();
 

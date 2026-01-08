@@ -75,22 +75,33 @@ export async function listClients(query: ListClientsQuery): Promise<PaginatedRes
 
 /**
  * Delete client.
+ * Prevents deletion if client has associated users or events.
  */
 export async function deleteClient(id: string): Promise<void> {
-  // Check if client exists
-  const client = await prisma.client.findUnique({ where: { id } });
+  // Check if client exists and count related data
+  const client = await prisma.client.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: {
+          users: true,
+          events: true,
+        },
+      },
+    },
+  });
+
   if (!client) {
     throw new AppError('Client not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
-  // Check if any users are associated with this client
-  const usersCount = await prisma.user.count({ where: { clientId: id } });
-  if (usersCount > 0) {
+  // Check for associated users or events
+  if (client._count.users > 0 || client._count.events > 0) {
     throw new AppError(
-      'Cannot delete client with associated users',
-      400,
+      `Cannot delete client with ${client._count.users} user(s) and ${client._count.events} event(s). Remove associated data first.`,
+      409,
       true,
-      ErrorCodes.BAD_REQUEST
+      ErrorCodes.CLIENT_HAS_DEPENDENCIES
     );
   }
 

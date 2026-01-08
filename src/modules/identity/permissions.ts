@@ -3,6 +3,7 @@ export const UserRole = {
   CLIENT_ADMIN: 1,
 } as const;
 
+export const Test = "Habib";
 export type UserRoleType = (typeof UserRole)[keyof typeof UserRole];
 
 export function isSuperAdmin(role: number): boolean {
@@ -20,7 +21,7 @@ export function canManageUsers(role: number): boolean {
 export function canAccessClient(
   role: number,
   userClientId: string | null,
-  targetClientId: string
+  targetClientId: string,
 ): boolean {
   if (role === UserRole.SUPER_ADMIN) return true;
   return userClientId === targetClientId;
@@ -29,10 +30,10 @@ export function canAccessClient(
 export function getRoleName(role: number): string {
   switch (role) {
     case UserRole.SUPER_ADMIN:
-      return 'super_admin';
+      return "super_admin";
     case UserRole.CLIENT_ADMIN:
-      return 'client_admin';
+      return "client_admin";
     default:
-      return 'unknown';
+      return "unknown";
   }
 }

@@ -164,7 +164,7 @@ export async function processEmailQueue(batchSize = 50): Promise<ProcessQueueRes
         // Process emails that haven't exceeded max retries
         retryCount: { lt: 4 },
       },
-      take: batchSize,
+      take: batchSize * 2, // Fetch more to account for backoff filtering
       orderBy: { queuedAt: 'asc' },
       include: {
         template: true,
@@ -177,14 +177,17 @@ export async function processEmailQueue(batchSize = 50): Promise<ProcessQueueRes
       }
     })
 
-    if (emails.length > 0) {
+    // Filter emails that are ready for retry (respect backoff timing)
+    const readyEmails = emails.filter(isReadyForRetry).slice(0, batchSize)
+
+    if (readyEmails.length > 0) {
       await tx.emailLog.updateMany({
-        where: { id: { in: emails.map((e: { id: string }) => e.id) } },
+        where: { id: { in: readyEmails.map((e: { id: string }) => e.id) } },
         data: { status: 'SENDING' }
       })
     }
 
-    return emails
+    return readyEmails
   })
 
   if (batch.length === 0) {
@@ -363,13 +366,24 @@ export async function updateEmailStatusFromWebhook(
 // UTILITIES
 // =============================================================================
 
-// Exponential backoff utility (for future use with proper retry timing)
-function _getBackoffMs(retryCount: number): number {
-  // Exponential backoff: 1min, 5min, 15min
-  const backoffs = [60000, 300000, 900000]
+/**
+ * Calculate backoff time for retry.
+ * Exponential backoff: 1min, 5min, 15min
+ */
+function getBackoffMs(retryCount: number): number {
+  const backoffs = [60000, 300000, 900000] // 1min, 5min, 15min
   return backoffs[Math.min(retryCount, backoffs.length - 1)]
 }
-void _getBackoffMs // Prevent unused variable warning
+
+/**
+ * Check if an email is ready for retry based on backoff timing.
+ */
+function isReadyForRetry(email: { retryCount: number; updatedAt: Date }): boolean {
+  if (email.retryCount === 0) return true
+  const backoffMs = getBackoffMs(email.retryCount - 1)
+  const readyAt = new Date(email.updatedAt.getTime() + backoffMs)
+  return new Date() >= readyAt
+}
 
 // =============================================================================
 // QUEUE STATS

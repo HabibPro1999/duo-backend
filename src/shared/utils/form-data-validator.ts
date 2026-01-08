@@ -1,10 +1,12 @@
 import { z, type ZodTypeAny } from 'zod';
+import safeRegex from 'safe-regex';
 import type {
   FormField,
   FormStep,
   FieldCondition,
   FieldValidation,
 } from '@forms';
+import { logger } from '@shared/utils/logger.js';
 
 // ============================================================================
 // Types
@@ -45,6 +47,24 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Check if a regex pattern is safe (no catastrophic backtracking potential).
+ * Uses safe-regex to detect ReDoS vulnerabilities.
+ */
+function isSafePattern(pattern: string): boolean {
+  try {
+    // Check for catastrophic backtracking potential
+    if (!safeRegex(pattern)) {
+      return false;
+    }
+    // Also verify it's valid syntax
+    new RegExp(pattern);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ============================================================================
@@ -138,11 +158,14 @@ function buildTextSchema(field: FormField, validation?: FieldValidation): ZodTyp
     );
   }
   if (validation?.pattern) {
-    try {
+    if (isSafePattern(validation.pattern)) {
       const regex = new RegExp(validation.pattern);
       schema = schema.regex(regex, `${label} format is invalid`);
-    } catch {
-      // Invalid regex pattern, skip pattern validation
+    } else {
+      logger.warn(
+        { fieldId: field.id, pattern: validation.pattern },
+        'Skipping unsafe or invalid regex pattern (ReDoS protection)'
+      );
     }
   }
 
@@ -181,11 +204,14 @@ function buildPhoneSchema(field: FormField, validation?: FieldValidation): ZodTy
     schema = schema.max(validation.maxLength);
   }
   if (validation?.pattern) {
-    try {
+    if (isSafePattern(validation.pattern)) {
       const regex = new RegExp(validation.pattern);
       schema = schema.regex(regex, `${label} format is invalid`);
-    } catch {
-      // Invalid regex pattern, skip
+    } else {
+      logger.warn(
+        { fieldId: field.id, pattern: validation.pattern },
+        'Skipping unsafe or invalid regex pattern (ReDoS protection)'
+      );
     }
   }
 

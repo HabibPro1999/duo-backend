@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
@@ -12,6 +13,7 @@ import {
 import { calculatePrice } from '@pricing';
 import { queueTriggeredEmail } from '@/modules/email/index.js';
 import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
+import { uploadFile } from '@shared/services/firebase.service.js';
 import type {
   CreateRegistrationInput,
   UpdateRegistrationInput,
@@ -21,6 +23,91 @@ import type {
   PublicEditRegistrationInput,
 } from './registrations.schema.js';
 import type { Registration, Prisma } from '@prisma/client';
+
+// ============================================================================
+// Edit Token Configuration
+// ============================================================================
+
+const EDIT_TOKEN_LENGTH = 32; // 64 hex characters
+const EDIT_TOKEN_EXPIRY_HOURS = 24;
+
+// ============================================================================
+// Payment Status State Machine
+// ============================================================================
+
+const PAYMENT_STATUS_TRANSITIONS: Record<string, string[]> = {
+  PENDING: ['PAID', 'WAIVED', 'REFUNDED'],
+  PAID: ['REFUNDED'],
+  WAIVED: ['REFUNDED'],
+  REFUNDED: [], // Terminal state
+};
+
+/**
+ * Validate payment status transition.
+ * Throws if transition is not allowed.
+ */
+function validatePaymentTransition(currentStatus: string, newStatus: string): void {
+  if (currentStatus === newStatus) return; // No transition
+
+  const allowed = PAYMENT_STATUS_TRANSITIONS[currentStatus] ?? [];
+  if (!allowed.includes(newStatus)) {
+    throw new AppError(
+      `Cannot transition payment from ${currentStatus} to ${newStatus}`,
+      400,
+      true,
+      ErrorCodes.INVALID_PAYMENT_TRANSITION
+    );
+  }
+}
+
+/**
+ * Generate a secure random edit token.
+ */
+function generateEditToken(): string {
+  return randomBytes(EDIT_TOKEN_LENGTH).toString('hex');
+}
+
+/**
+ * Calculate edit token expiry date.
+ */
+function getEditTokenExpiry(): Date {
+  return new Date(Date.now() + EDIT_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+}
+
+/**
+ * Verify an edit token for a registration.
+ * Uses timing-safe comparison to prevent timing attacks.
+ */
+export async function verifyEditToken(
+  registrationId: string,
+  token: string
+): Promise<boolean> {
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: { editToken: true, editTokenExpiry: true },
+  });
+
+  if (!registration?.editToken || !registration.editTokenExpiry) {
+    return false;
+  }
+
+  // Check expiry first
+  if (registration.editTokenExpiry < new Date()) {
+    return false;
+  }
+
+  // Timing-safe comparison
+  try {
+    const isValid = timingSafeEqual(
+      Buffer.from(registration.editToken, 'utf8'),
+      Buffer.from(token, 'utf8')
+    );
+    return isValid;
+  } catch {
+    // Buffer length mismatch or other error
+    return false;
+  }
+}
 
 // ============================================================================
 // Types
@@ -181,7 +268,7 @@ export async function createRegistration(
   input: CreateRegistrationInput,
   priceBreakdown: PriceBreakdown
 ): Promise<RegistrationWithRelations> {
-  const { formId, formData, email, firstName, lastName, phone, accessSelections, sponsorshipCode } =
+  const { formId, formData, email, firstName, lastName, phone, accessSelections, sponsorshipCode, idempotencyKey } =
     input;
 
   // Get form and event info (including schemaVersion)
@@ -195,13 +282,13 @@ export async function createRegistration(
 
   const eventId = form.eventId;
 
-  // Check for duplicate registration
+  // Check for duplicate registration (unique per email + form)
   const existingRegistration = await prisma.registration.findUnique({
-    where: { email_eventId: { email, eventId } },
+    where: { email_formId: { email, formId } },
   });
   if (existingRegistration) {
     throw new AppError(
-      'A registration with this email already exists for this event',
+      'A registration with this email already exists for this form',
       409,
       true,
       ErrorCodes.REGISTRATION_ALREADY_EXISTS
@@ -224,6 +311,31 @@ export async function createRegistration(
 
   // Create registration with access selections in a transaction
   const result = await prisma.$transaction(async (tx) => {
+    // Re-check event status inside transaction to prevent TOCTOU race condition
+    // Event might have been closed between initial check and transaction start
+    const event = await tx.event.findUnique({
+      where: { id: eventId },
+      select: { status: true, maxCapacity: true, registeredCount: true },
+    });
+
+    if (!event || event.status !== 'OPEN') {
+      throw new AppError(
+        'Event is not accepting registrations',
+        400,
+        true,
+        ErrorCodes.EVENT_NOT_OPEN
+      );
+    }
+
+    // Check event capacity
+    if (event.maxCapacity !== null && event.registeredCount >= event.maxCapacity) {
+      throw new AppError('Event is at capacity', 409, true, ErrorCodes.EVENT_FULL);
+    }
+
+    // Generate edit token for secure self-service editing
+    const editToken = generateEditToken();
+    const editTokenExpiry = getEditTokenExpiry();
+
     // Create registration
     const registration = await tx.registration.create({
       data: {
@@ -247,6 +359,11 @@ export async function createRegistration(
         sponsorshipAmount: priceBreakdown.sponsorshipTotal,
         // Access type IDs for querying
         accessTypeIds: accessSelections?.map((s) => s.accessId) ?? [],
+        // Edit token for secure public access
+        editToken,
+        editTokenExpiry,
+        // Idempotency key for safe retries
+        idempotencyKey: idempotencyKey ?? null,
       },
     });
 
@@ -305,6 +422,26 @@ export async function getRegistrationById(
   return enrichWithAccessSelections(registration);
 }
 
+/**
+ * Get registration by idempotency key.
+ * Used for idempotent registration creation.
+ */
+export async function getRegistrationByIdempotencyKey(
+  idempotencyKey: string
+): Promise<RegistrationWithRelations | null> {
+  const registration = await prisma.registration.findUnique({
+    where: { idempotencyKey },
+    include: {
+      form: { select: { id: true, name: true } },
+      event: { select: { id: true, name: true, slug: true, clientId: true } },
+    },
+  });
+
+  if (!registration) return null;
+
+  return enrichWithAccessSelections(registration);
+}
+
 export async function updateRegistration(
   id: string,
   input: UpdateRegistrationInput
@@ -317,6 +454,9 @@ export async function updateRegistration(
   const updateData: Prisma.RegistrationUpdateInput = {};
 
   if (input.paymentStatus !== undefined) {
+    // Validate payment status transition
+    validatePaymentTransition(registration.paymentStatus, input.paymentStatus);
+
     updateData.paymentStatus = input.paymentStatus;
     // Set paidAt when payment is confirmed
     if ((input.paymentStatus === 'PAID' || input.paymentStatus === 'WAIVED') && !registration.paidAt) {
@@ -334,23 +474,76 @@ export async function updateRegistration(
   return getRegistrationById(id) as Promise<RegistrationWithRelations>;
 }
 
-export async function confirmPayment(id: string, input: UpdatePaymentInput): Promise<RegistrationWithRelations> {
-  const registration = await prisma.registration.findUnique({ where: { id } });
-  if (!registration) {
+export async function confirmPayment(
+  id: string,
+  input: UpdatePaymentInput,
+  performedBy?: string,
+  ipAddress?: string
+): Promise<RegistrationWithRelations> {
+  const oldRegistration = await prisma.registration.findUnique({
+    where: { id },
+    select: {
+      eventId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      paymentStatus: true,
+      paidAmount: true,
+      paymentMethod: true,
+      totalAmount: true,
+    },
+  });
+
+  if (!oldRegistration) {
     throw new AppError('Registration not found', 404, true, ErrorCodes.REGISTRATION_NOT_FOUND);
   }
 
-  await prisma.registration.update({
-    where: { id },
-    data: {
-      paymentStatus: input.paymentStatus,
-      paidAmount: input.paidAmount ?? registration.totalAmount,
-      paymentMethod: input.paymentMethod ?? null,
-      paymentReference: input.paymentReference ?? null,
-      paymentProofUrl: input.paymentProofUrl ?? null,
-      paidAt: new Date(),
-    },
+  // Validate payment status transition
+  validatePaymentTransition(oldRegistration.paymentStatus, input.paymentStatus);
+
+  // Update registration in a transaction with audit logging
+  await prisma.$transaction(async (tx) => {
+    // Update registration
+    const updated = await tx.registration.update({
+      where: { id },
+      data: {
+        paymentStatus: input.paymentStatus,
+        paidAmount: input.paidAmount ?? oldRegistration.totalAmount,
+        paymentMethod: input.paymentMethod ?? null,
+        paymentReference: input.paymentReference ?? null,
+        paymentProofUrl: input.paymentProofUrl ?? null,
+        paidAt: new Date(),
+      },
+    });
+
+    // Create audit log for payment confirmation
+    await tx.auditLog.create({
+      data: {
+        entityType: 'Registration',
+        entityId: id,
+        action: 'PAYMENT_CONFIRMED',
+        changes: {
+          paymentStatus: { old: oldRegistration.paymentStatus, new: updated.paymentStatus },
+          paidAmount: { old: oldRegistration.paidAmount, new: updated.paidAmount },
+          paymentMethod: { old: oldRegistration.paymentMethod, new: updated.paymentMethod },
+        },
+        performedBy: performedBy ?? null,
+        ipAddress: ipAddress ?? null,
+      },
+    });
   });
+
+  // Queue PAYMENT_CONFIRMED email if status changed to PAID
+  if (input.paymentStatus === 'PAID' && oldRegistration.paymentStatus !== 'PAID') {
+    queueTriggeredEmail('PAYMENT_CONFIRMED', oldRegistration.eventId, {
+      id,
+      email: oldRegistration.email,
+      firstName: oldRegistration.firstName,
+      lastName: oldRegistration.lastName,
+    }).catch((err) => {
+      logger.error({ err, registrationId: id }, 'Failed to queue PAYMENT_CONFIRMED email');
+    });
+  }
 
   return getRegistrationById(id) as Promise<RegistrationWithRelations>;
 }
@@ -948,5 +1141,111 @@ export async function editRegistrationPublic(
   return {
     registration: updatedRegistration!,
     priceBreakdown: newPriceBreakdown,
+  };
+}
+
+// ============================================================================
+// Payment Proof Upload
+// ============================================================================
+
+const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'application/pdf'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+export interface PaymentProofResponse {
+  id: string;
+  registrationId: string;
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedAt: string;
+}
+
+/**
+ * Upload payment proof for a registration.
+ * Validates file type and size, uploads to Firebase Storage,
+ * updates registration, and queues notification email.
+ */
+export async function uploadPaymentProof(
+  registrationId: string,
+  file: { buffer: Buffer; filename: string; mimetype: string }
+): Promise<PaymentProofResponse> {
+  // Validate file type
+  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    throw new AppError(
+      'Invalid file type. Allowed: PNG, JPG, PDF',
+      400,
+      true,
+      ErrorCodes.INVALID_FILE_TYPE
+    );
+  }
+
+  // Validate file size
+  if (file.buffer.length > MAX_FILE_SIZE) {
+    throw new AppError(
+      'File too large. Maximum: 10MB',
+      400,
+      true,
+      ErrorCodes.FILE_TOO_LARGE
+    );
+  }
+
+  // Get registration with event info
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: {
+      eventId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+    },
+  });
+
+  if (!registration) {
+    throw new AppError('Registration not found', 404, true, ErrorCodes.REGISTRATION_NOT_FOUND);
+  }
+
+  // Upload to Firebase Storage
+  const ext = file.filename.split('.').pop() || 'bin';
+  const timestamp = Date.now();
+  const path = `registrations/${registration.eventId}/${registrationId}/payment-proof-${timestamp}.${ext}`;
+
+  let fileUrl: string;
+  try {
+    fileUrl = await uploadFile(file.buffer, path, file.mimetype);
+  } catch (error) {
+    logger.error({ err: error, registrationId, path }, 'Failed to upload payment proof to Firebase Storage');
+    throw new AppError(
+      'Failed to upload file. Please try again.',
+      500,
+      true,
+      ErrorCodes.INTERNAL_ERROR
+    );
+  }
+
+  // Update registration with payment proof URL
+  await prisma.registration.update({
+    where: { id: registrationId },
+    data: { paymentProofUrl: fileUrl },
+  });
+
+  // Queue email notification to admin
+  await queueTriggeredEmail('PAYMENT_PROOF_SUBMITTED', registration.eventId, {
+    id: registrationId,
+    email: registration.email,
+    firstName: registration.firstName,
+    lastName: registration.lastName,
+  }).catch((err) => {
+    logger.error({ err, registrationId }, 'Failed to queue PAYMENT_PROOF_SUBMITTED email');
+  });
+
+  return {
+    id: randomUUID(),
+    registrationId,
+    fileUrl,
+    fileName: file.filename,
+    fileSize: file.buffer.length,
+    mimeType: file.mimetype,
+    uploadedAt: new Date().toISOString(),
   };
 }

@@ -249,7 +249,7 @@ model SponsorshipBatch {
 
   // Relations
   event        Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  form         Form          @relation(fields: [formId], references: [id])
+  form         Form          @relation(fields: [formId], references: [id], onDelete: Cascade)
   sponsorships Sponsorship[]
 
   @@index([eventId])
@@ -377,6 +377,13 @@ model Registration {
   // Self-service editing timestamp
   lastEditedAt DateTime? @map("last_edited_at")
 
+  // Self-service edit token (for secure public edit access)
+  editToken       String?   @unique @map("edit_token")
+  editTokenExpiry DateTime? @map("edit_token_expiry")
+
+  // Idempotency key for safe retries
+  idempotencyKey String? @unique @map("idempotency_key")
+
   // Admin note (single text field)
   note String?
 
@@ -384,12 +391,12 @@ model Registration {
   accessTypeIds String[] @default([]) @map("access_type_ids")
 
   // Relations
-  form              Form               @relation(fields: [formId], references: [id])
+  form              Form               @relation(fields: [formId], references: [id], onDelete: Cascade)
   event             Event              @relation(fields: [eventId], references: [id])
   emailLogs         EmailLog[]
   sponsorshipUsages SponsorshipUsage[]
 
-  @@unique([email, eventId])
+  @@unique([email, formId])
   @@index([eventId, paymentStatus])
   @@index([eventId, submittedAt])
   @@index([eventId, paidAt])
@@ -507,6 +514,7 @@ model EmailLog {
 
   // Timestamps
   queuedAt    DateTime  @default(now()) @map("queued_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at") // For backoff timing
   sentAt      DateTime? @map("sent_at")
   deliveredAt DateTime? @map("delivered_at") // From SendGrid webhook
   openedAt    DateTime? @map("opened_at") // From SendGrid webhook
@@ -525,4 +533,25 @@ model EmailLog {
   @@index([sendgridMessageId]) // For webhook lookups
   @@index([trigger, queuedAt])
   @@map("email_logs")
+}
+
+// ============================================================================
+// AUDIT MODULE
+// ============================================================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  entityType  String   @map("entity_type") // 'Registration', 'Event', etc.
+  entityId    String   @map("entity_id")
+  action      String // 'CREATE', 'UPDATE', 'DELETE', 'PAYMENT_CONFIRMED', etc.
+  changes     Json? // { field: { old, new } }
+  performedBy String?  @map("performed_by") // User ID, 'SYSTEM', or 'PUBLIC'
+  performedAt DateTime @default(now()) @map("performed_at")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+
+  @@index([entityType, entityId])
+  @@index([performedBy])
+  @@index([performedAt])
+  @@map("audit_logs")
 }

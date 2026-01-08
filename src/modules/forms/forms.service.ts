@@ -4,6 +4,7 @@ import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
+import { logger } from '@shared/utils/logger.js';
 import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson, SponsorFormSchemaJson } from './forms.schema.js';
 import type { Form, Prisma, Event, Client, EventAccess, EventPricing } from '@prisma/client';
 
@@ -33,6 +34,7 @@ function createDefaultSchema(): FormSchemaJson {
             placeholder: 'Votre prénom',
             required: true,
             width: 'half',
+            fieldKey: 'firstName',
           },
           {
             id: `text_${randomUUID()}`,
@@ -41,6 +43,7 @@ function createDefaultSchema(): FormSchemaJson {
             placeholder: 'Votre nom',
             required: true,
             width: 'half',
+            fieldKey: 'lastName',
           },
           {
             id: `email_${randomUUID()}`,
@@ -49,6 +52,7 @@ function createDefaultSchema(): FormSchemaJson {
             placeholder: 'votre.email@exemple.com',
             required: true,
             width: 'full',
+            fieldKey: 'email',
           },
           {
             id: `phone_${randomUUID()}`,
@@ -58,6 +62,7 @@ function createDefaultSchema(): FormSchemaJson {
             required: true,
             width: 'full',
             phoneFormat: 'TN',
+            fieldKey: 'phone',
           },
           {
             id: `text_${randomUUID()}`,
@@ -163,8 +168,35 @@ export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRel
 }
 
 /**
+ * Extract field IDs from form schema.
+ * Recursively walks through steps and fields.
+ */
+function extractFieldIds(schema: unknown): string[] {
+  const ids: string[] = [];
+
+  if (!schema || typeof schema !== 'object') return ids;
+
+  const schemaObj = schema as { steps?: Array<{ fields?: Array<{ id?: string }> }> };
+
+  if (Array.isArray(schemaObj.steps)) {
+    for (const step of schemaObj.steps) {
+      if (Array.isArray(step.fields)) {
+        for (const field of step.fields) {
+          if (field.id) {
+            ids.push(field.id);
+          }
+        }
+      }
+    }
+  }
+
+  return ids;
+}
+
+/**
  * Update form.
  * Auto-increments schemaVersion when the schema JSON changes.
+ * Logs warning when fields with existing registration data are removed.
  */
 export async function updateForm(id: string, input: UpdateFormInput): Promise<Form> {
   // Check if form exists
@@ -185,6 +217,29 @@ export async function updateForm(id: string, input: UpdateFormInput): Promise<Fo
     const newSchemaStr = JSON.stringify(input.schema);
 
     if (currentSchemaStr !== newSchemaStr) {
+      // Check for removed fields that may have registration data
+      const oldFieldIds = extractFieldIds(form.schema);
+      const newFieldIds = extractFieldIds(input.schema);
+      const removedFields = oldFieldIds.filter((f) => !newFieldIds.includes(f));
+
+      if (removedFields.length > 0) {
+        // Check if any registrations exist for this form
+        const regCount = await prisma.registration.count({
+          where: { formId: id },
+        });
+
+        if (regCount > 0) {
+          logger.warn(
+            {
+              formId: id,
+              removedFields,
+              affectedRegistrations: regCount,
+            },
+            'Form fields removed with existing registration data - data may be orphaned'
+          );
+        }
+      }
+
       updateData.schema = input.schema as Prisma.InputJsonValue;
       // Auto-increment schema version when schema changes
       updateData.schemaVersion = { increment: 1 };

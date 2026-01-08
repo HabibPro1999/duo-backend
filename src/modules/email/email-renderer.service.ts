@@ -80,18 +80,31 @@ export function renderTemplateToMjml(document: TiptapDocument): string {
 
 /**
  * Compiles MJML markup to responsive HTML
- * Uses soft validation to allow for template variables
+ * Uses strict validation but filters out template variable warnings
  */
 export function compileMjmlToHtml(mjml: string): MjmlCompilationResult {
   const result = mjml2html(mjml, {
-    validationLevel: 'soft',
+    validationLevel: 'strict',
     minify: false,
     beautify: true,
   })
 
+  // Filter out errors that are just template variable placeholders (expected)
+  const errors = (result.errors || []).filter((error) => {
+    const msg = error.message || ''
+    // Allow {{variable}} patterns which are intentional template placeholders
+    return !msg.includes('{{') && !msg.includes('}}')
+  })
+
+  // If there are real MJML errors after filtering, throw an error
+  if (errors.length > 0) {
+    const errorMessages = errors.map((e) => e.message || e.formattedMessage).join('; ')
+    throw new Error(`MJML compilation failed: ${errorMessages}`)
+  }
+
   return {
     html: result.html,
-    errors: result.errors || [],
+    errors: [],
   }
 }
 

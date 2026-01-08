@@ -613,6 +613,16 @@ export async function linkSponsorshipToRegistration(
     }
   );
 
+  // Validate coverage applies - reject if $0 would be applied but sponsorship has value
+  if (applicableAmount === 0 && sponsorship.totalAmount > 0) {
+    throw new AppError(
+      'Sponsorship coverage does not apply to this registration (no overlap between sponsored items and registration selections)',
+      400,
+      true,
+      ErrorCodes.SPONSORSHIP_NOT_APPLICABLE
+    );
+  }
+
   // Create usage and update records in transaction
   const result = await prisma.$transaction(async (tx) => {
     // Create sponsorship usage
@@ -625,11 +635,23 @@ export async function linkSponsorshipToRegistration(
       },
     });
 
-    // Update sponsorship status to USED
-    await tx.sponsorship.update({
-      where: { id: sponsorshipId },
+    // Update sponsorship status to USED (atomic with status check to prevent race)
+    const statusUpdate = await tx.sponsorship.updateMany({
+      where: {
+        id: sponsorshipId,
+        status: { not: 'CANCELLED' }, // Only update if not cancelled
+      },
       data: { status: 'USED' },
     });
+
+    if (statusUpdate.count === 0) {
+      throw new AppError(
+        'Sponsorship cannot be linked (may be cancelled or already processing)',
+        409,
+        true,
+        ErrorCodes.SPONSORSHIP_STATUS_CONFLICT
+      );
+    }
 
     // Calculate new total sponsorship amount for registration
     const allUsages = await tx.sponsorshipUsage.findMany({

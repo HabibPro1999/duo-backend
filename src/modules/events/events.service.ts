@@ -95,6 +95,13 @@ export async function getEventBySlug(slug: string): Promise<EventWithPricing | n
   });
 }
 
+// Valid event status transitions: CLOSED -> OPEN -> ARCHIVED (terminal)
+const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
+  CLOSED: ['OPEN'],
+  OPEN: ['CLOSED', 'ARCHIVED'],
+  ARCHIVED: [], // Terminal state - no transitions allowed
+};
+
 /**
  * Update event.
  */
@@ -103,6 +110,19 @@ export async function updateEvent(id: string, input: UpdateEventInput): Promise<
   const event = await prisma.event.findUnique({ where: { id } });
   if (!event) {
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  // Validate status transition if status is being changed
+  if (input.status && input.status !== event.status) {
+    const allowed = VALID_STATUS_TRANSITIONS[event.status] ?? [];
+    if (!allowed.includes(input.status)) {
+      throw new AppError(
+        `Cannot transition event from ${event.status} to ${input.status}`,
+        400,
+        true,
+        ErrorCodes.INVALID_STATUS_TRANSITION
+      );
+    }
   }
 
   // If slug is being updated, check global uniqueness
@@ -156,12 +176,33 @@ export async function listEvents(query: ListEventsQuery): Promise<PaginatedResul
 
 /**
  * Delete event.
+ * Prevents deletion if event has registrations - use archive instead.
  */
 export async function deleteEvent(id: string): Promise<void> {
-  // Check if event exists
-  const event = await prisma.event.findUnique({ where: { id } });
+  // Check if event exists and count related data
+  const event = await prisma.event.findUnique({
+    where: { id },
+    include: {
+      _count: {
+        select: {
+          registrations: true,
+        },
+      },
+    },
+  });
+
   if (!event) {
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  // Prevent deletion if event has registrations
+  if (event._count.registrations > 0) {
+    throw new AppError(
+      `Cannot delete event with ${event._count.registrations} registration(s). Archive the event instead.`,
+      409,
+      true,
+      ErrorCodes.EVENT_HAS_REGISTRATIONS
+    );
   }
 
   await prisma.event.delete({ where: { id } });

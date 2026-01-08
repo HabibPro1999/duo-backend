@@ -31,6 +31,68 @@ type EnrichedAccess = EventAccess & {
 };
 
 // ============================================================================
+// Circular Prerequisite Detection (DFS)
+// ============================================================================
+
+/**
+ * Detects circular dependencies in access prerequisites using DFS.
+ * Checks for transitive cycles (A->B->C->A), not just direct self-reference.
+ */
+async function detectCircularPrerequisites(
+  eventId: string,
+  accessId: string,
+  newRequiredIds: string[]
+): Promise<boolean> {
+  // Fetch all access items for the event with their prerequisites
+  const allAccess = await prisma.eventAccess.findMany({
+    where: { eventId },
+    select: { id: true, requiredAccess: { select: { id: true } } },
+  });
+
+  // Build adjacency list with proposed new edges
+  const graph = new Map<string, string[]>();
+  for (const access of allAccess) {
+    // Use new prerequisites for the item being updated, existing for others
+    const deps =
+      access.id === accessId
+        ? newRequiredIds
+        : access.requiredAccess.map((r) => r.id);
+    graph.set(access.id, deps);
+  }
+
+  // Also add the node if it's a new access item not yet in the database
+  if (!graph.has(accessId)) {
+    graph.set(accessId, newRequiredIds);
+  }
+
+  // DFS cycle detection with recursion stack
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+
+  function hasCycle(nodeId: string): boolean {
+    // If node is already in current recursion stack, cycle detected
+    if (inStack.has(nodeId)) return true;
+    // If already fully processed, no cycle through this path
+    if (visited.has(nodeId)) return false;
+
+    visited.add(nodeId);
+    inStack.add(nodeId);
+
+    // Check all dependencies
+    for (const depId of graph.get(nodeId) ?? []) {
+      if (hasCycle(depId)) return true;
+    }
+
+    // Remove from stack when backtracking
+    inStack.delete(nodeId);
+    return false;
+  }
+
+  // Start DFS from the access item being updated
+  return hasCycle(accessId);
+}
+
+// ============================================================================
 // CRUD Operations
 // ============================================================================
 
@@ -140,10 +202,15 @@ export async function updateEventAccess(
           ErrorCodes.BAD_REQUEST
         );
       }
-      // Prevent circular dependencies
-      if (requiredAccessIds.includes(id)) {
+      // Prevent circular dependencies (transitive check)
+      const hasCycle = await detectCircularPrerequisites(
+        access.eventId,
+        id,
+        requiredAccessIds
+      );
+      if (hasCycle) {
         throw new AppError(
-          'Access item cannot be its own prerequisite',
+          'Circular prerequisite dependency detected',
           400,
           true,
           ErrorCodes.ACCESS_CIRCULAR_DEPENDENCY
@@ -388,42 +455,42 @@ export async function checkAccessCapacity(
 
 /**
  * Reserve access spot with atomic capacity check.
- * Uses updateMany with WHERE clause to prevent race conditions.
+ * Uses raw SQL with atomic WHERE clause to prevent race conditions.
+ * The capacity check is performed at the time of update, not using stale values.
  */
 export async function reserveAccessSpot(
   accessId: string,
   quantity: number = 1
 ): Promise<void> {
-  return prisma.$transaction(async (tx) => {
-    const access = await tx.eventAccess.findUnique({ where: { id: accessId } });
+  // Use raw SQL for truly atomic capacity check and update
+  // This ensures the check happens at the exact moment of update,
+  // preventing TOCTOU race conditions
+  const updateResult = await prisma.$executeRaw`
+    UPDATE event_access
+    SET registered_count = registered_count + ${quantity}
+    WHERE id = ${accessId}
+    AND (max_capacity IS NULL OR max_capacity - registered_count >= ${quantity})
+  `;
+
+  if (updateResult === 0) {
+    // Either access not found or capacity exceeded - determine which
+    const access = await prisma.eventAccess.findUnique({
+      where: { id: accessId },
+      select: { name: true, maxCapacity: true, registeredCount: true },
+    });
 
     if (!access) {
       throw new AppError('Access not found', 404, true, ErrorCodes.ACCESS_NOT_FOUND);
     }
 
-    // No capacity limit - just increment
-    if (access.maxCapacity === null) {
-      await tx.eventAccess.update({
-        where: { id: accessId },
-        data: { registeredCount: { increment: quantity } },
-      });
-      return;
-    }
-
-    // Atomic update with capacity check
-    // This only succeeds if registeredCount + quantity <= maxCapacity
-    const updateResult = await tx.eventAccess.updateMany({
-      where: {
-        id: accessId,
-        registeredCount: { lte: access.maxCapacity - quantity },
-      },
-      data: { registeredCount: { increment: quantity } },
-    });
-
-    if (updateResult.count === 0) {
-      throw new AppError('No spots available', 409, true, ErrorCodes.ACCESS_CAPACITY_EXCEEDED);
-    }
-  });
+    const remaining = (access.maxCapacity ?? Infinity) - access.registeredCount;
+    throw new AppError(
+      `${access.name} has insufficient capacity (${remaining} spots remaining, requested ${quantity})`,
+      409,
+      true,
+      ErrorCodes.ACCESS_CAPACITY_EXCEEDED
+    );
+  }
 }
 
 /**

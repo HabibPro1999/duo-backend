@@ -10,6 +10,7 @@ import type {
   ReportQuery,
   FinancialReportResponse,
   FinancialSummary,
+  CurrencySummary,
   PaymentStatusBreakdownItem,
   AccessBreakdownItem,
   DailyTrendItem,
@@ -91,7 +92,72 @@ async function getFinancialSummary(
   _eventId: string,
   where: Record<string, unknown>
 ): Promise<FinancialSummary> {
-  // Get aggregated financial data
+  // Group by currency for accurate multi-currency reporting
+  const byCurrency = await prisma.registration.groupBy({
+    by: ['currency'],
+    where,
+    _sum: {
+      totalAmount: true,
+      paidAmount: true,
+      baseAmount: true,
+      accessAmount: true,
+      discountAmount: true,
+      sponsorshipAmount: true,
+    },
+    _count: true,
+  });
+
+  // Get pending amounts by currency
+  const pendingByCurrency = await prisma.registration.groupBy({
+    by: ['currency'],
+    where: {
+      ...where,
+      paymentStatus: 'PENDING',
+    },
+    _sum: {
+      totalAmount: true,
+      paidAmount: true,
+    },
+  });
+
+  // Get refunded amounts by currency
+  const refundedByCurrency = await prisma.registration.groupBy({
+    by: ['currency'],
+    where: {
+      ...where,
+      paymentStatus: 'REFUNDED',
+    },
+    _sum: {
+      totalAmount: true,
+    },
+  });
+
+  // Build currency summaries
+  const pendingMap = new Map(
+    pendingByCurrency.map((p) => [
+      p.currency,
+      (p._sum.totalAmount ?? 0) - (p._sum.paidAmount ?? 0),
+    ])
+  );
+  const refundedMap = new Map(
+    refundedByCurrency.map((r) => [r.currency, r._sum.totalAmount ?? 0])
+  );
+
+  const currencies: CurrencySummary[] = byCurrency.map((c) => ({
+    currency: c.currency,
+    totalRevenue: c._sum.paidAmount ?? 0,
+    totalPending: pendingMap.get(c.currency) ?? 0,
+    totalRefunded: refundedMap.get(c.currency) ?? 0,
+    registrationCount: c._count,
+    breakdown: {
+      base: c._sum.baseAmount ?? 0,
+      access: c._sum.accessAmount ?? 0,
+      discount: c._sum.discountAmount ?? 0,
+      sponsorship: c._sum.sponsorshipAmount ?? 0,
+    },
+  }));
+
+  // Also get overall aggregation for backward compatibility
   const aggregation = await prisma.registration.aggregate({
     where,
     _sum: {
@@ -108,42 +174,30 @@ async function getFinancialSummary(
     _count: true,
   });
 
-  // Get pending amount (not yet paid)
-  const pendingAgg = await prisma.registration.aggregate({
-    where: {
-      ...where,
-      paymentStatus: 'PENDING',
-    },
-    _sum: {
-      totalAmount: true,
-      paidAmount: true,
-    },
-  });
+  // Calculate total pending across all currencies
+  const totalPending = currencies.reduce((sum, c) => sum + c.totalPending, 0);
+  const totalRefunded = currencies.reduce((sum, c) => sum + c.totalRefunded, 0);
 
-  // Get refunded amount
-  const refundedAgg = await prisma.registration.aggregate({
-    where: {
-      ...where,
-      paymentStatus: 'REFUNDED',
-    },
-    _sum: {
-      totalAmount: true,
-    },
-  });
-
-  const pendingAmount =
-    (pendingAgg._sum.totalAmount ?? 0) - (pendingAgg._sum.paidAmount ?? 0);
+  // Determine primary currency (most registrations or first one)
+  const primaryCurrency =
+    currencies.length > 0
+      ? currencies.reduce((prev, curr) =>
+          curr.registrationCount > prev.registrationCount ? curr : prev
+        ).currency
+      : 'TND';
 
   return {
     totalRevenue: aggregation._sum.paidAmount ?? 0,
-    totalPending: pendingAmount,
-    totalRefunded: refundedAgg._sum.totalAmount ?? 0,
+    totalPending,
+    totalRefunded,
     averageRegistrationValue: Math.round(aggregation._avg.totalAmount ?? 0),
     baseRevenue: aggregation._sum.baseAmount ?? 0,
     accessRevenue: aggregation._sum.accessAmount ?? 0,
     discountsGiven: aggregation._sum.discountAmount ?? 0,
     sponsorshipsApplied: aggregation._sum.sponsorshipAmount ?? 0,
     registrationCount: aggregation._count,
+    primaryCurrency,
+    currencies,
   };
 }
 

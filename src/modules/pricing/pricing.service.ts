@@ -415,23 +415,35 @@ async function calculateExtrasTotal(
 }
 
 /**
- * Validate sponsorship codes (mock implementation - TODO: implement real validation).
+ * Validate sponsorship codes against the database.
+ * Only PENDING sponsorships are valid for use.
  */
 async function validateSponsorshipCodes(
   codes: string[],
-  _eventId: string
+  eventId: string
 ): Promise<PriceBreakdown['sponsorships']> {
-  // Mock validation - replace with actual database lookup
-  const mockCodes: Record<string, number> = {
-    'SPO-A1X7K9': 2000,
-    'SPO-B2Y8L0': 1500,
-    'FULL-SPONSOR': 5000,
-    'STUDENT-50': 500,
-  };
+  if (!codes.length) return [];
 
-  return codes.map((code) => ({
-    code,
-    amount: mockCodes[code.toUpperCase()] ?? 0,
-    valid: code.toUpperCase() in mockCodes,
-  }));
+  return Promise.all(
+    codes.map(async (code) => {
+      // Look up sponsorship in database
+      const sponsorship = await prisma.sponsorship.findFirst({
+        where: {
+          eventId,
+          code: code.toUpperCase(),
+          status: 'PENDING', // Only unused codes are valid
+        },
+        select: {
+          id: true,
+          totalAmount: true,
+        },
+      });
+
+      return {
+        code,
+        amount: sponsorship?.totalAmount ?? 0,
+        valid: !!sponsorship,
+      };
+    })
+  );
 }

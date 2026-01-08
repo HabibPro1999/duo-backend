@@ -1,5 +1,6 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
 import { AppError } from '@shared/errors/app-error.js';
 import { formatZodError } from '@shared/errors/zod-error-formatter.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
@@ -19,6 +20,52 @@ export function errorHandler(
       error: appError.message,
       code: appError.code,
       details: appError.details,
+      requestId,
+    });
+  }
+
+  // Prisma known request error (constraint violations, etc.)
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    logger.warn({ err: error, code: error.code, requestId }, 'Prisma database error');
+
+    switch (error.code) {
+      case 'P2002': // Unique constraint violation
+        return reply.status(409).send({
+          error: 'Resource already exists',
+          code: ErrorCodes.CONFLICT,
+          field: (error.meta?.target as string[])?.join(', '),
+          requestId,
+        });
+
+      case 'P2003': // Foreign key constraint violation
+        return reply.status(400).send({
+          error: 'Referenced resource not found',
+          code: ErrorCodes.VALIDATION_ERROR,
+          requestId,
+        });
+
+      case 'P2025': // Record not found (for update/delete)
+        return reply.status(404).send({
+          error: 'Resource not found',
+          code: ErrorCodes.NOT_FOUND,
+          requestId,
+        });
+
+      default:
+        return reply.status(500).send({
+          error: 'Database error',
+          code: ErrorCodes.DATABASE_ERROR,
+          requestId,
+        });
+    }
+  }
+
+  // Prisma validation error (invalid data format for database)
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    logger.warn({ err: error, requestId }, 'Prisma validation error');
+    return reply.status(400).send({
+      error: 'Invalid data format',
+      code: ErrorCodes.VALIDATION_ERROR,
       requestId,
     });
   }

@@ -1,6 +1,7 @@
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
+import { logger } from '@shared/utils/logger.js';
 import {
   createFirebaseUser,
   setCustomClaims,
@@ -13,6 +14,12 @@ import type { User, Prisma } from '@prisma/client';
 
 // Define type for user queries with include
 type UserWithClient = Prisma.UserGetPayload<{ include: { client: true } }>;
+
+// Role constants
+const UserRole = {
+  SUPER_ADMIN: 0,
+  CLIENT_ADMIN: 1,
+} as const;
 
 /**
  * Create a new user in Firebase Auth + set custom claims + create in DB.
@@ -30,6 +37,24 @@ export async function createUser(
       409,
       true,
       ErrorCodes.CONFLICT
+    );
+  }
+
+  // Validate role-clientId consistency
+  if (role === UserRole.CLIENT_ADMIN && !clientId) {
+    throw new AppError(
+      'CLIENT_ADMIN users must be assigned to a client',
+      400,
+      true,
+      ErrorCodes.VALIDATION_ERROR
+    );
+  }
+  if (role === UserRole.SUPER_ADMIN && clientId) {
+    throw new AppError(
+      'SUPER_ADMIN users cannot be assigned to a client',
+      400,
+      true,
+      ErrorCodes.VALIDATION_ERROR
     );
   }
 
@@ -63,8 +88,17 @@ export async function createUser(
     });
   } catch (error) {
     // Rollback: delete from Firebase if DB insert fails
-    await deleteFirebaseUser(firebaseUser.uid).catch(() => {
-      // Ignore cleanup errors
+    await deleteFirebaseUser(firebaseUser.uid).catch((cleanupErr) => {
+      // Log cleanup failure for monitoring/alerting - orphaned Firebase user may exist
+      logger.error(
+        {
+          err: cleanupErr,
+          uid: firebaseUser.uid,
+          email,
+          originalError: error,
+        },
+        'Failed to cleanup Firebase user after DB creation failure - orphaned user may exist'
+      );
     });
     throw error;
   }
@@ -81,7 +115,7 @@ export async function getUserById(id: string): Promise<UserWithClient | null> {
 }
 
 /**
- * Update user in database only.
+ * Update user in database and sync Firebase claims if role/clientId changes.
  */
 export async function updateUser(
   id: string,
@@ -98,6 +132,17 @@ export async function updateUser(
     if (!isValidClient) {
       throw new AppError('Invalid client ID', 400, true, ErrorCodes.BAD_REQUEST);
     }
+  }
+
+  // Sync Firebase custom claims if role or clientId is being changed
+  if (input.role !== undefined || input.clientId !== undefined) {
+    const newRole = input.role ?? user.role;
+    const newClientId = input.clientId !== undefined ? input.clientId : user.clientId;
+
+    await setCustomClaims(id, {
+      role: newRole,
+      clientId: newClientId,
+    });
   }
 
   return prisma.user.update({

@@ -27,7 +27,23 @@ export const ExportQuerySchema = z
 // Response Schemas
 // ============================================================================
 
+// Per-currency breakdown for accurate multi-currency reporting
+export const CurrencySummarySchema = z.object({
+  currency: z.string(),
+  totalRevenue: z.number(),
+  totalPending: z.number(),
+  totalRefunded: z.number(),
+  registrationCount: z.number(),
+  breakdown: z.object({
+    base: z.number(),
+    access: z.number(),
+    discount: z.number(),
+    sponsorship: z.number(),
+  }),
+});
+
 export const FinancialSummarySchema = z.object({
+  // Aggregated totals (primary currency or single currency events)
   totalRevenue: z.number(),
   totalPending: z.number(),
   totalRefunded: z.number(),
@@ -37,6 +53,9 @@ export const FinancialSummarySchema = z.object({
   discountsGiven: z.number(),
   sponsorshipsApplied: z.number(),
   registrationCount: z.number(),
+  // Per-currency breakdown for multi-currency events
+  primaryCurrency: z.string(),
+  currencies: z.array(CurrencySummarySchema),
 });
 
 export const PaymentStatusBreakdownItemSchema = z.object({
@@ -82,6 +101,7 @@ export const ExportResponseSchema = z.object({
 
 export type ReportQuery = z.infer<typeof ReportQuerySchema>;
 export type ExportQuery = z.infer<typeof ExportQuerySchema>;
+export type CurrencySummary = z.infer<typeof CurrencySummarySchema>;
 export type FinancialSummary = z.infer<typeof FinancialSummarySchema>;
 export type PaymentStatusBreakdownItem = z.infer<typeof PaymentStatusBreakdownItemSchema>;
 export type AccessBreakdownItem = z.infer<typeof AccessBreakdownItemSchema>;

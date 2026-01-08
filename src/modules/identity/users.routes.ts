@@ -1,3 +1,4 @@
+import { prisma } from '@/database/client.js';
 import { requireAuth, requireSuperAdmin } from '@shared/middleware/auth.middleware.js';
 import {
   createUser,
@@ -6,6 +7,12 @@ import {
   updateUser,
   deleteUser,
 } from './users.service.js';
+
+// Role constants
+const UserRole = {
+  SUPER_ADMIN: 0,
+  CLIENT_ADMIN: 1,
+} as const;
 import {
   CreateUserSchema,
   UpdateUserSchema,
@@ -89,7 +96,30 @@ export async function usersRoutes(app: AppInstance): Promise<void> {
       schema: { params: UserIdParamSchema },
     },
     async (request, reply) => {
-      await deleteUser(request.params.id);
+      const targetId = request.params.id;
+
+      // Prevent self-deletion
+      if (targetId === request.user!.id) {
+        throw app.httpErrors.badRequest('Cannot delete your own account');
+      }
+
+      // Get user to check role
+      const userToDelete = await getUserById(targetId);
+      if (!userToDelete) {
+        throw app.httpErrors.notFound('User not found');
+      }
+
+      // Prevent deleting the last super admin
+      if (userToDelete.role === UserRole.SUPER_ADMIN) {
+        const superAdminCount = await prisma.user.count({
+          where: { role: UserRole.SUPER_ADMIN, active: true },
+        });
+        if (superAdminCount <= 1) {
+          throw app.httpErrors.badRequest('Cannot delete the last super admin');
+        }
+      }
+
+      await deleteUser(targetId);
       return reply.status(204).send();
     }
   );
