@@ -212,6 +212,9 @@ model EventAccess {
   // Custom grouping (for OTHER type - allows custom group labels like "Excursions")
   groupLabel String? @map("group_label")
 
+  // Companion option (show +1 question in registration form)
+  allowCompanion Boolean @default(false) @map("allow_companion")
+
   // Timestamps
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

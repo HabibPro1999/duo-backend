@@ -1,7 +1,6 @@
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
-import { eventExists } from '@events';
 import type {
   CreateEventAccessInput,
   UpdateEventAccessInput,
@@ -29,6 +28,51 @@ type EnrichedAccess = EventAccess & {
   spotsRemaining: number | null;
   isFull: boolean;
 };
+
+// ============================================================================
+// Date Boundary Validation
+// ============================================================================
+
+interface DateValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+/**
+ * Validates that access item dates fall within the event's date boundaries.
+ * Checks startsAt, endsAt, availableFrom, and availableTo against event dates.
+ */
+function validateAccessDatesAgainstEvent(
+  accessDates: {
+    startsAt?: Date | null;
+    endsAt?: Date | null;
+    availableFrom?: Date | null;
+    availableTo?: Date | null;
+  },
+  eventDates: { startDate: Date; endDate: Date }
+): DateValidationResult {
+  const errors: string[] = [];
+  const { startDate, endDate } = eventDates;
+
+  const formatDate = (d: Date) =>
+    d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const range = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+
+  if (accessDates.startsAt && (accessDates.startsAt < startDate || accessDates.startsAt > endDate)) {
+    errors.push(`L'heure de début doit être dans la plage de l'événement (${range})`);
+  }
+  if (accessDates.endsAt && (accessDates.endsAt < startDate || accessDates.endsAt > endDate)) {
+    errors.push(`L'heure de fin doit être dans la plage de l'événement (${range})`);
+  }
+  if (accessDates.availableFrom && (accessDates.availableFrom < startDate || accessDates.availableFrom > endDate)) {
+    errors.push(`La date de disponibilité doit être dans la plage de l'événement (${range})`);
+  }
+  if (accessDates.availableTo && (accessDates.availableTo < startDate || accessDates.availableTo > endDate)) {
+    errors.push(`La date limite doit être dans la plage de l'événement (${range})`);
+  }
+
+  return { valid: errors.length === 0, errors };
+}
 
 // ============================================================================
 // Circular Prerequisite Detection (DFS)
@@ -101,9 +145,32 @@ export async function createEventAccess(
 ): Promise<EventAccessWithPrerequisites> {
   const { eventId, requiredAccessIds, ...data } = input;
 
-  // Validate event exists
-  if (!(await eventExists(eventId))) {
+  // Fetch event for existence check and date validation
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, startDate: true, endDate: true },
+  });
+  if (!event) {
     throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  // Validate access dates against event boundaries
+  const dateValidation = validateAccessDatesAgainstEvent(
+    {
+      startsAt: data.startsAt,
+      endsAt: data.endsAt,
+      availableFrom: data.availableFrom,
+      availableTo: data.availableTo,
+    },
+    { startDate: event.startDate, endDate: event.endDate }
+  );
+  if (!dateValidation.valid) {
+    throw new AppError(
+      dateValidation.errors.join('; '),
+      400,
+      true,
+      ErrorCodes.ACCESS_DATE_OUT_OF_BOUNDS
+    );
   }
 
   // Validate prerequisite access items exist and belong to same event
@@ -156,13 +223,35 @@ export async function updateEventAccess(
 ): Promise<EventAccessWithPrerequisites> {
   const access = await prisma.eventAccess.findUnique({
     where: { id },
-    include: { requiredAccess: true },
+    include: { requiredAccess: true, event: { select: { startDate: true, endDate: true } } },
   });
   if (!access) {
     throw new AppError('Access item not found', 404, true, ErrorCodes.ACCESS_NOT_FOUND);
   }
 
   const { requiredAccessIds, ...data } = input;
+
+  // Merge existing dates with updates for validation
+  const mergedDates = {
+    startsAt: data.startsAt !== undefined ? data.startsAt : access.startsAt,
+    endsAt: data.endsAt !== undefined ? data.endsAt : access.endsAt,
+    availableFrom: data.availableFrom !== undefined ? data.availableFrom : access.availableFrom,
+    availableTo: data.availableTo !== undefined ? data.availableTo : access.availableTo,
+  };
+
+  // Validate dates against event boundaries
+  const dateValidation = validateAccessDatesAgainstEvent(mergedDates, {
+    startDate: access.event.startDate,
+    endDate: access.event.endDate,
+  });
+  if (!dateValidation.valid) {
+    throw new AppError(
+      dateValidation.errors.join('; '),
+      400,
+      true,
+      ErrorCodes.ACCESS_DATE_OUT_OF_BOUNDS
+    );
+  }
 
   // Build update data
   const updateData: Prisma.EventAccessUpdateInput = {};

@@ -80,6 +80,9 @@ export const CreateEventAccessSchema = z
 
     // Custom grouping (for OTHER type - allows custom group labels)
     groupLabel: z.string().max(100).optional().nullable(),
+
+    // Companion option (show +1 question in registration form)
+    allowCompanion: z.boolean().default(false),
   })
   .strict()
   .refine(
@@ -111,6 +114,7 @@ export const UpdateEventAccessSchema = z
     sortOrder: z.number().int().optional(),
     active: z.boolean().optional(),
     groupLabel: z.string().max(100).optional().nullable(),
+    allowCompanion: z.boolean().optional(),
   })
   .strict();
 
