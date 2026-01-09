@@ -21,6 +21,10 @@ import type {
   ListRegistrationsQuery,
   PriceBreakdown,
   PublicEditRegistrationInput,
+  ListRegistrationAuditLogsQuery,
+  RegistrationAuditLog,
+  ListRegistrationEmailLogsQuery,
+  RegistrationEmailLog,
 } from './registrations.schema.js';
 import type { Registration, Prisma } from '@prisma/client';
 
@@ -390,6 +394,22 @@ export async function createRegistration(
       throw new AppError('Registration creation failed', 500, true, ErrorCodes.INTERNAL_ERROR);
     }
 
+    // Create audit log for registration creation
+    await tx.auditLog.create({
+      data: {
+        entityType: 'Registration',
+        entityId: registration.id,
+        action: 'CREATE',
+        changes: {
+          email: { old: null, new: email },
+          firstName: { old: null, new: firstName ?? null },
+          lastName: { old: null, new: lastName ?? null },
+          totalAmount: { old: null, new: priceBreakdown.total },
+        },
+        performedBy: 'PUBLIC',
+      },
+    });
+
     return enrichWithAccessSelections(createdReg);
   });
 
@@ -444,7 +464,8 @@ export async function getRegistrationByIdempotencyKey(
 
 export async function updateRegistration(
   id: string,
-  input: UpdateRegistrationInput
+  input: UpdateRegistrationInput,
+  performedBy?: string
 ): Promise<RegistrationWithRelations> {
   const registration = await prisma.registration.findUnique({ where: { id } });
   if (!registration) {
@@ -469,7 +490,28 @@ export async function updateRegistration(
   if (input.paymentProofUrl !== undefined) updateData.paymentProofUrl = input.paymentProofUrl;
   if (input.note !== undefined) updateData.note = input.note;
 
-  await prisma.registration.update({ where: { id }, data: updateData });
+  // Build changes object for audit log
+  const changes: Record<string, { old: unknown; new: unknown }> = {};
+  if (input.note !== undefined && input.note !== registration.note) {
+    changes.note = { old: registration.note, new: input.note };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.registration.update({ where: { id }, data: updateData });
+
+    // Create audit log if there are changes
+    if (Object.keys(changes).length > 0) {
+      await tx.auditLog.create({
+        data: {
+          entityType: 'Registration',
+          entityId: id,
+          action: 'UPDATE',
+          changes,
+          performedBy: performedBy ?? null,
+        },
+      });
+    }
+  });
 
   return getRegistrationById(id) as Promise<RegistrationWithRelations>;
 }
@@ -552,12 +594,15 @@ export async function confirmPayment(
  * Delete a registration (only allowed for unpaid registrations).
  * For paid registrations, use refund flow instead.
  */
-export async function deleteRegistration(id: string): Promise<void> {
+export async function deleteRegistration(id: string, performedBy?: string): Promise<void> {
   const registration = await prisma.registration.findUnique({
     where: { id },
     select: {
       id: true,
       eventId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
       paymentStatus: true,
       priceBreakdown: true,
     },
@@ -577,6 +622,22 @@ export async function deleteRegistration(id: string): Promise<void> {
   }
 
   await prisma.$transaction(async (tx) => {
+    // Create audit log before deletion
+    await tx.auditLog.create({
+      data: {
+        entityType: 'Registration',
+        entityId: id,
+        action: 'DELETE',
+        changes: {
+          email: { old: registration.email, new: null },
+          firstName: { old: registration.firstName, new: null },
+          lastName: { old: registration.lastName, new: null },
+          paymentStatus: { old: registration.paymentStatus, new: null },
+        },
+        performedBy: performedBy ?? null,
+      },
+    });
+
     // Release access spots (get from priceBreakdown)
     const priceBreakdown = registration.priceBreakdown as PriceBreakdown;
     if (priceBreakdown.accessItems) {
@@ -1133,6 +1194,40 @@ export async function editRegistrationPublic(
         lastEditedAt: new Date(),
       },
     });
+
+    // Build changes for audit log
+    const auditChanges: Record<string, { old: unknown; new: unknown }> = {};
+    if (input.formData) {
+      auditChanges.formData = { old: currentFormData, new: newFormData };
+    }
+    if (input.firstName && input.firstName !== registration.firstName) {
+      auditChanges.firstName = { old: registration.firstName, new: input.firstName };
+    }
+    if (input.lastName && input.lastName !== registration.lastName) {
+      auditChanges.lastName = { old: registration.lastName, new: input.lastName };
+    }
+    if (input.phone && input.phone !== registration.phone) {
+      auditChanges.phone = { old: registration.phone, new: input.phone };
+    }
+    if (accessToAdd.length > 0) {
+      auditChanges.accessAdded = { old: null, new: accessToAdd.map((a) => a.accessId) };
+    }
+    if (accessToRemove.length > 0) {
+      auditChanges.accessRemoved = { old: accessToRemove.map((a) => a.accessId), new: null };
+    }
+
+    // Create audit log for public edit
+    if (Object.keys(auditChanges).length > 0) {
+      await tx.auditLog.create({
+        data: {
+          entityType: 'Registration',
+          entityId: registrationId,
+          action: 'UPDATE',
+          changes: auditChanges,
+          performedBy: 'PUBLIC',
+        },
+      });
+    }
   });
 
   // Fetch and return updated registration
@@ -1248,4 +1343,111 @@ export async function uploadPaymentProof(
     mimeType: file.mimetype,
     uploadedAt: new Date().toISOString(),
   };
+}
+
+// ============================================================================
+// Audit & Email Log Queries
+// ============================================================================
+
+/**
+ * List audit logs for a registration.
+ * Returns paginated results with resolved performer names.
+ */
+export async function listRegistrationAuditLogs(
+  registrationId: string,
+  query: ListRegistrationAuditLogsQuery
+): Promise<PaginatedResult<RegistrationAuditLog>> {
+  const { page, limit } = query;
+  const skip = getSkip({ page, limit });
+
+  const where = { entityType: 'Registration', entityId: registrationId };
+
+  const [logs, total] = await Promise.all([
+    prisma.auditLog.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { performedAt: 'desc' },
+    }),
+    prisma.auditLog.count({ where }),
+  ]);
+
+  // Collect user IDs to resolve names
+  const userIds = logs
+    .map((l) => l.performedBy)
+    .filter((id): id is string => id !== null && id !== 'SYSTEM' && id !== 'PUBLIC');
+
+  const uniqueUserIds = [...new Set(userIds)];
+
+  const users =
+    uniqueUserIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: uniqueUserIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+
+  const userMap = new Map(users.map((u) => [u.id, u.name]));
+
+  const enrichedLogs: RegistrationAuditLog[] = logs.map((log) => ({
+    id: log.id,
+    action: log.action as RegistrationAuditLog['action'],
+    changes: log.changes as Record<string, { old: unknown; new: unknown }> | null,
+    performedBy: log.performedBy,
+    performedByName:
+      log.performedBy === 'SYSTEM'
+        ? 'System'
+        : log.performedBy === 'PUBLIC'
+          ? 'Registrant (Self-Edit)'
+          : userMap.get(log.performedBy!) ?? null,
+    performedAt: log.performedAt.toISOString(),
+    ipAddress: log.ipAddress,
+  }));
+
+  return paginate(enrichedLogs, total, { page, limit });
+}
+
+/**
+ * List email logs for a registration.
+ * Returns paginated results with template names.
+ */
+export async function listRegistrationEmailLogs(
+  registrationId: string,
+  query: ListRegistrationEmailLogsQuery
+): Promise<PaginatedResult<RegistrationEmailLog>> {
+  const { page, limit } = query;
+  const skip = getSkip({ page, limit });
+
+  const where = { registrationId };
+
+  const [logs, total] = await Promise.all([
+    prisma.emailLog.findMany({
+      where,
+      skip,
+      take: limit,
+      include: {
+        template: { select: { name: true } },
+      },
+      orderBy: { queuedAt: 'desc' },
+    }),
+    prisma.emailLog.count({ where }),
+  ]);
+
+  const enrichedLogs: RegistrationEmailLog[] = logs.map((log) => ({
+    id: log.id,
+    subject: log.subject,
+    status: log.status as RegistrationEmailLog['status'],
+    trigger: log.trigger as RegistrationEmailLog['trigger'],
+    templateName: log.template?.name ?? null,
+    errorMessage: log.errorMessage,
+    queuedAt: log.queuedAt.toISOString(),
+    sentAt: log.sentAt?.toISOString() ?? null,
+    deliveredAt: log.deliveredAt?.toISOString() ?? null,
+    openedAt: log.openedAt?.toISOString() ?? null,
+    clickedAt: log.clickedAt?.toISOString() ?? null,
+    bouncedAt: log.bouncedAt?.toISOString() ?? null,
+    failedAt: log.failedAt?.toISOString() ?? null,
+  }));
+
+  return paginate(enrichedLogs, total, { page, limit });
 }

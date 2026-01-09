@@ -227,3 +227,96 @@ export type TableColumnType = z.infer<typeof TableColumnTypeSchema>;
 export type TableColumnOption = z.infer<typeof TableColumnOptionSchema>;
 export type TableColumn = z.infer<typeof TableColumnSchema>;
 export type RegistrationColumnsResponse = z.infer<typeof RegistrationColumnsResponseSchema>;
+
+// ============================================================================
+// Audit Log Schemas
+// ============================================================================
+
+export const ListRegistrationAuditLogsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict();
+
+export const AuditActionSchema = z.enum([
+  'CREATE',
+  'UPDATE',
+  'DELETE',
+  'PAYMENT_CONFIRMED',
+]);
+
+export const RegistrationAuditLogSchema = z.object({
+  id: z.string(),
+  action: AuditActionSchema,
+  changes: z
+    .record(
+      z.string(),
+      z.object({
+        old: z.unknown().nullable(),
+        new: z.unknown().nullable(),
+      })
+    )
+    .nullable(),
+  performedBy: z.string().nullable(),
+  performedByName: z.string().nullable(),
+  performedAt: z.string(),
+  ipAddress: z.string().nullable(),
+});
+
+export type ListRegistrationAuditLogsQuery = z.infer<typeof ListRegistrationAuditLogsQuerySchema>;
+export type AuditAction = z.infer<typeof AuditActionSchema>;
+export type RegistrationAuditLog = z.infer<typeof RegistrationAuditLogSchema>;
+
+// ============================================================================
+// Email Log Schemas
+// ============================================================================
+
+export const ListRegistrationEmailLogsQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict();
+
+export const EmailStatusSchema = z.enum([
+  'QUEUED',
+  'SENDING',
+  'SENT',
+  'DELIVERED',
+  'OPENED',
+  'CLICKED',
+  'BOUNCED',
+  'DROPPED',
+  'FAILED',
+  'SKIPPED',
+]);
+
+export const AutomaticEmailTriggerSchema = z
+  .enum([
+    'REGISTRATION_CREATED',
+    'PAYMENT_PROOF_SUBMITTED',
+    'PAYMENT_CONFIRMED',
+  ])
+  .nullable();
+
+export const RegistrationEmailLogSchema = z.object({
+  id: z.string(),
+  subject: z.string(),
+  status: EmailStatusSchema,
+  trigger: AutomaticEmailTriggerSchema,
+  templateName: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+  queuedAt: z.string(),
+  sentAt: z.string().nullable(),
+  deliveredAt: z.string().nullable(),
+  openedAt: z.string().nullable(),
+  clickedAt: z.string().nullable(),
+  bouncedAt: z.string().nullable(),
+  failedAt: z.string().nullable(),
+});
+
+export type ListRegistrationEmailLogsQuery = z.infer<typeof ListRegistrationEmailLogsQuerySchema>;
+export type EmailStatus = z.infer<typeof EmailStatusSchema>;
+export type AutomaticEmailTrigger = z.infer<typeof AutomaticEmailTriggerSchema>;
+export type RegistrationEmailLog = z.infer<typeof RegistrationEmailLogSchema>;
