@@ -10,7 +10,7 @@ import {
 import { clientExists } from '@clients';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateUserInput, UpdateUserInput, ListUsersQuery } from './users.schema.js';
-import type { User, Prisma } from '@prisma/client';
+import type { User, Prisma } from '@/generated/prisma/client.js';
 
 // Define type for user queries with include
 type UserWithClient = Prisma.UserGetPayload<{ include: { client: true } }>;

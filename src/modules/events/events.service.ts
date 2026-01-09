@@ -4,7 +4,7 @@ import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { clientExists } from '@clients';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateEventInput, UpdateEventInput, ListEventsQuery } from './events.schema.js';
-import type { Event, EventPricing, Prisma } from '@prisma/client';
+import type { Event, EventPricing, Prisma } from '@/generated/prisma/client.js';
 
 // Type for Event with pricing included
 type EventWithPricing = Event & { pricing: EventPricing | null };

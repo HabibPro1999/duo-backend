@@ -1,4 +1,4 @@
-import type { User } from '@prisma/client';
+import type { User } from '@/generated/prisma/client.js';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { ExtendedPrismaClient } from '../../database/client.js';

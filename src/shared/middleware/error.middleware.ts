@@ -1,6 +1,6 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/generated/prisma/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { formatZodError } from '@shared/errors/zod-error-formatter.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';

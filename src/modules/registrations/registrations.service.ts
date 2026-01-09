@@ -26,7 +26,7 @@ import type {
   ListRegistrationEmailLogsQuery,
   RegistrationEmailLog,
 } from './registrations.schema.js';
-import type { Registration, Prisma } from '@prisma/client';
+import type { Registration, Prisma } from '@/generated/prisma/client.js';
 
 // ============================================================================
 // Edit Token Configuration
@@ -506,7 +506,7 @@ export async function updateRegistration(
           entityType: 'Registration',
           entityId: id,
           action: 'UPDATE',
-          changes,
+          changes: changes as Prisma.InputJsonValue,
           performedBy: performedBy ?? null,
         },
       });
@@ -1223,7 +1223,7 @@ export async function editRegistrationPublic(
           entityType: 'Registration',
           entityId: registrationId,
           action: 'UPDATE',
-          changes: auditChanges,
+          changes: auditChanges as Prisma.InputJsonValue,
           performedBy: 'PUBLIC',
         },
       });

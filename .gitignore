@@ -34,3 +34,4 @@ firebase/
 prisma/*.db
 prisma/*.db-journal
 prisma/seed.ts
+src/generated/

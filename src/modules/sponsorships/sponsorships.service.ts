@@ -17,7 +17,7 @@ import type {
   UpdateSponsorshipInput,
   ListSponsorshipsQuery,
 } from './sponsorships.schema.js';
-import type { Prisma, Sponsorship, SponsorshipBatch, SponsorshipUsage } from '@prisma/client';
+import type { Prisma, Sponsorship, SponsorshipBatch, SponsorshipUsage } from '@/generated/prisma/client.js';
 
 // ============================================================================
 // Types

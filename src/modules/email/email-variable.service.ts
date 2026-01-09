@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { prisma } from '@/database/client.js'
-import type { Prisma } from '@prisma/client'
+import type { Prisma } from '@/generated/prisma/client.js'
 import type { EmailContext, VariableDefinition } from './email.types.js'
 
 // Type for registration with all needed relations

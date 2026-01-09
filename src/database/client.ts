@@ -1,8 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@/generated/prisma/client.js';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { config } from '@config/app.config.js';
 
 function createPrismaClient() {
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+
   return new PrismaClient({
+    adapter,
     log: config.isDevelopment ? ['query', 'error', 'warn'] : ['error', 'warn'],
     transactionOptions: {
       isolationLevel: 'Serializable',

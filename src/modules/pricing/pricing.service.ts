@@ -14,7 +14,7 @@ import type {
   PricingCondition,
   SelectedExtra,
 } from './pricing.schema.js';
-import type { Prisma, EventPricing } from '@prisma/client';
+import type { Prisma, EventPricing } from '@/generated/prisma/client.js';
 
 // ============================================================================
 // Types

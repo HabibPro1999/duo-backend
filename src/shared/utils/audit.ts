@@ -1,5 +1,5 @@
 import { prisma } from '@/database/client.js';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '@/generated/prisma/client.js';
 
 // Type for Prisma transaction client
 type TxClient = Omit<

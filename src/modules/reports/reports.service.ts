@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { prisma } from '@/database/client.js';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@/generated/prisma/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import type {

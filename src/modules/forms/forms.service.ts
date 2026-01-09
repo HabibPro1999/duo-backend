@@ -6,7 +6,7 @@ import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import { logger } from '@shared/utils/logger.js';
 import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson, SponsorFormSchemaJson } from './forms.schema.js';
-import type { Form, Prisma, Event, Client, EventAccess, EventPricing } from '@prisma/client';
+import type { Form, Prisma, Event, Client, EventAccess, EventPricing } from '@/generated/prisma/client.js';
 
 type FormWithRelations = Form & {
   event: Event & {

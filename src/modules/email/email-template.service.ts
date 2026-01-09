@@ -13,7 +13,7 @@ import {
   extractPlainText,
 } from './email-renderer.service.js';
 import type { TiptapDocument } from './email.types.js';
-import type { Prisma, EmailTemplate } from '@prisma/client';
+import type { Prisma, EmailTemplate } from '@/generated/prisma/client.js';
 
 // =============================================================================
 // Types

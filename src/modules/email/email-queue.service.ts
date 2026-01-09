@@ -8,7 +8,7 @@ import { logger } from '@shared/utils/logger.js'
 import { sendEmail } from './email-sendgrid.service.js'
 import { resolveVariables, buildEmailContextWithAccess } from './email-variable.service.js'
 import { getTemplateByTrigger } from './email-template.service.js'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@/generated/prisma/client.js'
 import type { EmailContext, AutomaticEmailTrigger } from './email.types.js'
 
 // =============================================================================
@@ -70,7 +70,7 @@ export async function queueEmail(input: QueueEmailInput) {
       recipientName: input.recipientName,
       subject: '', // Will be resolved when processing
       status: 'QUEUED',
-      contextSnapshot: input.contextSnapshot ?? Prisma.JsonNull
+      contextSnapshot: (input.contextSnapshot ?? Prisma.JsonNull) as Prisma.InputJsonValue
     }
   })
 }

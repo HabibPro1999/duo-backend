@@ -3,7 +3,7 @@ import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateClientInput, UpdateClientInput, ListClientsQuery } from './clients.schema.js';
-import type { Client, Prisma } from '@prisma/client';
+import type { Client, Prisma } from '@/generated/prisma/client.js';
 
 /**
  * Create a new client.

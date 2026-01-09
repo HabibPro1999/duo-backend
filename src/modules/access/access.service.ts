@@ -12,8 +12,8 @@ import type {
   TypeGroup,
 } from './access.schema.js';
 import { ACCESS_TYPE_LABELS } from './access.schema.js';
-import { Prisma } from '@prisma/client';
-import type { EventAccess } from '@prisma/client';
+import { Prisma } from '@/generated/prisma/client.js';
+import type { EventAccess } from '@/generated/prisma/client.js';
 
 // ============================================================================
 // Types
