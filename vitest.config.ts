@@ -32,6 +32,8 @@ export default defineConfig({
       '@access': path.resolve(__dirname, './src/modules/access/index.ts'),
       '@registrations': path.resolve(__dirname, './src/modules/registrations/index.ts'),
       '@reports': path.resolve(__dirname, './src/modules/reports/index.ts'),
+      '@email': path.resolve(__dirname, './src/modules/email/index.ts'),
+      '@sponsorships': path.resolve(__dirname, './src/modules/sponsorships/index.ts'),
     },
   },
 });

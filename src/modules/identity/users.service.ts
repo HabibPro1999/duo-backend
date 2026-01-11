@@ -11,15 +11,10 @@ import { clientExists } from '@clients';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateUserInput, UpdateUserInput, ListUsersQuery } from './users.schema.js';
 import type { User, Prisma } from '@/generated/prisma/client.js';
+import { UserRole } from './permissions.js';
 
 // Define type for user queries with include
 type UserWithClient = Prisma.UserGetPayload<{ include: { client: true } }>;
-
-// Role constants
-const UserRole = {
-  SUPER_ADMIN: 0,
-  CLIENT_ADMIN: 1,
-} as const;
 
 /**
  * Create a new user in Firebase Auth + set custom claims + create in DB.

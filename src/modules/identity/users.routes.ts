@@ -7,12 +7,7 @@ import {
   updateUser,
   deleteUser,
 } from './users.service.js';
-
-// Role constants
-const UserRole = {
-  SUPER_ADMIN: 0,
-  CLIENT_ADMIN: 1,
-} as const;
+import { UserRole } from './permissions.js';
 import {
   CreateUserSchema,
   UpdateUserSchema,

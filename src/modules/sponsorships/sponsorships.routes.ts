@@ -28,11 +28,7 @@ import {
   type LinkSponsorshipByCodeInput,
 } from './sponsorships.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
-
-const UserRole = {
-  SUPER_ADMIN: 0,
-  CLIENT_ADMIN: 1,
-} as const;
+import { UserRole } from '@identity';
 
 // ============================================================================
 // Event-scoped Sponsorship Routes (mounted at /api/events)

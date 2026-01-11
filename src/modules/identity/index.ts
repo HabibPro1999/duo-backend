@@ -2,15 +2,7 @@
 export { createUser, getUserById, updateUser, listUsers, deleteUser } from './users.service.js';
 
 // Types & Permissions
-export {
-  UserRole,
-  type UserRoleType,
-  isSuperAdmin,
-  isClientAdmin,
-  canManageUsers,
-  canAccessClient,
-  getRoleName,
-} from './permissions.js';
+export { UserRole, type UserRoleType } from './permissions.js';
 
 export {
   CreateUserSchema,

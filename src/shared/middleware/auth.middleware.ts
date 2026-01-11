@@ -3,11 +3,7 @@ import { verifyToken } from '@shared/services/firebase.service.js';
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
-
-const UserRole = {
-  SUPER_ADMIN: 0,
-  CLIENT_ADMIN: 1,
-} as const;
+import { UserRole } from '@modules/identity/permissions.js';
 
 /**
  * Middleware to require authentication.
