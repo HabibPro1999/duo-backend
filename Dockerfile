@@ -22,6 +22,9 @@ COPY --from=deps /app/prisma ./prisma
 COPY src ./src
 COPY tsconfig.json ./
 
+# Copy generated Prisma client from deps stage (after src to avoid overwrite)
+COPY --from=deps /app/src/generated ./src/generated
+
 # Use existing bun user from base image
 USER bun
 
