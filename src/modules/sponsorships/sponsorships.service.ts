@@ -55,7 +55,7 @@ type SponsorshipListItem = Sponsorship & {
     email: string;
   };
   usages: Array<{
-    registrationId: string;
+    registrationId: string | null;
     amountApplied: number;
   }>;
 };
@@ -445,7 +445,9 @@ export async function cancelSponsorship(id: string): Promise<SponsorshipWithUsag
   await prisma.$transaction(async (tx) => {
     // Unlink from all registrations
     for (const usage of sponsorship.usages) {
-      await unlinkSponsorshipFromRegistrationInternal(tx, id, usage.registrationId);
+      if (usage.registrationId) {
+        await unlinkSponsorshipFromRegistrationInternal(tx, id, usage.registrationId);
+      }
     }
 
     // Set status to CANCELLED
@@ -479,7 +481,9 @@ export async function deleteSponsorship(id: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // Unlink from all registrations first
     for (const usage of sponsorship.usages) {
-      await unlinkSponsorshipFromRegistrationInternal(tx, id, usage.registrationId);
+      if (usage.registrationId) {
+        await unlinkSponsorshipFromRegistrationInternal(tx, id, usage.registrationId);
+      }
     }
 
     // Delete sponsorship (cascade will delete usages)
@@ -952,6 +956,9 @@ async function recalculateUsageAmounts(sponsorshipId: string): Promise<void> {
   if (!sponsorship) return;
 
   for (const usage of sponsorship.usages) {
+    // Skip if registration was deleted
+    if (!usage.registration) continue;
+
     const priceBreakdown =
       usage.registration.priceBreakdown as RegistrationForCalculation['priceBreakdown'];
 
