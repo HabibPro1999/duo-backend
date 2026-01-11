@@ -53,7 +53,8 @@ export async function updateClient(
     mergedModules = [...new Set([...existingModules, ...newModules])];
   }
 
-  const { enabledModules: _, ...restInput } = input;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { enabledModules: _removed, ...restInput } = input;
 
   return prisma.client.update({
     where: { id },
