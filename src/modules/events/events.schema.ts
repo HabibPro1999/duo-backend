@@ -85,48 +85,9 @@ export const EventSlugParamSchema = z
   .strict();
 
 // ============================================================================
-// Response Schemas
-// ============================================================================
-
-export const EventResponseSchema = z.object({
-  id: z.string(),
-  clientId: z.string(),
-  name: z.string(),
-  slug: z.string(),
-  description: z.string().nullable(),
-  maxCapacity: z.number().nullable(),
-  registeredCount: z.number(),
-  startDate: z.date(),
-  endDate: z.date(),
-  location: z.string().nullable(),
-  status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']),
-  pricing: z
-    .object({
-      id: z.string(),
-      basePrice: z.number(),
-      currency: z.string(),
-    })
-    .nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-export const EventsListResponseSchema = z.object({
-  data: z.array(EventResponseSchema),
-  meta: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-  }),
-});
-
-// ============================================================================
 // Types
 // ============================================================================
 
 export type CreateEventInput = z.infer<typeof CreateEventSchema>;
 export type UpdateEventInput = z.infer<typeof UpdateEventSchema>;
 export type ListEventsQuery = z.infer<typeof ListEventsQuerySchema>;
-export type EventResponse = z.infer<typeof EventResponseSchema>;
-export type EventsListResponse = z.infer<typeof EventsListResponseSchema>;

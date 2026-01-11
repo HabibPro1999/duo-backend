@@ -524,24 +524,6 @@ export async function getGroupedAccess(
 // Capacity Management
 // ============================================================================
 
-export async function checkAccessCapacity(
-  accessId: string,
-  quantity: number = 1
-): Promise<{ available: boolean; spotsRemaining: number | null }> {
-  const access = await prisma.eventAccess.findUnique({ where: { id: accessId } });
-
-  if (!access) {
-    return { available: false, spotsRemaining: null };
-  }
-
-  if (access.maxCapacity === null) {
-    return { available: true, spotsRemaining: null }; // Unlimited
-  }
-
-  const spotsRemaining = access.maxCapacity - access.registeredCount;
-  return { available: spotsRemaining >= quantity, spotsRemaining };
-}
-
 /**
  * Reserve access spot with atomic capacity check.
  * Uses raw SQL with atomic WHERE clause to prevent race conditions.

@@ -2,9 +2,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
-import { eventExists } from '@events';
 import type {
-  CreateEventPricingInput,
   UpdateEventPricingInput,
   CreateEmbeddedRuleInput,
   UpdateEmbeddedRuleInput,
@@ -28,69 +26,6 @@ export type EventPricingWithRules = Omit<EventPricing, 'rules'> & {
 // ============================================================================
 // Event Pricing CRUD (Unified with embedded rules)
 // ============================================================================
-
-/**
- * Create event pricing configuration with optional embedded rules.
- * Called automatically when Event is created.
- */
-export async function createEventPricing(
-  input: CreateEventPricingInput
-): Promise<EventPricingWithRules> {
-  const {
-    eventId,
-    basePrice,
-    currency,
-    rules,
-    onlinePaymentEnabled,
-    onlinePaymentUrl,
-    bankName,
-    bankAccountName,
-    bankAccountNumber,
-  } = input;
-
-  // Validate event exists
-  const isValidEvent = await eventExists(eventId);
-  if (!isValidEvent) {
-    throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
-  }
-
-  // Check if pricing already exists
-  const existing = await prisma.eventPricing.findUnique({ where: { eventId } });
-  if (existing) {
-    throw new AppError(
-      'Event pricing already exists',
-      409,
-      true,
-      ErrorCodes.CONFLICT
-    );
-  }
-
-  // Generate IDs for any rules
-  const rulesWithIds = (rules ?? []).map((rule) => ({
-    ...rule,
-    id: randomUUID(),
-  }));
-
-  const pricing = await prisma.eventPricing.create({
-    data: {
-      eventId,
-      basePrice: basePrice ?? 0,
-      currency: currency ?? 'TND',
-      rules: rulesWithIds as Prisma.InputJsonValue,
-      // Payment Methods
-      onlinePaymentEnabled: onlinePaymentEnabled ?? false,
-      onlinePaymentUrl: onlinePaymentUrl ?? null,
-      bankName: bankName ?? null,
-      bankAccountName: bankAccountName ?? null,
-      bankAccountNumber: bankAccountNumber ?? null,
-    },
-  });
-
-  return {
-    ...pricing,
-    rules: (pricing.rules as unknown as EmbeddedPricingRule[]) ?? [],
-  };
-}
 
 /**
  * Get event pricing by event ID with parsed rules.
@@ -157,23 +92,6 @@ export async function updateEventPricing(
     ...updated,
     rules: (updated.rules as unknown as EmbeddedPricingRule[]) ?? [],
   };
-}
-
-/**
- * Delete event pricing (usually cascades with Event deletion).
- */
-export async function deleteEventPricing(eventId: string): Promise<void> {
-  const pricing = await prisma.eventPricing.findUnique({ where: { eventId } });
-  if (!pricing) {
-    throw new AppError(
-      'Event pricing not found',
-      404,
-      true,
-      ErrorCodes.PRICING_NOT_FOUND
-    );
-  }
-
-  await prisma.eventPricing.delete({ where: { eventId } });
 }
 
 // ============================================================================

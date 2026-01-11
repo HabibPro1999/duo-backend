@@ -167,52 +167,6 @@ export const FormIdParamSchema = z
   .strict();
 
 // ============================================================================
-// Response Schemas
-// ============================================================================
-
-export const FormResponseSchema = z.object({
-  id: z.string(),
-  eventId: z.string(),
-  name: z.string(),
-  schema: z.any(), // JSONB - use any for response
-  schemaVersion: z.number(),
-  successTitle: z.any().nullable(),
-  successMessage: z.any().nullable(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
-
-export const FormWithRelationsResponseSchema = FormResponseSchema.extend({
-  event: z.object({
-    id: z.string(),
-    name: z.string(),
-    slug: z.string(),
-    status: z.enum(['CLOSED', 'OPEN', 'ARCHIVED']),
-    startDate: z.date(),
-    endDate: z.date(),
-    location: z.string().nullable(),
-    basePrice: z.number(),
-    currency: z.string(),
-    client: z.object({
-      id: z.string(),
-      name: z.string(),
-      logo: z.string().nullable(),
-      primaryColor: z.string().nullable(),
-    }),
-  }),
-});
-
-export const FormsListResponseSchema = z.object({
-  data: z.array(FormResponseSchema),
-  meta: z.object({
-    page: z.number(),
-    limit: z.number(),
-    total: z.number(),
-    totalPages: z.number(),
-  }),
-});
-
-// ============================================================================
 // Types
 // ============================================================================
 
@@ -230,6 +184,3 @@ export type SponsorFormSchemaJson = z.infer<typeof SponsorFormSchemaJsonSchema>;
 export type CreateFormInput = z.infer<typeof CreateFormSchema>;
 export type UpdateFormInput = z.infer<typeof UpdateFormSchema>;
 export type ListFormsQuery = z.infer<typeof ListFormsQuerySchema>;
-export type FormResponse = z.infer<typeof FormResponseSchema>;
-export type FormWithRelationsResponse = z.infer<typeof FormWithRelationsResponseSchema>;
-export type FormsListResponse = z.infer<typeof FormsListResponseSchema>;

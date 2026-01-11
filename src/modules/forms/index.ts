@@ -33,9 +33,6 @@ export {
   UpdateFormSchema,
   ListFormsQuerySchema,
   FormIdParamSchema,
-  FormResponseSchema,
-  FormWithRelationsResponseSchema,
-  FormsListResponseSchema,
   type FieldType,
   type FieldOption,
   type ConditionOperator,
@@ -51,9 +48,6 @@ export {
   type CreateFormInput,
   type UpdateFormInput,
   type ListFormsQuery,
-  type FormResponse,
-  type FormWithRelationsResponse,
-  type FormsListResponse,
 } from './forms.schema.js';
 
 // Routes

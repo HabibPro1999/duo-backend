@@ -102,3 +102,15 @@ export const requireSuperAdmin = requireRole(UserRole.SUPER_ADMIN);
  * Middleware that allows both super admin and client admin.
  */
 export const requireAdmin = requireRole(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN);
+
+/**
+ * Check if user can access a client's resources.
+ * Super admins can access all clients.
+ * Client admins can only access their own client.
+ */
+export function canAccessClient(
+  user: { role: number; clientId: string | null },
+  clientId: string
+): boolean {
+  return user.role === UserRole.SUPER_ADMIN || user.clientId === clientId;
+}

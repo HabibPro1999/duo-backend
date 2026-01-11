@@ -1,4 +1,4 @@
-import { requireAuth, requireSuperAdmin } from '@shared/middleware/auth.middleware.js';
+import { requireAuth, requireSuperAdmin, canAccessClient } from '@shared/middleware/auth.middleware.js';
 import {
   createClient,
   getClientById,
@@ -16,7 +16,6 @@ import {
   type ListClientsQuery,
 } from './clients.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
-import { UserRole } from '@identity';
 
 export async function clientsRoutes(app: AppInstance): Promise<void> {
   // All routes require authentication
@@ -73,11 +72,7 @@ export async function clientsRoutes(app: AppInstance): Promise<void> {
     },
     async (request, reply) => {
       // Check if user is super_admin or requesting their own client
-      // requireAuth middleware guarantees user exists
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === request.params.id;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, request.params.id)) {
         throw app.httpErrors.forbidden('Insufficient permissions to access this client');
       }
 

@@ -1,4 +1,4 @@
-import { requireAuth } from '@shared/middleware/auth.middleware.js';
+import { requireAuth, canAccessClient } from '@shared/middleware/auth.middleware.js';
 import {
   createEvent,
   getEventById,
@@ -30,10 +30,7 @@ export async function eventsRoutes(app: AppInstance): Promise<void> {
     },
     async (request, reply) => {
       // Check if user is super_admin or creating event for their own client
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === request.body.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, request.body.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions to create event for this client');
       }
 
@@ -77,10 +74,7 @@ export async function eventsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or accessing their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions to access this event');
       }
 
@@ -102,10 +96,7 @@ export async function eventsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or updating their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions to update this event');
       }
 
@@ -128,10 +119,7 @@ export async function eventsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or deleting their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions to delete this event');
       }
 

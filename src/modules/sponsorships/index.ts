@@ -9,7 +9,6 @@ export {
   getSponsorshipById,
   getSponsorshipByCode,
   updateSponsorship,
-  cancelSponsorship,
   deleteSponsorship,
   linkSponsorshipToRegistration,
   linkSponsorshipByCode,
@@ -28,7 +27,6 @@ export type {
 
 // Utility functions
 export {
-  generateSponsorshipCode,
   generateUniqueCode,
   calculateSponsorshipTotal,
   calculateApplicableAmount,
@@ -46,9 +44,6 @@ export type {
 
 // Schemas
 export {
-  SponsorshipStatusSchema,
-  BeneficiaryInputSchema,
-  SponsorInfoSchema,
   CreateSponsorshipBatchSchema,
   UpdateSponsorshipSchema,
   ListSponsorshipsQuerySchema,
@@ -62,9 +57,6 @@ export {
 
 // Types
 export type {
-  SponsorshipStatus,
-  BeneficiaryInput,
-  SponsorInfo,
   CreateSponsorshipBatchInput,
   UpdateSponsorshipInput,
   ListSponsorshipsQuery,

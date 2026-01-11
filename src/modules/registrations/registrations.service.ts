@@ -11,7 +11,7 @@ import {
   releaseAccessSpot,
 } from '@access';
 import { calculatePrice } from '@pricing';
-import { queueTriggeredEmail } from '@/modules/email/index.js';
+import { queueTriggeredEmail } from '@email';
 import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
 import { uploadFile } from '@shared/services/firebase.service.js';
 import type {

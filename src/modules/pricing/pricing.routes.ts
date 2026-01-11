@@ -1,4 +1,4 @@
-import { requireAuth } from '@shared/middleware/auth.middleware.js';
+import { requireAuth, canAccessClient } from '@shared/middleware/auth.middleware.js';
 import { getEventById } from '@events';
 import {
   getEventPricing,
@@ -22,7 +22,6 @@ import {
 } from './pricing.schema.js';
 import { z } from 'zod';
 import type { AppInstance } from '@shared/types/fastify.js';
-import { UserRole } from '@identity';
 
 const FormIdParamSchema = z
   .object({
@@ -54,10 +53,7 @@ export async function pricingRulesRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or accessing their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden(
           'Insufficient permissions to access this event'
         );
@@ -88,10 +84,7 @@ export async function pricingRulesRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or updating their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden(
           'Insufficient permissions to update this event'
         );
@@ -122,10 +115,7 @@ export async function pricingRulesRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or creating for their own client
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden(
           'Insufficient permissions to create pricing rules for this event'
         );
@@ -155,10 +145,7 @@ export async function pricingRulesRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or updating their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden(
           'Insufficient permissions to update this pricing rule'
         );
@@ -185,10 +172,7 @@ export async function pricingRulesRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or deleting their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden(
           'Insufficient permissions to delete this pricing rule'
         );

@@ -1,4 +1,4 @@
-import { requireAuth } from '@shared/middleware/auth.middleware.js';
+import { requireAuth, canAccessClient } from '@shared/middleware/auth.middleware.js';
 import { getEventById } from '@events';
 import {
   getRegistrationById,
@@ -26,7 +26,6 @@ import {
   type ListRegistrationEmailLogsQuery,
 } from './registrations.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
-import { UserRole } from '@identity';
 
 // ============================================================================
 // Protected Routes (Admin)
@@ -51,10 +50,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Event not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -84,10 +80,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Event not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -110,10 +103,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === registration.event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, registration.event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -139,10 +129,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -169,10 +156,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -201,10 +185,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -234,10 +215,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -267,10 +245,7 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 

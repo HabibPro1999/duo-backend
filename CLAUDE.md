@@ -6,24 +6,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development
-npm run dev              # Start dev server with hot reload (tsx watch)
-npm run build            # Build for production (prisma generate + tsc + tsc-alias)
-npm start                # Run production build
+bun run dev              # Start dev server with hot reload
+bun run start            # Run production build
 
 # Code quality
-npm run type-check       # TypeScript type checking
-npm run lint             # Run ESLint
-npm run lint:fix         # Fix ESLint issues
+bun run type-check       # TypeScript type checking
+bun run lint             # Run ESLint
+bun run lint:fix         # Fix ESLint issues
 
 # Testing
-npm run test             # Run tests in watch mode
-npm run test:run         # Run tests once
-npm run test:coverage    # Run tests with coverage report
+bun run test             # Run tests in watch mode
+bun run test:run         # Run tests once
+bun run test:coverage    # Run tests with coverage report
 
 # Database
-npm run db:generate      # Generate Prisma client
-npm run db:push          # Push schema to database (dev)
-npm run db:migrate       # Run migrations (creates migration files)
+bun run db:generate      # Generate Prisma client
+bun run db:push          # Push schema to database (dev)
+bun run db:migrate       # Run migrations (creates migration files)
 ```
 
 ## Architecture

@@ -16,6 +16,37 @@ import { UserRole } from './permissions.js';
 // Define type for user queries with include
 type UserWithClient = Prisma.UserGetPayload<{ include: { client: true } }>;
 
+// ============================================================================
+// Private Helpers
+// ============================================================================
+
+/**
+ * Validate that a client ID exists if provided.
+ */
+async function validateClientId(clientId: string | null | undefined): Promise<void> {
+  if (clientId) {
+    const isValid = await clientExists(clientId);
+    if (!isValid) {
+      throw new AppError('Invalid client ID', 400, true, ErrorCodes.BAD_REQUEST);
+    }
+  }
+}
+
+/**
+ * Assert that a user exists, throwing if not found.
+ */
+async function assertUserExists(id: string): Promise<User> {
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) {
+    throw new AppError('User not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+  return user;
+}
+
+// ============================================================================
+// Service Functions
+// ============================================================================
+
 /**
  * Create a new user in Firebase Auth + set custom claims + create in DB.
  */
@@ -54,12 +85,7 @@ export async function createUser(
   }
 
   // Validate clientId if provided
-  if (clientId) {
-    const isValidClient = await clientExists(clientId);
-    if (!isValidClient) {
-      throw new AppError('Invalid client ID', 400, true, ErrorCodes.BAD_REQUEST);
-    }
-  }
+  await validateClientId(clientId);
 
   // Create in Firebase Auth
   const firebaseUser = await createFirebaseUser(email, password);
@@ -116,18 +142,10 @@ export async function updateUser(
   id: string,
   input: UpdateUserInput
 ): Promise<UserWithClient> {
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user) {
-    throw new AppError('User not found', 404, true, ErrorCodes.NOT_FOUND);
-  }
+  const user = await assertUserExists(id);
 
   // Validate clientId if being changed
-  if (input.clientId !== undefined && input.clientId !== null) {
-    const isValidClient = await clientExists(input.clientId);
-    if (!isValidClient) {
-      throw new AppError('Invalid client ID', 400, true, ErrorCodes.BAD_REQUEST);
-    }
-  }
+  await validateClientId(input.clientId);
 
   // Sync Firebase custom claims if role or clientId is being changed
   if (input.role !== undefined || input.clientId !== undefined) {
@@ -184,11 +202,7 @@ export async function listUsers(query: ListUsersQuery): Promise<PaginatedResult<
  * Delete user from Firebase Auth + database.
  */
 export async function deleteUser(id: string): Promise<void> {
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user) {
-    throw new AppError('User not found', 404, true, ErrorCodes.NOT_FOUND);
-  }
-
+  await assertUserExists(id);
   await deleteFirebaseUser(id);
   await prisma.user.delete({ where: { id } });
 }

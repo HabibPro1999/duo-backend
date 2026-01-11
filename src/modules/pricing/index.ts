@@ -1,10 +1,8 @@
 // Services
 export {
-  // Event Pricing (Unified with embedded rules)
-  createEventPricing,
+  // Event Pricing
   getEventPricing,
   updateEventPricing,
-  deleteEventPricing,
   // Rule Management Helpers
   addPricingRule,
   updatePricingRule,

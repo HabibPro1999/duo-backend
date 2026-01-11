@@ -12,7 +12,6 @@ export {
   getAccessClientId,
   getGroupedAccess,
   validateAccessSelections,
-  checkAccessCapacity,
   reserveAccessSpot,
   releaseAccessSpot,
 } from './access.service.js';

@@ -297,17 +297,17 @@ model Sponsorship {
 }
 
 model SponsorshipUsage {
-  id             String   @id @default(uuid())
-  sponsorshipId  String   @map("sponsorship_id")
-  registrationId String   @map("registration_id")
+  id             String  @id @default(uuid())
+  sponsorshipId  String  @map("sponsorship_id")
+  registrationId String? @map("registration_id")
 
   amountApplied  Int      @map("amount_applied") // How much from this sponsorship was applied
   appliedAt      DateTime @default(now()) @map("applied_at")
   appliedBy      String   @map("applied_by") // User ID who linked it
 
   // Relations
-  sponsorship  Sponsorship  @relation(fields: [sponsorshipId], references: [id], onDelete: Cascade)
-  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  sponsorship  Sponsorship   @relation(fields: [sponsorshipId], references: [id], onDelete: Cascade)
+  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
 
   @@unique([sponsorshipId, registrationId]) // One link per pair
   @@index([registrationId])
@@ -394,7 +394,7 @@ model Registration {
   accessTypeIds String[] @default([]) @map("access_type_ids")
 
   // Relations
-  form              Form               @relation(fields: [formId], references: [id], onDelete: Cascade)
+  form              Form               @relation(fields: [formId], references: [id], onDelete: Restrict)
   event             Event              @relation(fields: [eventId], references: [id])
   emailLogs         EmailLog[]
   sponsorshipUsages SponsorshipUsage[]

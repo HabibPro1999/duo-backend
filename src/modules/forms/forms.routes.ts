@@ -1,4 +1,4 @@
-import { requireAuth } from '@shared/middleware/auth.middleware.js';
+import { requireAuth, canAccessClient } from '@shared/middleware/auth.middleware.js';
 import { getEventById, EventIdParamSchema } from '@events';
 import {
   createForm,
@@ -40,10 +40,7 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or creating form for their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions to create form for this event');
       }
 
@@ -98,12 +95,9 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or accessing their own client's form
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      if (!isSuperAdmin) {
-        const clientId = await getFormClientId(request.params.id);
-        if (clientId !== request.user!.clientId) {
-          throw app.httpErrors.forbidden('Insufficient permissions to access this form');
-        }
+      const clientId = await getFormClientId(request.params.id);
+      if (clientId && !canAccessClient(request.user!, clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions to access this form');
       }
 
       return reply.send(form);
@@ -124,12 +118,9 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or updating their own client's form
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      if (!isSuperAdmin) {
-        const clientId = await getFormClientId(request.params.id);
-        if (clientId !== request.user!.clientId) {
-          throw app.httpErrors.forbidden('Insufficient permissions to update this form');
-        }
+      const clientId = await getFormClientId(request.params.id);
+      if (clientId && !canAccessClient(request.user!, clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions to update this form');
       }
 
       const updatedForm = await updateForm(request.params.id, request.body);
@@ -151,12 +142,9 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or deleting their own client's form
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      if (!isSuperAdmin) {
-        const clientId = await getFormClientId(request.params.id);
-        if (clientId !== request.user!.clientId) {
-          throw app.httpErrors.forbidden('Insufficient permissions to delete this form');
-        }
+      const clientId = await getFormClientId(request.params.id);
+      if (clientId && !canAccessClient(request.user!, clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions to delete this form');
       }
 
       await deleteForm(request.params.id);
@@ -182,10 +170,7 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or accessing their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions to access this event');
       }
 
@@ -212,10 +197,7 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
       }
 
       // Check if user is super_admin or creating form for their own client's event
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions to create form for this event');
       }
 

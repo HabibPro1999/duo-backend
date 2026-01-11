@@ -18,13 +18,9 @@ export {
   ListEventsQuerySchema,
   EventIdParamSchema,
   EventSlugParamSchema,
-  EventResponseSchema,
-  EventsListResponseSchema,
   type CreateEventInput,
   type UpdateEventInput,
   type ListEventsQuery,
-  type EventResponse,
-  type EventsListResponse,
 } from './events.schema.js';
 
 // Routes

@@ -1,4 +1,4 @@
-import { requireAuth } from '@shared/middleware/auth.middleware.js';
+import { requireAuth, canAccessClient } from '@shared/middleware/auth.middleware.js';
 import { getEventById } from '@events';
 import {
   listSponsorships,
@@ -28,7 +28,6 @@ import {
   type LinkSponsorshipByCodeInput,
 } from './sponsorships.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
-import { UserRole } from '@identity';
 
 // ============================================================================
 // Event-scoped Sponsorship Routes (mounted at /api/events)
@@ -58,10 +57,7 @@ export async function sponsorshipsRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Event not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -93,10 +89,7 @@ export async function sponsorshipDetailRoutes(app: AppInstance): Promise<void> {
       }
 
       const clientId = await getSponsorshipClientId(id);
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (clientId && !canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -122,10 +115,7 @@ export async function sponsorshipDetailRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Sponsorship not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -148,10 +138,7 @@ export async function sponsorshipDetailRoutes(app: AppInstance): Promise<void> {
         throw app.httpErrors.notFound('Sponsorship not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -182,10 +169,7 @@ export async function registrationSponsorshipsRoutes(app: AppInstance): Promise<
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === registration.event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, registration.event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -211,10 +195,7 @@ export async function registrationSponsorshipsRoutes(app: AppInstance): Promise<
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === registration.event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, registration.event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -241,10 +222,7 @@ export async function registrationSponsorshipsRoutes(app: AppInstance): Promise<
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === registration.event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, registration.event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -276,10 +254,7 @@ export async function registrationSponsorshipsRoutes(app: AppInstance): Promise<
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === registration.event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, registration.event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 
@@ -303,10 +278,7 @@ export async function registrationSponsorshipsRoutes(app: AppInstance): Promise<
         throw app.httpErrors.notFound('Registration not found');
       }
 
-      const isSuperAdmin = request.user!.role === UserRole.SUPER_ADMIN;
-      const isOwnClient = request.user!.clientId === registration.event.clientId;
-
-      if (!isSuperAdmin && !isOwnClient) {
+      if (!canAccessClient(request.user!, registration.event.clientId)) {
         throw app.httpErrors.forbidden('Insufficient permissions');
       }
 

@@ -3,7 +3,8 @@
 // ============================================================================
 
 import type { AppInstance } from '@shared/types/fastify.js';
-import { requireAuth } from '@shared/middleware/auth.middleware.js';
+import { requireAuth, canAccessClient } from '@shared/middleware/auth.middleware.js';
+import { getEventById } from '@events';
 import {
   ReportQuerySchema,
   ExportQuerySchema,
@@ -37,6 +38,16 @@ export async function reportsRoutes(app: AppInstance): Promise<void> {
     },
     async (request, reply) => {
       const { eventId } = request.params;
+
+      // Authorization: verify client access
+      const event = await getEventById(eventId);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+      if (!canAccessClient(request.user!, event.clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions');
+      }
+
       const report = await getFinancialReport(eventId, request.query);
       return reply.send(report);
     }
@@ -58,6 +69,16 @@ export async function reportsRoutes(app: AppInstance): Promise<void> {
     },
     async (request, reply) => {
       const { eventId } = request.params;
+
+      // Authorization: verify client access
+      const event = await getEventById(eventId);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+      if (!canAccessClient(request.user!, event.clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions');
+      }
+
       const result = await exportRegistrations(eventId, request.query);
 
       return reply
