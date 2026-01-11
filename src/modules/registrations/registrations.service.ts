@@ -40,7 +40,8 @@ const EDIT_TOKEN_EXPIRY_HOURS = 24;
 // ============================================================================
 
 const PAYMENT_STATUS_TRANSITIONS: Record<string, string[]> = {
-  PENDING: ['PAID', 'WAIVED', 'REFUNDED'],
+  PENDING: ['VERIFYING', 'PAID', 'WAIVED', 'REFUNDED'],
+  VERIFYING: ['PAID', 'PENDING', 'REFUNDED'], // Can confirm, reject (back to PENDING), or refund
   PAID: ['REFUNDED'],
   WAIVED: ['REFUNDED'],
   REFUNDED: [], // Terminal state
@@ -1285,7 +1286,7 @@ export async function uploadPaymentProof(
     );
   }
 
-  // Get registration with event info
+  // Get registration with event info and current status
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     select: {
@@ -1293,6 +1294,7 @@ export async function uploadPaymentProof(
       email: true,
       firstName: true,
       lastName: true,
+      paymentStatus: true,
     },
   });
 
@@ -1318,10 +1320,30 @@ export async function uploadPaymentProof(
     );
   }
 
-  // Update registration with payment proof URL
-  await prisma.registration.update({
-    where: { id: registrationId },
-    data: { paymentProofUrl: fileUrl },
+  // Update registration with payment proof URL, set status to VERIFYING, and create audit log
+  await prisma.$transaction(async (tx) => {
+    await tx.registration.update({
+      where: { id: registrationId },
+      data: {
+        paymentProofUrl: fileUrl,
+        paymentStatus: 'VERIFYING',
+        paymentMethod: 'BANK_TRANSFER',
+      },
+    });
+
+    // Create audit log for payment proof upload
+    await tx.auditLog.create({
+      data: {
+        entityType: 'Registration',
+        entityId: registrationId,
+        action: 'PAYMENT_PROOF_UPLOADED',
+        changes: {
+          paymentStatus: { old: registration.paymentStatus, new: 'VERIFYING' },
+          paymentProofUrl: { old: null, new: fileUrl },
+        },
+        performedBy: 'PUBLIC',
+      },
+    });
   });
 
   // Queue email notification to admin
@@ -1341,6 +1363,78 @@ export async function uploadPaymentProof(
     fileName: file.filename,
     fileSize: file.buffer.length,
     mimeType: file.mimetype,
+    uploadedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Submit a payment proof URL after direct upload to Firebase Storage.
+ * This is called by the frontend after uploading directly to Firebase.
+ * Updates registration status to VERIFYING and queues notification email.
+ */
+export async function submitPaymentProofUrl(
+  registrationId: string,
+  paymentProofUrl: string
+): Promise<PaymentProofResponse> {
+  // Get registration with current status
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: {
+      eventId: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      paymentStatus: true,
+    },
+  });
+
+  if (!registration) {
+    throw new AppError('Registration not found', 404, true, ErrorCodes.REGISTRATION_NOT_FOUND);
+  }
+
+  // Update registration with payment proof URL, set status to VERIFYING, and create audit log
+  await prisma.$transaction(async (tx) => {
+    await tx.registration.update({
+      where: { id: registrationId },
+      data: {
+        paymentProofUrl,
+        paymentStatus: 'VERIFYING',
+        paymentMethod: 'BANK_TRANSFER',
+      },
+    });
+
+    // Create audit log for payment proof upload
+    await tx.auditLog.create({
+      data: {
+        entityType: 'Registration',
+        entityId: registrationId,
+        action: 'PAYMENT_PROOF_UPLOADED',
+        changes: {
+          paymentStatus: { old: registration.paymentStatus, new: 'VERIFYING' },
+          paymentProofUrl: { old: null, new: paymentProofUrl },
+        },
+        performedBy: 'PUBLIC',
+      },
+    });
+  });
+
+  // Queue email notification to admin
+  await queueTriggeredEmail('PAYMENT_PROOF_SUBMITTED', registration.eventId, {
+    id: registrationId,
+    email: registration.email,
+    firstName: registration.firstName,
+    lastName: registration.lastName,
+  }).catch((err) => {
+    logger.error({ err, registrationId }, 'Failed to queue PAYMENT_PROOF_SUBMITTED email');
+  });
+
+  return {
+    id: randomUUID(),
+    registrationId,
+    fileUrl: paymentProofUrl,
+    fileName: 'payment-proof',
+    fileSize: 0,
+    mimeType: 'unknown',
     uploadedAt: new Date().toISOString(),
   };
 }

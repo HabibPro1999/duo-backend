@@ -7,6 +7,7 @@ import { AccessSelectionSchema } from '@access';
 
 export const PaymentStatusSchema = z.enum([
   'PENDING',
+  'VERIFYING',
   'PAID',
   'REFUNDED',
   'WAIVED',
@@ -136,6 +137,18 @@ export const RegistrationIdPublicParamSchema = z
   .strict();
 
 // ============================================================================
+// Submit Payment Proof URL Schema (Direct Firebase Upload)
+// ============================================================================
+
+export const SubmitPaymentProofUrlSchema = z
+  .object({
+    paymentProofUrl: z.string().url(),
+  })
+  .strict();
+
+export type SubmitPaymentProofUrlInput = z.infer<typeof SubmitPaymentProofUrlSchema>;
+
+// ============================================================================
 // Table Column Schemas (for dynamic table rendering)
 // ============================================================================
 
@@ -244,6 +257,7 @@ export const AuditActionSchema = z.enum([
   'UPDATE',
   'DELETE',
   'PAYMENT_CONFIRMED',
+  'PAYMENT_PROOF_UPLOADED',
 ]);
 
 export const RegistrationAuditLogSchema = z.object({

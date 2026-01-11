@@ -5,6 +5,7 @@ import {
   editRegistrationPublic,
   verifyEditToken,
   uploadPaymentProof,
+  submitPaymentProofUrl,
   getRegistrationByIdempotencyKey,
 } from './registrations.service.js';
 import { calculatePrice } from '@pricing';
@@ -15,8 +16,10 @@ import {
   FormIdParamSchema,
   RegistrationIdPublicParamSchema,
   PublicEditRegistrationSchema,
+  SubmitPaymentProofUrlSchema,
   type CreateRegistrationInput,
   type PublicEditRegistrationInput,
+  type SubmitPaymentProofUrlInput,
 } from './registrations.schema.js';
 import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
 import { AppError } from '@shared/errors/app-error.js';
@@ -237,6 +240,37 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
         mimetype: data.mimetype,
       });
 
+      return reply.status(201).send(result);
+    }
+  );
+
+  // POST /api/public/registrations/:registrationId/payment-proof-url - Submit payment proof URL (direct upload)
+  // Used when frontend uploads directly to Firebase Storage and submits the URL
+  // Requires valid edit token in query string
+  app.post<{
+    Params: { registrationId: string };
+    Querystring: { token: string };
+    Body: SubmitPaymentProofUrlInput;
+  }>(
+    '/:registrationId/payment-proof-url',
+    {
+      schema: {
+        params: RegistrationIdPublicParamSchema,
+        querystring: EditTokenQuerySchema,
+        body: SubmitPaymentProofUrlSchema,
+      },
+    },
+    async (request, reply) => {
+      const { registrationId } = request.params;
+      const { token } = request.query;
+
+      // Verify edit token before allowing submission
+      const isValid = await verifyEditToken(registrationId, token);
+      if (!isValid) {
+        throw app.httpErrors.forbidden('Invalid or expired edit token');
+      }
+
+      const result = await submitPaymentProofUrl(registrationId, request.body.paymentProofUrl);
       return reply.status(201).send(result);
     }
   );

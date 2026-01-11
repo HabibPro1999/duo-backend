@@ -321,6 +321,7 @@ model SponsorshipUsage {
 
 enum PaymentStatus {
   PENDING
+  VERIFYING // Payment proof submitted, awaiting admin review
   PAID
   REFUNDED
   WAIVED
