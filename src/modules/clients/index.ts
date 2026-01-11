@@ -16,11 +16,14 @@ export {
   ClientIdParamSchema,
   ClientResponseSchema,
   ClientsListResponseSchema,
+  MODULE_IDS,
+  ALL_MODULE_IDS,
   type CreateClientInput,
   type UpdateClientInput,
   type ListClientsQuery,
   type ClientResponse,
   type ClientsListResponse,
+  type ModuleId,
 } from './clients.schema.js';
 
 // Routes

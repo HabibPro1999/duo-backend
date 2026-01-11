@@ -3,13 +3,14 @@ import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import type { CreateClientInput, UpdateClientInput, ListClientsQuery } from './clients.schema.js';
+import { ALL_MODULE_IDS } from './clients.schema.js';
 import type { Client, Prisma } from '@/generated/prisma/client.js';
 
 /**
  * Create a new client.
  */
 export async function createClient(input: CreateClientInput): Promise<Client> {
-  const { name, logo, primaryColor, email, phone } = input;
+  const { name, logo, primaryColor, email, phone, enabledModules } = input;
 
   return prisma.client.create({
     data: {
@@ -18,6 +19,7 @@ export async function createClient(input: CreateClientInput): Promise<Client> {
       primaryColor: primaryColor ?? null,
       email: email ?? null,
       phone: phone ?? null,
+      enabledModules: enabledModules ?? ALL_MODULE_IDS,
     },
   });
 }
@@ -31,6 +33,7 @@ export async function getClientById(id: string): Promise<Client | null> {
 
 /**
  * Update client.
+ * Note: enabledModules uses one-way enable logic - modules can be added but never removed.
  */
 export async function updateClient(
   id: string,
@@ -42,9 +45,22 @@ export async function updateClient(
     throw new AppError('Client not found', 404, true, ErrorCodes.NOT_FOUND);
   }
 
+  // One-way enable logic: merge new modules with existing (union, not replace)
+  let mergedModules: string[] | undefined;
+  if (input.enabledModules) {
+    const existingModules = new Set(client.enabledModules);
+    const newModules = input.enabledModules;
+    mergedModules = [...new Set([...existingModules, ...newModules])];
+  }
+
+  const { enabledModules: _, ...restInput } = input;
+
   return prisma.client.update({
     where: { id },
-    data: input,
+    data: {
+      ...restInput,
+      ...(mergedModules && { enabledModules: mergedModules }),
+    },
   });
 }
 

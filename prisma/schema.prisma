@@ -12,15 +12,16 @@ datasource db {
 // ============================================================================
 
 model Client {
-  id           String   @id @default(uuid())
-  name         String
-  logo         String?
-  primaryColor String?  @map("primary_color")
-  email        String?
-  phone        String?
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  name           String
+  logo           String?
+  primaryColor   String?  @map("primary_color")
+  email          String?
+  phone          String?
+  active         Boolean  @default(true)
+  enabledModules String[] @default(["pricing", "registrations", "sponsorships", "emails"]) @map("enabled_modules")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   users          User[]
   events         Event[]

@@ -128,6 +128,18 @@ return paginate(data, total, { page, limit });
 - Config: Zod-validated env vars at `src/config/app.config.ts`
 - Cross-module imports: Only through barrel exports, enforced by ESLint
 
+#### Client Module Access Control
+Clients have an `enabledModules` field controlling which event features they can access:
+
+```typescript
+// Available modules (defined in @clients)
+MODULE_IDS = ['pricing', 'registrations', 'sponsorships', 'emails']
+```
+
+- **Forms page** is derived: visible if `registrations` OR `sponsorships` enabled
+- **One-way enable**: modules can be added but never removed (merge on update)
+- **Default**: new clients get all 4 modules enabled
+
 ### Testing
 
 Tests use Vitest with Fastify's `inject()` method:

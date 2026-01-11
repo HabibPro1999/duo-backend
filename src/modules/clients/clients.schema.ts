@@ -1,6 +1,29 @@
 import { z } from 'zod';
 
 // ============================================================================
+// Module Configuration
+// ============================================================================
+
+/**
+ * Available event modules that can be enabled per client.
+ * These control which features are visible in the event sidebar.
+ */
+export const MODULE_IDS = [
+  'pricing',
+  'registrations',
+  'sponsorships',
+  'emails',
+] as const;
+
+export type ModuleId = (typeof MODULE_IDS)[number];
+
+export const ALL_MODULE_IDS: ModuleId[] = [...MODULE_IDS];
+
+const EnabledModulesSchema = z
+  .array(z.enum(MODULE_IDS))
+  .default([...MODULE_IDS]);
+
+// ============================================================================
 // Request Schemas
 // ============================================================================
 
@@ -15,6 +38,7 @@ export const CreateClientSchema = z
       .nullable(),
     email: z.string().email().optional().nullable(),
     phone: z.string().min(1).max(20).optional().nullable(),
+    enabledModules: EnabledModulesSchema.optional(),
   })
   .strict();
 
@@ -30,6 +54,7 @@ export const UpdateClientSchema = z
     email: z.string().email().optional().nullable(),
     phone: z.string().min(1).max(20).optional().nullable(),
     active: z.boolean().optional(),
+    enabledModules: z.array(z.enum(MODULE_IDS)).optional(),
   })
   .strict();
 
@@ -63,6 +88,7 @@ export const ClientResponseSchema = z.object({
   email: z.string().nullable(),
   phone: z.string().nullable(),
   active: z.boolean(),
+  enabledModules: z.array(z.string()),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

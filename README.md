@@ -78,7 +78,7 @@ bun run dev
 | Module | Purpose | Exports |
 |--------|---------|---------|
 | **identity** | Users, roles, auth | `UserRole`, `usersRoutes` |
-| **clients** | Tenant organizations | `clientExists`, `clientsRoutes` |
+| **clients** | Tenant organizations, module access | `clientExists`, `MODULE_IDS`, `clientsRoutes` |
 | **events** | Event CRUD, capacity | `getEventById`, `eventExists`, `eventsRoutes` |
 | **forms** | Dynamic form schemas | `getFormById`, `formsRoutes` |
 | **registrations** | Submissions, payments | `getRegistrationById`, `registrationsRoutes` |
@@ -120,6 +120,20 @@ Request → requireAuth middleware
         SUPER_ADMIN: always allowed
         CLIENT_ADMIN: only if user.clientId === resourceClientId
 ```
+
+### Client Module Access
+
+Each client has `enabledModules` controlling which event features they can access:
+
+```
+MODULE_IDS = ['pricing', 'registrations', 'sponsorships', 'emails']
+```
+
+| Behavior | Description |
+|----------|-------------|
+| **Forms derived** | Forms page visible if `registrations` OR `sponsorships` enabled |
+| **One-way enable** | Modules can be added but never removed |
+| **Default** | New clients get all 4 modules |
 
 ## Project Structure
 
