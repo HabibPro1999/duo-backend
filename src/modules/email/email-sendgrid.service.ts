@@ -28,6 +28,7 @@ if (SENDGRID_API_KEY) {
 export interface SendEmailInput {
   to: string
   toName?: string
+  fromName?: string // Event name to use as sender name
   subject: string
   html: string
   plainText?: string
@@ -44,6 +45,7 @@ export interface SendEmailResult {
 export interface BatchEmailInput {
   to: string
   toName?: string
+  fromName?: string // Event name to use as sender name
   subject: string
   html: string
   plainText?: string
@@ -110,7 +112,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   try {
     const msg: sgMail.MailDataRequired = {
       to: input.toName ? { email: input.to, name: input.toName } : input.to,
-      from: { email: FROM_EMAIL, name: FROM_NAME },
+      from: { email: FROM_EMAIL, name: input.fromName || FROM_NAME },
       subject: input.subject,
       text: input.plainText || stripHtml(input.html),
       html: input.html,
@@ -213,7 +215,7 @@ export async function sendBatchEmails(
 
     const messages: sgMail.MailDataRequired[] = batch.map((email) => ({
       to: email.toName ? { email: email.to, name: email.toName } : email.to,
-      from: { email: FROM_EMAIL, name: FROM_NAME },
+      from: { email: FROM_EMAIL, name: email.fromName || FROM_NAME },
       subject: email.subject,
       text: email.plainText || stripHtml(email.html),
       html: email.html,

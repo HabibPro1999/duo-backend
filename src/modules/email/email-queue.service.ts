@@ -244,6 +244,7 @@ export async function processEmailQueue(batchSize = 50): Promise<ProcessQueueRes
       const sendResult = await sendEmail({
         to: emailLog.recipientEmail,
         toName: emailLog.recipientName || undefined,
+        fromName: context.eventName,
         subject: resolvedSubject,
         html: resolvedHtml,
         plainText: resolvedPlain,
