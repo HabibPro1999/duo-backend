@@ -41,7 +41,9 @@ bun run dev
 | `bun run start` | Run production build |
 | `bun run type-check` | TypeScript type checking |
 | `bun run lint` | Run ESLint |
-| `bun run test:run` | Run tests |
+| `bun run test` | Run tests in watch mode |
+| `bun run test:run` | Run tests once |
+| `bun run test:coverage` | Run tests with coverage |
 | `bun run db:generate` | Generate Prisma client |
 | `bun run db:push` | Push schema to database |
 | `bun run db:migrate` | Run migrations |
@@ -190,3 +192,83 @@ src/
    "@{module}": ["./src/modules/{module}/index.ts"]
    ```
 4. Register routes in `src/core/server.ts`
+
+## Testing
+
+The project uses **Vitest** with comprehensive unit test coverage for all modules.
+
+### Test Infrastructure
+
+| Component | Purpose |
+|-----------|---------|
+| `vitest-mock-extended` | Deep mocking for Prisma client |
+| `@faker-js/faker` | Test data factories |
+| `@vitest/coverage-v8` | Code coverage reporting |
+
+### Test Files
+
+```
+tests/
+├── mocks/
+│   ├── prisma.ts          # Prisma client mock
+│   ├── firebase.ts        # Firebase Auth/Storage mocks
+│   └── sendgrid.ts        # SendGrid email mock
+├── helpers/
+│   ├── factories.ts       # Data factories for all models
+│   ├── auth-helpers.ts    # Authentication test utilities
+│   └── test-app.ts        # Fastify test instance
+├── integration/
+│   └── health.test.ts     # Health check tests
+└── setup.ts               # Global test setup
+
+src/modules/*/
+└── *.service.test.ts      # Co-located unit tests
+```
+
+### Coverage Summary
+
+| Module | Tests |
+|--------|-------|
+| Identity | 34 |
+| Clients | 34 |
+| Events | 37 |
+| Forms | 38 |
+| Pricing | 19 |
+| Access | 51 |
+| Registrations | 53 |
+| Sponsorships | 64 |
+| Email (3 services) | 113 |
+| Auth Middleware | 36 |
+| **Total** | **481** |
+
+### Running Tests
+
+```bash
+# Watch mode (development)
+bun run test
+
+# Single run (CI)
+bun run test:run
+
+# With coverage report
+bun run test:coverage
+```
+
+### Writing Tests
+
+```typescript
+import { prismaMock } from '../../../tests/mocks/prisma.js';
+import { mockAuthenticatedUser } from '../../../tests/helpers/auth-helpers.js';
+import { createMockClient } from '../../../tests/helpers/factories.js';
+
+describe('MyService', () => {
+  it('should do something', async () => {
+    const mockClient = createMockClient();
+    prismaMock.client.findUnique.mockResolvedValue(mockClient);
+
+    const result = await myService.getClient(mockClient.id);
+
+    expect(result).toEqual(mockClient);
+  });
+});
+```

@@ -8,15 +8,47 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**'],
     setupFiles: ['./tests/setup.ts'],
+    testTimeout: 10000,
+    hookTimeout: 10000,
+
+    // Parallel execution for speed
+    pool: 'forks',
+    fileParallelism: true,
+
+    // Clear mocks between tests
+    clearMocks: true,
+    restoreMocks: true,
+
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      enabled: false, // Enable with --coverage flag
+      reporter: ['text', 'json', 'html', 'lcov'],
+      reportsDirectory: './coverage',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.d.ts', 'src/**/*.test.ts'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/*.test.ts',
+        'src/**/index.ts', // Barrel exports
+        'src/database/client.ts', // Prisma client
+        'src/generated/**', // Generated Prisma types
+      ],
+
+      // Coverage thresholds - fail CI if not met
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 75,
+        statements: 80,
+      },
     },
+
+    // Reporter configuration
+    reporters: ['default'],
   },
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
