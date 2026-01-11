@@ -1,107 +1,178 @@
-# My Backend
+# DUO Backend
 
-A production-ready Node.js backend using the modular monolith architecture pattern with Fastify.
+Event registration platform API built as a modular monolith with Fastify.
 
 ## Tech Stack
 
-- **Runtime**: Node.js 22 LTS
-- **Framework**: Fastify 5.x
-- **Type System**: TypeScript 5.7+
-- **Validation**: Zod 4.x
-- **Database**: Prisma 6.x
-- **Logging**: Pino 10.x
+| Layer | Technology |
+|-------|------------|
+| Runtime | Bun 1.x |
+| Framework | Fastify 5.x |
+| Type System | TypeScript 5.7+ |
+| Validation | Zod 4.x |
+| Database | Prisma 7.x (CockroachDB) |
+| Auth | Firebase Admin |
+| Logging | Pino 10.x |
 
 ## Getting Started
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+# Install dependencies
+bun install
 
-2. Copy environment file and configure:
-   ```bash
-   cp .env.example .env
-   ```
+# Configure environment
+cp .env.example .env
 
-3. Generate Prisma client:
-   ```bash
-   npm run db:generate
-   ```
+# Generate Prisma client
+bun run db:generate
 
-4. Run database migrations (when you have models):
-   ```bash
-   npm run db:migrate
-   ```
+# Push schema to database
+bun run db:push
 
-5. Start development server:
-   ```bash
-   npm run dev
-   ```
+# Start development server
+bun run dev
+```
 
 ## Scripts
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Build for production |
-| `npm start` | Run production build |
-| `npm run type-check` | Run TypeScript type checking |
-| `npm run lint` | Run ESLint |
-| `npm run lint:fix` | Fix ESLint issues |
-| `npm run format` | Format code with Prettier |
-| `npm run db:generate` | Generate Prisma client |
-| `npm run db:push` | Push schema to database |
-| `npm run db:migrate` | Run database migrations |
+| `bun run dev` | Start dev server with hot reload |
+| `bun run start` | Run production build |
+| `bun run type-check` | TypeScript type checking |
+| `bun run lint` | Run ESLint |
+| `bun run test:run` | Run tests |
+| `bun run db:generate` | Generate Prisma client |
+| `bun run db:push` | Push schema to database |
+| `bun run db:migrate` | Run migrations |
+
+## Architecture
+
+### Module Dependency Graph
+
+```
+          LEAF MODULES (0 dependencies)
+          ═══════════════════════════════
+            clients    access    pricing    reports
+
+               ↑          ↑         ↑
+               │          │         │
+        ┌──────┘          │         │
+        │                 │         │
+     events ◄─────────────┼─────────┤
+        ↑                 │         │
+        │                 │         │
+     forms            identity      │
+        │                 │         │
+        └────────┐  ┌─────┘         │
+                 ↓  ↓               │
+             registrations ◄────────┘
+                 │    │
+          ┌──────┘    └──────┐
+          ↓                  ↓
+     sponsorships         email
+```
+
+### Module Responsibilities
+
+| Module | Purpose | Exports |
+|--------|---------|---------|
+| **identity** | Users, roles, auth | `UserRole`, `usersRoutes` |
+| **clients** | Tenant organizations | `clientExists`, `clientsRoutes` |
+| **events** | Event CRUD, capacity | `getEventById`, `eventExists`, `eventsRoutes` |
+| **forms** | Dynamic form schemas | `getFormById`, `formsRoutes` |
+| **registrations** | Submissions, payments | `getRegistrationById`, `registrationsRoutes` |
+| **sponsorships** | Lab sponsorship codes | `sponsorshipsRoutes` |
+| **access** | Event sessions/extras | `validateAccessSelections`, `accessRoutes` |
+| **pricing** | Pricing rules engine | `calculatePrice`, `pricingRoutes` |
+| **email** | Templates, queue, delivery | `queueTriggeredEmail`, `emailRoutes` |
+| **reports** | Financial reports, exports | `reportsRoutes` |
+
+### Database Schema
+
+```
+CLIENT (Tenant)
+  └─► USER (admin accounts)
+  └─► EVENT
+        ├─► FORM (registration/sponsor schemas)
+        │     └─► REGISTRATION
+        │           └─► EMAIL_LOG
+        ├─► EVENT_ACCESS (sessions, workshops)
+        ├─► EVENT_PRICING (rules, bank info)
+        └─► SPONSORSHIP_BATCH
+              └─► SPONSORSHIP
+                    └─► SPONSORSHIP_USAGE
+
+AUDIT_LOG (immutable, no FKs)
+```
+
+### Authorization Pattern
+
+```
+Request → requireAuth middleware
+            ↓
+        Verify Firebase token
+            ↓
+        Lookup user in DB
+            ↓
+        canAccessClient(user, resourceClientId)
+            ↓
+        SUPER_ADMIN: always allowed
+        CLIENT_ADMIN: only if user.clientId === resourceClientId
+```
 
 ## Project Structure
 
 ```
 src/
-├── index.ts                    # Application entry point
+├── index.ts              # Entry point
 ├── config/
-│   └── app.config.ts           # Zod-validated env vars + derived config
+│   └── app.config.ts     # Zod-validated env vars
 ├── core/
-│   ├── server.ts               # Fastify setup, plugins, route registration
-│   ├── plugins.ts              # CORS, Helmet, Rate limiting
-│   ├── hooks.ts                # Request/response lifecycle hooks
-│   └── shutdown.ts             # Graceful shutdown handler
+│   ├── server.ts         # Fastify setup, route registration
+│   ├── plugins.ts        # CORS, Helmet, rate limiting
+│   ├── hooks.ts          # Request lifecycle hooks
+│   └── shutdown.ts       # Graceful shutdown
 ├── database/
-│   └── client.ts               # Prisma singleton with transaction config
-├── modules/                    # Feature modules go here
-│   └── .gitkeep
+│   └── client.ts         # Prisma singleton
+├── modules/
+│   ├── identity/         # Users, permissions
+│   ├── clients/          # Tenant organizations
+│   ├── events/           # Event management
+│   ├── forms/            # Dynamic forms
+│   ├── registrations/    # Submissions
+│   ├── sponsorships/     # Sponsorship codes
+│   ├── access/           # Event sessions
+│   ├── pricing/          # Pricing engine
+│   ├── email/            # Email system
+│   └── reports/          # Reporting
 └── shared/
-    ├── middleware/
-    │   └── error.middleware.ts # Global error handler
-    ├── errors/
-    │   ├── app-error.ts        # Custom error class
-    │   ├── error-codes.ts      # Enumerated error codes
-    │   └── zod-error-formatter.ts
-    ├── types/
-    │   └── fastify.d.ts        # Fastify type augmentation
-    └── utils/
-        └── logger.ts           # Pino logger configuration
+    ├── middleware/       # Auth, error handling
+    ├── errors/           # AppError, error codes
+    ├── services/         # Firebase service
+    ├── types/            # Fastify augmentation
+    └── utils/            # Logger, pagination
 ```
 
-## Adding a Module
-
-1. Create folder: `src/modules/{module}/`
-2. Create barrel: `src/modules/{module}/index.ts`
-3. Add path alias to `tsconfig.json`:
-   ```json
-   "@{module}": ["./src/modules/{module}/index.ts"]
-   ```
-4. Add ESLint boundary rule in `eslint.config.js`
-5. Create subdomains as needed with:
-   - `{subdomain}.schemas.ts` - Zod schemas with `.strict()`
-   - `{subdomain}.service.ts` - Business logic (one table only)
-   - `{subdomain}.routes.ts` - HTTP handlers
-
-## Architecture Rules
+## Module Rules
 
 | Rule | Reason |
 |------|--------|
 | Use `.js` in imports | ES modules requirement |
-| Use `.strict()` on Zod schemas | Security - rejects unknown fields |
-| One table per service | Clean boundaries |
 | Cross-module via barrel only | Enforced by ESLint |
-| Routes orchestrate, not services | Clear responsibility |
+| Routes orchestrate services | Clear responsibility |
+| One table per service | Clean boundaries |
+
+## Adding a Module
+
+1. Create folder: `src/modules/{module}/`
+2. Create files:
+   - `{module}.schema.ts` - Zod schemas
+   - `{module}.service.ts` - Business logic
+   - `{module}.routes.ts` - HTTP handlers
+   - `index.ts` - Barrel export
+3. Add path alias to `tsconfig.json`:
+   ```json
+   "@{module}": ["./src/modules/{module}/index.ts"]
+   ```
+4. Register routes in `src/core/server.ts`
