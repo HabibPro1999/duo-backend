@@ -145,7 +145,7 @@ export const EventIdParamSchema = z
   .strict();
 
 // ============================================================================
-// Grouped Access Response (Hierarchical: Type → Time Slots)
+// Grouped Access Response (Hierarchical: Date → Time Slots)
 // ============================================================================
 
 export const TimeSlotSchema = z.object({
@@ -155,14 +155,18 @@ export const TimeSlotSchema = z.object({
   items: z.array(z.any()),
 });
 
-export const TypeGroupSchema = z.object({
-  type: AccessTypeSchema,
-  label: z.string(),
+// Groups access items by date (day)
+export const DateGroupSchema = z.object({
+  dateKey: z.string(), // ISO date string (e.g., "2026-04-16") or "no-date"
+  label: z.string(), // Formatted display label (e.g., "Jeudi 16 avril")
   slots: z.array(TimeSlotSchema),
 });
 
+// Kept for backward compatibility - alias to DateGroupSchema
+export const TypeGroupSchema = DateGroupSchema;
+
 export const GroupedAccessResponseSchema = z.object({
-  groups: z.array(TypeGroupSchema),
+  groups: z.array(DateGroupSchema),
 });
 
 // ============================================================================
@@ -204,7 +208,8 @@ export type CreateEventAccessInput = z.infer<typeof CreateEventAccessSchema>;
 export type UpdateEventAccessInput = z.infer<typeof UpdateEventAccessSchema>;
 export type AccessSelection = z.infer<typeof AccessSelectionSchema>;
 export type TimeSlot = z.infer<typeof TimeSlotSchema>;
-export type TypeGroup = z.infer<typeof TypeGroupSchema>;
+export type DateGroup = z.infer<typeof DateGroupSchema>;
+export type TypeGroup = DateGroup; // Backward compatibility alias
 export type GroupedAccessResponse = z.infer<typeof GroupedAccessResponseSchema>;
 export type GetGroupedAccessBody = z.infer<typeof GetGroupedAccessBodySchema>;
 export type ValidateAccessSelectionsBody = z.infer<typeof ValidateAccessSelectionsBodySchema>;

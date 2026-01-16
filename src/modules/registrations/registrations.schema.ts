@@ -42,6 +42,9 @@ export const CreateRegistrationSchema = z
 
     // Idempotency key for safe retries (prevents duplicate registrations)
     idempotencyKey: z.string().uuid().optional(),
+
+    // Browser origin URL for email links (e.g., "https://summit.events.domain.com")
+    linkBaseUrl: z.string().url().optional(),
   })
   .strict();
 

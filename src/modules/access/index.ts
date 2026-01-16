@@ -27,7 +27,8 @@ export {
   EventAccessIdParamSchema,
   EventIdParamSchema,
   TimeSlotSchema,
-  TypeGroupSchema,
+  DateGroupSchema,
+  TypeGroupSchema, // Backward compatibility alias for DateGroupSchema
   GroupedAccessResponseSchema,
   AccessSelectionSchema,
   GetGroupedAccessBodySchema,
@@ -42,7 +43,8 @@ export type {
   UpdateEventAccessInput,
   AccessSelection,
   TimeSlot,
-  TypeGroup,
+  DateGroup,
+  TypeGroup, // Backward compatibility alias for DateGroup
   GroupedAccessResponse,
   GetGroupedAccessBody,
   ValidateAccessSelectionsBody,

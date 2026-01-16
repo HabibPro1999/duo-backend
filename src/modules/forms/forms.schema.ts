@@ -66,6 +66,8 @@ export const FormFieldSchema = z
     label: z.string().optional(),
     placeholder: z.string().optional(),
     helpText: z.string().optional(),
+    required: z.boolean().optional(),
+    width: z.string().optional(),
     options: z.array(FieldOptionSchema).optional(),
     validation: FieldValidationSchema.optional(),
     conditions: z.array(FieldConditionSchema).optional(),

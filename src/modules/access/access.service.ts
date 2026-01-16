@@ -7,11 +7,9 @@ import type {
   AccessSelection,
   GroupedAccessResponse,
   AccessCondition,
-  AccessType,
   TimeSlot,
-  TypeGroup,
+  DateGroup,
 } from './access.schema.js';
-import { ACCESS_TYPE_LABELS } from './access.schema.js';
 import { Prisma } from '@/generated/prisma/client.js';
 import type { EventAccess } from '@/generated/prisma/client.js';
 
@@ -443,29 +441,38 @@ export async function getGroupedAccess(
     };
   });
 
-  // === Hierarchical grouping ===
+  // === Hierarchical grouping by DATE ===
 
-  // Step 1: Group by TYPE (and groupLabel for OTHER type)
-  const typeMap = new Map<string, EnrichedAccess[]>();
+  // Helper: Format date as French day name + date (e.g., "Jeudi 16 avril")
+  const formatDateLabel = (dateStr: string): string => {
+    if (dateStr === 'no-date') return 'Sans date';
+    const date = new Date(dateStr + 'T00:00:00');
+    const formatted = date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+    // Capitalize first letter
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  };
+
+  // Step 1: Group by DATE (day only, no time)
+  const dateMap = new Map<string, EnrichedAccess[]>();
 
   for (const access of enrichedAccess) {
-    // For OTHER type, use groupLabel as key to allow custom groups
-    const key =
-      access.type === 'OTHER'
-        ? `OTHER:${access.groupLabel || ''}`
-        : access.type;
+    // Extract date part only (YYYY-MM-DD)
+    const dateKey = access.startsAt
+      ? access.startsAt.toISOString().split('T')[0]
+      : 'no-date';
 
-    if (!typeMap.has(key)) typeMap.set(key, []);
-    typeMap.get(key)!.push(access);
+    if (!dateMap.has(dateKey)) dateMap.set(dateKey, []);
+    dateMap.get(dateKey)!.push(access);
   }
 
-  // Step 2: For each type, sub-group by TIME SLOT
-  const groups: TypeGroup[] = Array.from(typeMap.entries()).map(
-    ([key, items]) => {
-      const type = (key.startsWith('OTHER:') ? 'OTHER' : key) as AccessType;
-      const customLabel = key.startsWith('OTHER:') ? key.slice(6) : null;
-
-      // Sub-group by startsAt time
+  // Step 2: For each date, sub-group by TIME SLOT
+  const groups: DateGroup[] = Array.from(dateMap.entries()).map(
+    ([dateKey, items]) => {
+      // Sub-group by startsAt time (full ISO string)
       const slotMap = new Map<string, EnrichedAccess[]>();
       for (const item of items) {
         const timeKey = item.startsAt?.toISOString() || 'no-time';
@@ -483,17 +490,13 @@ export async function getGroupedAccess(
             | 'single'
             | 'multiple',
           items: slotItems.sort((a, b) => {
-            // First by date (day)
+            // Sort by time within the slot
             if (a.startsAt && b.startsAt) {
-              const dateA = new Date(a.startsAt).setHours(0, 0, 0, 0);
-              const dateB = new Date(b.startsAt).setHours(0, 0, 0, 0);
-              if (dateA !== dateB) return dateA - dateB;
-              // Then by time within the same day
               const timeA = a.startsAt.getTime();
               const timeB = b.startsAt.getTime();
               if (timeA !== timeB) return timeA - timeB;
             }
-            // Finally by sortOrder
+            // Then by sortOrder
             return a.sortOrder - b.sortOrder;
           }),
         }))
@@ -506,28 +509,21 @@ export async function getGroupedAccess(
         });
 
       return {
-        type,
-        label: customLabel || ACCESS_TYPE_LABELS[type] || type,
+        dateKey,
+        label: formatDateLabel(dateKey),
         slots,
       };
     }
   );
 
-  // Sort groups by type order
-  const typeOrder: AccessType[] = [
-    'SESSION',
-    'WORKSHOP',
-    'DINNER',
-    'NETWORKING',
-    'ACCOMMODATION',
-    'TRANSPORT',
-    'OTHER',
-  ];
+  // Sort groups chronologically by date
   groups.sort((a, b) => {
-    const orderA = typeOrder.indexOf(a.type);
-    const orderB = typeOrder.indexOf(b.type);
-    if (orderA !== orderB) return orderA - orderB;
-    return a.label.localeCompare(b.label);
+    // "no-date" items go to the end
+    if (a.dateKey === 'no-date' && b.dateKey === 'no-date') return 0;
+    if (a.dateKey === 'no-date') return 1;
+    if (b.dateKey === 'no-date') return -1;
+    // Sort by date chronologically
+    return new Date(a.dateKey).getTime() - new Date(b.dateKey).getTime();
   });
 
   return { groups };

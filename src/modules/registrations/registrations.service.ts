@@ -273,7 +273,7 @@ export async function createRegistration(
   input: CreateRegistrationInput,
   priceBreakdown: PriceBreakdown
 ): Promise<RegistrationWithRelations> {
-  const { formId, formData, email, firstName, lastName, phone, accessSelections, sponsorshipCode, idempotencyKey } =
+  const { formId, formData, email, firstName, lastName, phone, accessSelections, sponsorshipCode, idempotencyKey, linkBaseUrl } =
     input;
 
   // Get form and event info (including schemaVersion)
@@ -367,6 +367,8 @@ export async function createRegistration(
         // Edit token for secure public access
         editToken,
         editTokenExpiry,
+        // Browser origin URL for email links
+        linkBaseUrl: linkBaseUrl ?? null,
         // Idempotency key for safe retries
         idempotencyKey: idempotencyKey ?? null,
       },

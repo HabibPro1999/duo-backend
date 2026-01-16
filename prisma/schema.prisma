@@ -386,6 +386,9 @@ model Registration {
   editToken       String?   @unique @map("edit_token")
   editTokenExpiry DateTime? @map("edit_token_expiry")
 
+  // Browser origin URL for email links (captured at registration time)
+  linkBaseUrl String? @map("link_base_url")
+
   // Idempotency key for safe retries
   idempotencyKey String? @unique @map("idempotency_key")
 

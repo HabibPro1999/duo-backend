@@ -120,7 +120,15 @@ function getExampleForFieldType(type: string): string {
 
 export function buildEmailContext(registration: RegistrationWithRelations): EmailContext {
   const formData = (registration.formData as Record<string, unknown>) || {}
-  const baseUrl = process.env.PUBLIC_FORMS_URL || 'https://events.example.com'
+
+  // Use dynamic linkBaseUrl (captured from browser at registration) or fallback to env
+  const baseUrl = registration.linkBaseUrl || process.env.PUBLIC_FORMS_URL || 'https://events.example.com'
+
+  // Get event slug for URL paths
+  const slug = registration.event.slug || ''
+
+  // Use actual edit token for secure links
+  const token = registration.editToken || ''
 
   // Build base context
   const context: EmailContext = {
@@ -153,10 +161,10 @@ export function buildEmailContext(registration: RegistrationWithRelations): Emai
     selectedWorkshops: '',
     selectedDinners: '',
 
-    // Links (uses registration ID as token placeholder - implement proper tokens later)
-    registrationLink: `${baseUrl}/registration/${registration.id}/${registration.id}`,
-    editRegistrationLink: `${baseUrl}/registration/${registration.id}/${registration.id}`,
-    paymentLink: `${baseUrl}/payment/${registration.id}/${registration.id}`,
+    // Links with event slug and secure edit token
+    registrationLink: `${baseUrl}/${slug}/registration/${registration.id}/${token}`,
+    editRegistrationLink: `${baseUrl}/${slug}/registration/${registration.id}/${token}`,
+    paymentLink: `${baseUrl}/${slug}/payment/${registration.id}/${token}`,
 
     // Organization
     organizerName: registration.event.client.name,
