@@ -482,7 +482,20 @@ export async function getGroupedAccess(
           selectionType: (slotItems.length > 1 ? 'single' : 'multiple') as
             | 'single'
             | 'multiple',
-          items: slotItems.sort((a, b) => a.sortOrder - b.sortOrder),
+          items: slotItems.sort((a, b) => {
+            // First by date (day)
+            if (a.startsAt && b.startsAt) {
+              const dateA = new Date(a.startsAt).setHours(0, 0, 0, 0);
+              const dateB = new Date(b.startsAt).setHours(0, 0, 0, 0);
+              if (dateA !== dateB) return dateA - dateB;
+              // Then by time within the same day
+              const timeA = a.startsAt.getTime();
+              const timeB = b.startsAt.getTime();
+              if (timeA !== timeB) return timeA - timeB;
+            }
+            // Finally by sortOrder
+            return a.sortOrder - b.sortOrder;
+          }),
         }))
         .sort((a, b) => {
           // Sort slots by time (null times at end)
@@ -637,23 +650,27 @@ export async function validateAccessSelections(
     selectionsByType.get(typeKey)!.push({ access, selection });
   }
 
-  // For each type group, check if multiple selections have same startsAt
+  // For each type group, check for actual time OVERLAP (not just same startsAt)
   for (const typeItems of selectionsByType.values()) {
-    // Group by time slot within this type
-    const byTimeSlot = new Map<string, string[]>();
+    // Compare each pair for actual time overlap
+    for (let i = 0; i < typeItems.length; i++) {
+      for (let j = i + 1; j < typeItems.length; j++) {
+        const a = typeItems[i].access;
+        const b = typeItems[j].access;
 
-    for (const { access } of typeItems) {
-      if (access.startsAt) {
-        const timeKey = access.startsAt.toISOString();
-        if (!byTimeSlot.has(timeKey)) byTimeSlot.set(timeKey, []);
-        byTimeSlot.get(timeKey)!.push(access.name);
-      }
-    }
+        // Only check overlap if both items have start and end times
+        if (a.startsAt && a.endsAt && b.startsAt && b.endsAt) {
+          const aStart = a.startsAt.getTime();
+          const aEnd = a.endsAt.getTime();
+          const bStart = b.startsAt.getTime();
+          const bEnd = b.endsAt.getTime();
 
-    // Check for conflicts (2+ selections in same time slot)
-    for (const names of byTimeSlot.values()) {
-      if (names.length > 1) {
-        errors.push(`Time conflict: Cannot select both "${names.join('" and "')}"`);
+          // True overlap: !(aEnd <= bStart || bEnd <= aStart)
+          // i.e., they overlap if a doesn't end before b starts AND b doesn't end before a starts
+          if (!(aEnd <= bStart || bEnd <= aStart)) {
+            errors.push(`Time conflict: "${a.name}" and "${b.name}" overlap`);
+          }
+        }
       }
     }
   }

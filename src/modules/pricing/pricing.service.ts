@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
+import { calculateApplicableAmount } from '@modules/sponsorships/sponsorships.utils.js';
 import type {
   UpdateEventPricingInput,
   CreateEmbeddedRuleInput,
@@ -242,14 +243,21 @@ export async function calculatePrice(
   const extrasDetails = await calculateExtrasTotal(selectedExtras);
   const extrasTotal = extrasDetails.reduce((sum, e) => sum + e.subtotal, 0);
 
-  // Validate sponsorship codes (mock for now - TODO: implement real validation)
-  const sponsorships = await validateSponsorshipCodes(sponsorshipCodes, eventId);
+  // Calculate subtotal first (needed for sponsorship validation)
+  const subtotal = calculatedBasePrice + extrasTotal;
+
+  // Validate sponsorship codes with smart matching
+  // Only applies the portion that matches what the registration actually selected
+  const sponsorships = await validateSponsorshipCodes(sponsorshipCodes, eventId, {
+    calculatedBasePrice,
+    extrasDetails,
+    subtotal,
+  });
   const sponsorshipTotal = sponsorships
     .filter((s) => s.valid)
     .reduce((sum, s) => sum + s.amount, 0);
 
   // Calculate final total
-  const subtotal = calculatedBasePrice + extrasTotal;
   const total = Math.max(0, subtotal - sponsorshipTotal);
 
   return {
@@ -333,18 +341,29 @@ async function calculateExtrasTotal(
 }
 
 /**
- * Validate sponsorship codes against the database.
+ * Context needed for smart sponsorship amount calculation.
+ */
+interface SponsorshipValidationContext {
+  calculatedBasePrice: number;
+  extrasDetails: Array<{ extraId: string; subtotal: number }>;
+  subtotal: number;
+}
+
+/**
+ * Validate sponsorship codes against the database and calculate applicable amounts.
+ * Uses smart matching: only applies amount for items the registration actually selected.
  * Only PENDING sponsorships are valid for use.
  */
 async function validateSponsorshipCodes(
   codes: string[],
-  eventId: string
+  eventId: string,
+  context: SponsorshipValidationContext
 ): Promise<PriceBreakdown['sponsorships']> {
   if (!codes.length) return [];
 
   return Promise.all(
     codes.map(async (code) => {
-      // Look up sponsorship in database
+      // Look up sponsorship in database with coverage details
       const sponsorship = await prisma.sponsorship.findFirst({
         where: {
           eventId,
@@ -354,13 +373,44 @@ async function validateSponsorshipCodes(
         select: {
           id: true,
           totalAmount: true,
+          coversBasePrice: true,
+          coveredAccessIds: true,
         },
       });
 
+      if (!sponsorship) {
+        return {
+          code,
+          amount: 0,
+          valid: false,
+        };
+      }
+
+      // Calculate applicable amount using smart matching
+      const applicableAmount = calculateApplicableAmount(
+        {
+          totalAmount: sponsorship.totalAmount,
+          coversBasePrice: sponsorship.coversBasePrice,
+          coveredAccessIds: sponsorship.coveredAccessIds,
+        },
+        {
+          baseAmount: context.calculatedBasePrice,
+          totalAmount: context.subtotal,
+          accessTypeIds: context.extrasDetails.map((e) => e.extraId),
+          priceBreakdown: {
+            calculatedBasePrice: context.calculatedBasePrice,
+            accessItems: context.extrasDetails.map((e) => ({
+              accessId: e.extraId,
+              subtotal: e.subtotal,
+            })),
+          },
+        }
+      );
+
       return {
         code,
-        amount: sponsorship?.totalAmount ?? 0,
-        valid: !!sponsorship,
+        amount: applicableAmount,
+        valid: true,
       };
     })
   );
