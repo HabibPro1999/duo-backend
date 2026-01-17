@@ -9,6 +9,7 @@ import {
   getFormClientId,
   getSponsorFormByEventId,
   createSponsorForm,
+  isSponsorshipModeLocked,
 } from './forms.service.js';
 import {
   CreateFormSchema,
@@ -101,6 +102,34 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
       }
 
       return reply.send(form);
+    }
+  );
+
+  // GET /api/forms/:id/sponsorship-mode-locked - Check if sponsorship mode is locked
+  app.get<{ Params: { id: string } }>(
+    '/:id/sponsorship-mode-locked',
+    {
+      schema: { params: FormIdParamSchema },
+    },
+    async (request, reply) => {
+      const form = await getFormById(request.params.id);
+      if (!form) {
+        throw app.httpErrors.notFound('Form not found');
+      }
+
+      // Check if user is super_admin or accessing their own client's form
+      const clientId = await getFormClientId(request.params.id);
+      if (clientId && !canAccessClient(request.user!, clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions to access this form');
+      }
+
+      // Only applicable for SPONSOR forms
+      if (form.type !== 'SPONSOR') {
+        return reply.send({ locked: false });
+      }
+
+      const locked = await isSponsorshipModeLocked(request.params.id);
+      return reply.send({ locked });
     }
   );
 

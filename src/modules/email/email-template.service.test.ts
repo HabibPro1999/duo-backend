@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { prismaMock } from '../../../tests/mocks/prisma.js';
 import {
-  createMockClient,
   createMockEvent,
 } from '../../../tests/helpers/factories.js';
 import { faker } from '@faker-js/faker';
@@ -56,7 +55,7 @@ function createMockEmailTemplate(overrides: Partial<EmailTemplate> = {}): EmailT
     name: faker.lorem.words(3),
     description: faker.lorem.sentence(),
     subject: faker.lorem.sentence(),
-    content: createMockTiptapDocument(),
+    content: createMockTiptapDocument() as unknown as EmailTemplate['content'],
     mjmlContent: '<mjml><mj-body></mj-body></mjml>',
     htmlContent: '<html><body>Test</body></html>',
     plainContent: 'Plain text content',
@@ -490,7 +489,7 @@ describe('Email Template Service', () => {
       const newContent = createMockTiptapDocument();
       const updatedTemplate = createMockEmailTemplate({
         id: templateId,
-        content: newContent,
+        content: newContent as unknown as EmailTemplate['content'],
       });
 
       prismaMock.emailTemplate.findUnique.mockResolvedValue(existingTemplate);
@@ -644,7 +643,7 @@ describe('Email Template Service', () => {
         id: templateId,
         clientId,
         eventId,
-        content: createMockTiptapDocument(),
+        content: createMockTiptapDocument() as unknown as EmailTemplate['content'],
         mjmlContent: '<mjml>original</mjml>',
         htmlContent: '<html>original</html>',
         plainContent: 'original plain',

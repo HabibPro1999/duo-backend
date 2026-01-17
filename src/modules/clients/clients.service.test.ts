@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { prismaMock } from '../../../tests/mocks/prisma.js';
 import {
   createMockClient,
@@ -502,13 +502,13 @@ describe('Clients Service', () => {
 
   describe('deleteClient', () => {
     it('should delete client with no dependencies', async () => {
-      const mockClient = createMockClient({
-        id: clientId,
+      const mockClient = {
+        ...createMockClient({ id: clientId }),
         _count: { users: 0, events: 0 },
-      });
+      };
 
-      prismaMock.client.findUnique.mockResolvedValue(mockClient as any);
-      prismaMock.client.delete.mockResolvedValue(mockClient);
+      prismaMock.client.findUnique.mockResolvedValue(mockClient as never);
+      prismaMock.client.delete.mockResolvedValue(mockClient as never);
 
       await expect(deleteClient(clientId)).resolves.toBeUndefined();
 
@@ -534,7 +534,7 @@ describe('Clients Service', () => {
         _count: { users: 3, events: 0 },
       };
 
-      prismaMock.client.findUnique.mockResolvedValue(mockClientWithUsers as any);
+      prismaMock.client.findUnique.mockResolvedValue(mockClientWithUsers as never);
 
       await expect(deleteClient(clientId)).rejects.toThrow(AppError);
 
@@ -552,7 +552,7 @@ describe('Clients Service', () => {
         _count: { users: 0, events: 5 },
       };
 
-      prismaMock.client.findUnique.mockResolvedValue(mockClientWithEvents as any);
+      prismaMock.client.findUnique.mockResolvedValue(mockClientWithEvents as never);
 
       await expect(deleteClient(clientId)).rejects.toThrow(AppError);
 
@@ -570,7 +570,7 @@ describe('Clients Service', () => {
         _count: { users: 2, events: 3 },
       };
 
-      prismaMock.client.findUnique.mockResolvedValue(mockClientWithDependencies as any);
+      prismaMock.client.findUnique.mockResolvedValue(mockClientWithDependencies as never);
 
       await expect(deleteClient(clientId)).rejects.toThrow(
         /Cannot delete client with 2 user\(s\) and 3 event\(s\)/
@@ -583,8 +583,8 @@ describe('Clients Service', () => {
         _count: { users: 0, events: 0 },
       };
 
-      prismaMock.client.findUnique.mockResolvedValue(mockClient as any);
-      prismaMock.client.delete.mockResolvedValue(mockClient as any);
+      prismaMock.client.findUnique.mockResolvedValue(mockClient as never);
+      prismaMock.client.delete.mockResolvedValue(mockClient as never);
 
       await deleteClient(clientId);
 

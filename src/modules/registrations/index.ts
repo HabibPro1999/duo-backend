@@ -17,6 +17,8 @@ export {
   editRegistrationPublic,
   // Table columns
   getRegistrationTableColumns,
+  // Sponsorship search
+  searchRegistrantsForSponsorship,
 } from './registrations.service.js';
 
 // Service types
@@ -46,6 +48,9 @@ export {
   TableColumnOptionSchema,
   TableColumnSchema,
   RegistrationColumnsResponseSchema,
+  // Sponsorship search schemas
+  SearchRegistrantsQuerySchema,
+  RegistrantSearchResultSchema,
 } from './registrations.schema.js';
 
 // Types
@@ -64,6 +69,9 @@ export type {
   TableColumnOption,
   TableColumn,
   RegistrationColumnsResponse,
+  // Sponsorship search types
+  SearchRegistrantsQuery,
+  RegistrantSearchResult,
 } from './registrations.schema.js';
 
 // Routes

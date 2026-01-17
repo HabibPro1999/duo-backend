@@ -6,7 +6,7 @@ import type { DecodedIdToken } from 'firebase-admin/auth';
  * Provides mocked methods for token verification, user management, and claims.
  */
 export const firebaseAuthMock = {
-  verifyIdToken: vi.fn<[string], Promise<DecodedIdToken>>(),
+  verifyIdToken: vi.fn<(token: string) => Promise<DecodedIdToken>>(),
   getUser: vi.fn(),
   createUser: vi.fn(),
   updateUser: vi.fn(),

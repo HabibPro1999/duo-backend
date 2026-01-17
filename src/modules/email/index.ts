@@ -67,6 +67,13 @@ export {
   sanitizeForHtml,
   sanitizeUrl,
   getSampleEmailContext,
+  buildBatchEmailContext,
+  buildLinkedSponsorshipContext,
+} from './email-variable.service.js';
+
+export type {
+  BatchEmailContextInput,
+  LinkedSponsorshipContextInput,
 } from './email-variable.service.js';
 
 // ============================================================================
@@ -77,6 +84,7 @@ export {
   queueEmail,
   queueBulkEmails,
   queueTriggeredEmail,
+  queueSponsorshipEmail,
   processEmailQueue,
   updateEmailStatusFromWebhook,
   getQueueStats,
@@ -84,6 +92,7 @@ export {
 
 export type {
   QueueEmailInput,
+  QueueSponsorshipEmailInput,
   ProcessQueueResult,
 } from './email-queue.service.js';
 

@@ -11,6 +11,9 @@ export const AutomaticEmailTriggerSchema = z.enum([
   'REGISTRATION_CREATED',
   'PAYMENT_PROOF_SUBMITTED',
   'PAYMENT_CONFIRMED',
+  'SPONSORSHIP_BATCH_SUBMITTED',
+  'SPONSORSHIP_LINKED',
+  'SPONSORSHIP_APPLIED',
 ]);
 
 export const EmailStatusSchema = z.enum([

@@ -13,7 +13,7 @@ import {
   extractPlainText,
 } from './email-renderer.service.js';
 import type { TiptapDocument } from './email.types.js';
-import type { Prisma, EmailTemplate } from '@/generated/prisma/client.js';
+import type { Prisma, EmailTemplate, AutomaticEmailTrigger } from '@/generated/prisma/client.js';
 
 // =============================================================================
 // Types
@@ -34,7 +34,7 @@ export async function createEmailTemplate(input: {
   subject: string;
   content: TiptapDocument;
   category: 'AUTOMATIC' | 'MANUAL';
-  trigger?: 'REGISTRATION_CREATED' | 'PAYMENT_PROOF_SUBMITTED' | 'PAYMENT_CONFIRMED' | null;
+  trigger?: AutomaticEmailTrigger | null;
   isActive?: boolean;
 }): Promise<EmailTemplate> {
   // Get the event to find clientId
@@ -160,7 +160,7 @@ export async function listEmailTemplates(
 // Get template by trigger (for automatic emails)
 export async function getTemplateByTrigger(
   eventId: string,
-  trigger: 'REGISTRATION_CREATED' | 'PAYMENT_PROOF_SUBMITTED' | 'PAYMENT_CONFIRMED'
+  trigger: AutomaticEmailTrigger
 ): Promise<EmailTemplate | null> {
   return prisma.emailTemplate.findFirst({
     where: {

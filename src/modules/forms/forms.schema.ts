@@ -119,6 +119,18 @@ export const SponsorSummarySettingsSchema = z
   })
   .strict();
 
+// Sponsorship mode settings (only for SPONSOR forms)
+export const SponsorshipModeSchema = z.enum(['LINKED_ACCOUNT', 'CODE']);
+export const RegistrantSearchScopeSchema = z.enum(['ALL', 'UNPAID_ONLY']);
+
+export const SponsorshipSettingsSchema = z
+  .object({
+    sponsorshipMode: SponsorshipModeSchema.default('CODE'),
+    registrantSearchScope: RegistrantSearchScopeSchema.optional(),
+    autoApproveSponsorship: z.boolean().optional(),
+  })
+  .strict();
+
 // Sponsor form schema structure
 export const SponsorFormSchemaJsonSchema = z
   .object({
@@ -126,6 +138,7 @@ export const SponsorFormSchemaJsonSchema = z
     sponsorSteps: z.array(FormStepSchema),
     beneficiaryTemplate: BeneficiaryTemplateSchema,
     summarySettings: SponsorSummarySettingsSchema.optional(),
+    sponsorshipSettings: SponsorshipSettingsSchema.optional(),
   })
   .strict();
 
@@ -182,6 +195,9 @@ export type FormStep = z.infer<typeof FormStepSchema>;
 export type FormSchemaJson = z.infer<typeof FormSchemaJsonSchema>;
 export type BeneficiaryTemplate = z.infer<typeof BeneficiaryTemplateSchema>;
 export type SponsorSummarySettings = z.infer<typeof SponsorSummarySettingsSchema>;
+export type SponsorshipMode = z.infer<typeof SponsorshipModeSchema>;
+export type RegistrantSearchScope = z.infer<typeof RegistrantSearchScopeSchema>;
+export type SponsorshipSettings = z.infer<typeof SponsorshipSettingsSchema>;
 export type SponsorFormSchemaJson = z.infer<typeof SponsorFormSchemaJsonSchema>;
 export type CreateFormInput = z.infer<typeof CreateFormSchema>;
 export type UpdateFormInput = z.infer<typeof UpdateFormSchema>;

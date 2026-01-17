@@ -83,6 +83,19 @@ export interface EmailContext {
   bankName: string
   bankAccountName: string
   bankAccountNumber: string
+
+  // Sponsorship fields (optional - only present in sponsorship-related emails)
+  labName?: string
+  labContactName?: string
+  labEmail?: string
+  sponsorshipCode?: string
+  sponsorshipAmount?: string
+  beneficiaryName?: string
+  beneficiaryCount?: string
+  totalBatchAmount?: string
+  beneficiaryList?: string
+  sponsoredItems?: string
+  remainingAmount?: string
 }
 
 // =============================================================================
@@ -145,6 +158,9 @@ export type AutomaticEmailTrigger =
   | 'REGISTRATION_CREATED'
   | 'PAYMENT_PROOF_SUBMITTED'
   | 'PAYMENT_CONFIRMED'
+  | 'SPONSORSHIP_BATCH_SUBMITTED'
+  | 'SPONSORSHIP_LINKED'
+  | 'SPONSORSHIP_APPLIED'
 
 export interface CreateEmailTemplateInput {
   clientId: string
@@ -192,7 +208,7 @@ export interface EmailTemplate {
 export interface VariableDefinition {
   id: string
   label: string
-  category: 'registration' | 'event' | 'payment' | 'access' | 'form' | 'links' | 'bank'
+  category: 'registration' | 'event' | 'payment' | 'access' | 'form' | 'links' | 'bank' | 'sponsorship'
   description?: string
   example?: string
 }

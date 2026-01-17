@@ -5,7 +5,7 @@ import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import { logger } from '@shared/utils/logger.js';
-import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson, SponsorFormSchemaJson } from './forms.schema.js';
+import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson, SponsorFormSchemaJson, SponsorshipSettings } from './forms.schema.js';
 import type { Form, Prisma, Event, Client, EventAccess, EventPricing } from '@/generated/prisma/client.js';
 
 type FormWithRelations = Form & {
@@ -217,6 +217,27 @@ export async function updateForm(id: string, input: UpdateFormInput): Promise<Fo
     const newSchemaStr = JSON.stringify(input.schema);
 
     if (currentSchemaStr !== newSchemaStr) {
+      // For SPONSOR forms, validate sponsorship mode changes
+      if (form.type === 'SPONSOR') {
+        const currentSchema = form.schema as unknown as { sponsorshipSettings?: SponsorshipSettings };
+        const newSchema = input.schema as unknown as { sponsorshipSettings?: SponsorshipSettings };
+        const currentMode = currentSchema.sponsorshipSettings?.sponsorshipMode ?? 'CODE';
+        const newMode = newSchema.sponsorshipSettings?.sponsorshipMode ?? 'CODE';
+
+        // If mode is changing, check if it's locked
+        if (currentMode !== newMode) {
+          const isLocked = await isSponsorshipModeLocked(id);
+          if (isLocked) {
+            throw new AppError(
+              'Cannot change sponsorship mode after sponsorship batches have been submitted',
+              409,
+              true,
+              ErrorCodes.CONFLICT
+            );
+          }
+        }
+      }
+
       // Check for removed fields that may have registration data
       const oldFieldIds = extractFieldIds(form.schema);
       const newFieldIds = extractFieldIds(input.schema);
@@ -295,6 +316,17 @@ export async function deleteForm(id: string): Promise<void> {
  */
 export async function formExists(id: string): Promise<boolean> {
   const count = await prisma.form.count({ where: { id } });
+  return count > 0;
+}
+
+/**
+ * Check if sponsorship mode is locked for a form.
+ * Mode is locked once any sponsorship batch has been submitted.
+ */
+export async function isSponsorshipModeLocked(formId: string): Promise<boolean> {
+  const count = await prisma.sponsorshipBatch.count({
+    where: { formId },
+  });
   return count > 0;
 }
 

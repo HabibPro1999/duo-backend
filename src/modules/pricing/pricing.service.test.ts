@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { prismaMock } from '../../../tests/mocks/prisma.js';
 import {
   createMockEventPricing,
@@ -14,7 +14,6 @@ import {
   calculatePrice,
 } from './pricing.service.js';
 import { AppError } from '@shared/errors/app-error.js';
-import { ErrorCodes } from '@shared/errors/error-codes.js';
 
 describe('Pricing Service', () => {
   const eventId = 'event-123';
@@ -128,7 +127,10 @@ describe('Pricing Service', () => {
       const result = await addPricingRule(eventId, {
         name: 'New Rule',
         price: 100,
-        conditions: [],
+        conditions: [{ fieldId: 'test', operator: 'equals', value: 'test' }],
+        conditionLogic: 'AND',
+        priority: 0,
+        active: true,
       });
 
       expect(result.rules).toHaveLength(1);
@@ -139,7 +141,14 @@ describe('Pricing Service', () => {
       prismaMock.eventPricing.findUnique.mockResolvedValue(null);
 
       await expect(
-        addPricingRule(eventId, { name: 'Rule', price: 100, conditions: [] })
+        addPricingRule(eventId, {
+          name: 'Rule',
+          price: 100,
+          conditions: [{ fieldId: 'test', operator: 'equals', value: 'test' }],
+          conditionLogic: 'AND',
+          priority: 0,
+          active: true,
+        })
       ).rejects.toThrow(AppError);
     });
   });
@@ -339,10 +348,7 @@ describe('Pricing Service', () => {
 
       prismaMock.eventPricing.findUnique.mockResolvedValue(mockPricing);
       prismaMock.eventAccess.findMany.mockResolvedValue([]);
-      prismaMock.sponsorship.findFirst.mockResolvedValue({
-        id: mockSponsorship.id,
-        totalAmount: mockSponsorship.totalAmount,
-      });
+      prismaMock.sponsorship.findFirst.mockResolvedValue(mockSponsorship);
 
       const result = await calculatePrice(eventId, {
         formData: {},
@@ -361,13 +367,16 @@ describe('Pricing Service', () => {
         basePrice: 100,
         rules: [],
       });
+      const mockSponsorship = createMockSponsorship({
+        eventId,
+        code: 'BIGCODE',
+        totalAmount: 200, // More than base price
+        status: 'PENDING',
+      });
 
       prismaMock.eventPricing.findUnique.mockResolvedValue(mockPricing);
       prismaMock.eventAccess.findMany.mockResolvedValue([]);
-      prismaMock.sponsorship.findFirst.mockResolvedValue({
-        id: 'sponsorship-1',
-        totalAmount: 200, // More than base price
-      });
+      prismaMock.sponsorship.findFirst.mockResolvedValue(mockSponsorship);
 
       const result = await calculatePrice(eventId, {
         formData: {},

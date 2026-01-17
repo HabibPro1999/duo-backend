@@ -1,4 +1,5 @@
 import { getEventById, getEventBySlug } from '@events';
+import { searchRegistrantsForSponsorship } from '@registrations';
 import { createSponsorshipBatch } from './sponsorships.service.js';
 import {
   CreateSponsorshipBatchSchema,
@@ -68,7 +69,62 @@ const EventSlugParamSchema = z
   })
   .strict();
 
+const RegistrantSearchQuerySchema = z
+  .object({
+    query: z.string().min(1).max(200),
+    unpaidOnly: z.string().optional(),
+  })
+  .strict();
+
 export async function sponsorshipsPublicBySlugRoutes(app: AppInstance): Promise<void> {
+  // GET /api/public/events/slug/:slug/registrants/search - Search registrants for LINKED_ACCOUNT sponsorship
+  app.get<{
+    Params: { slug: string };
+    Querystring: { query: string; unpaidOnly?: string };
+  }>(
+    '/slug/:slug/registrants/search',
+    {
+      schema: {
+        params: EventSlugParamSchema,
+        querystring: RegistrantSearchQuerySchema,
+      },
+    },
+    async (request, reply) => {
+      const { slug } = request.params;
+      const { query, unpaidOnly } = request.query;
+
+      // Get event by slug
+      const event = await getEventBySlug(slug);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+
+      // Verify sponsor form exists and uses LINKED_ACCOUNT mode
+      const form = await getSponsorFormForEvent(event.id);
+      if (!form) {
+        throw app.httpErrors.notFound('Sponsor form not found');
+      }
+
+      // Check sponsorship mode (security check to prevent unauthorized searches)
+      const schema = form.schema as Record<string, unknown> | null;
+      const sponsorshipSettings = schema?.sponsorshipSettings as
+        | Record<string, unknown>
+        | undefined;
+      if (sponsorshipSettings?.sponsorshipMode !== 'LINKED_ACCOUNT') {
+        throw app.httpErrors.forbidden('Search not available for this form');
+      }
+
+      // Use existing search function
+      const results = await searchRegistrantsForSponsorship(event.id, {
+        query,
+        unpaidOnly: unpaidOnly === 'true',
+        limit: 10,
+      });
+
+      return reply.send(results);
+    }
+  );
+
   // POST /api/public/events/slug/:slug/sponsorships - Submit sponsor form by slug
   app.post<{
     Params: { slug: string };
@@ -125,7 +181,7 @@ import { prisma } from '@/database/client.js';
  */
 async function getSponsorFormForEvent(
   eventId: string
-): Promise<{ id: string; eventId: string } | null> {
+): Promise<{ id: string; eventId: string; schema: unknown } | null> {
   return prisma.form.findFirst({
     where: {
       eventId,
@@ -135,6 +191,7 @@ async function getSponsorFormForEvent(
     select: {
       id: true,
       eventId: true,
+      schema: true,
     },
   });
 }

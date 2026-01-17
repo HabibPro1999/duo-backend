@@ -337,3 +337,28 @@ export type ListRegistrationEmailLogsQuery = z.infer<typeof ListRegistrationEmai
 export type EmailStatus = z.infer<typeof EmailStatusSchema>;
 export type AutomaticEmailTrigger = z.infer<typeof AutomaticEmailTriggerSchema>;
 export type RegistrationEmailLog = z.infer<typeof RegistrationEmailLogSchema>;
+
+// ============================================================================
+// Registrant Search Schemas (for Linked Account Sponsorship)
+// ============================================================================
+
+export const SearchRegistrantsQuerySchema = z
+  .object({
+    query: z.string().min(1).max(200),
+    unpaidOnly: z.coerce.boolean().optional().default(false),
+    limit: z.coerce.number().int().min(1).max(50).default(10),
+  })
+  .strict();
+
+export const RegistrantSearchResultSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  paymentStatus: PaymentStatusSchema,
+  totalAmount: z.number(),
+  accessTypeIds: z.array(z.string()),
+});
+
+export type SearchRegistrantsQuery = z.infer<typeof SearchRegistrantsQuerySchema>;
+export type RegistrantSearchResult = z.infer<typeof RegistrantSearchResultSchema>;

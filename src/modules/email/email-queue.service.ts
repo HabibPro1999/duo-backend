@@ -109,6 +109,50 @@ export async function queueTriggeredEmail(
 }
 
 // =============================================================================
+// QUEUE SPONSORSHIP EMAIL (With Custom Context)
+// =============================================================================
+
+export interface QueueSponsorshipEmailInput {
+  recipientEmail: string
+  recipientName?: string
+  context: Record<string, unknown>
+  registrationId?: string // Optional - only for doctor emails linked to a registration
+}
+
+/**
+ * Queue a sponsorship-related email with custom context.
+ * Used for SPONSORSHIP_BATCH_SUBMITTED, SPONSORSHIP_LINKED, SPONSORSHIP_APPLIED.
+ */
+export async function queueSponsorshipEmail(
+  trigger: AutomaticEmailTrigger,
+  eventId: string,
+  input: QueueSponsorshipEmailInput
+): Promise<boolean> {
+  // 1. Get active template for this event + trigger
+  const template = await getTemplateByTrigger(eventId, trigger)
+  if (!template) {
+    logger.debug({ trigger, eventId }, 'No email template configured for sponsorship trigger')
+    return false
+  }
+
+  // 2. Queue the email with custom context
+  await queueEmail({
+    trigger,
+    templateId: template.id,
+    registrationId: input.registrationId,
+    recipientEmail: input.recipientEmail,
+    recipientName: input.recipientName,
+    contextSnapshot: input.context,
+  })
+
+  logger.info(
+    { trigger, eventId, recipientEmail: input.recipientEmail },
+    'Queued sponsorship email'
+  )
+  return true
+}
+
+// =============================================================================
 // QUEUE BULK EMAILS (For Manual Sends)
 // =============================================================================
 

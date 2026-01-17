@@ -25,6 +25,8 @@ import type {
   RegistrationAuditLog,
   ListRegistrationEmailLogsQuery,
   RegistrationEmailLog,
+  SearchRegistrantsQuery,
+  RegistrantSearchResult,
 } from './registrations.schema.js';
 import type { Registration, Prisma } from '@/generated/prisma/client.js';
 
@@ -1546,4 +1548,61 @@ export async function listRegistrationEmailLogs(
   }));
 
   return paginate(enrichedLogs, total, { page, limit });
+}
+
+// ============================================================================
+// Registrant Search (for Linked Account Sponsorship)
+// ============================================================================
+
+/**
+ * Search registrants by name or email for sponsorship linking.
+ * Used when sponsorship mode is LINKED_ACCOUNT.
+ */
+export async function searchRegistrantsForSponsorship(
+  eventId: string,
+  query: SearchRegistrantsQuery
+): Promise<RegistrantSearchResult[]> {
+  const { query: searchQuery, unpaidOnly, limit } = query;
+
+  const where: Prisma.RegistrationWhereInput = {
+    eventId,
+    OR: [
+      { email: { contains: searchQuery, mode: 'insensitive' } },
+      { firstName: { contains: searchQuery, mode: 'insensitive' } },
+      { lastName: { contains: searchQuery, mode: 'insensitive' } },
+    ],
+  };
+
+  // Filter to unpaid only if requested
+  if (unpaidOnly) {
+    where.paymentStatus = { in: ['PENDING', 'VERIFYING'] };
+  }
+
+  const registrations = await prisma.registration.findMany({
+    where,
+    take: limit,
+    orderBy: [
+      { lastName: 'asc' },
+      { firstName: 'asc' },
+    ],
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      paymentStatus: true,
+      totalAmount: true,
+      accessTypeIds: true,
+    },
+  });
+
+  return registrations.map((r) => ({
+    id: r.id,
+    email: r.email,
+    firstName: r.firstName,
+    lastName: r.lastName,
+    paymentStatus: r.paymentStatus as RegistrantSearchResult['paymentStatus'],
+    totalAmount: r.totalAmount,
+    accessTypeIds: r.accessTypeIds,
+  }));
 }

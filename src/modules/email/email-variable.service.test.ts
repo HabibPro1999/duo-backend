@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { prismaMock } from '../../../tests/mocks/prisma.js';
 import {
   createMockClient,
@@ -8,7 +8,6 @@ import {
   createMockEventPricing,
   createMockEventAccess,
 } from '../../../tests/helpers/factories.js';
-import { faker } from '@faker-js/faker';
 import {
   BASE_VARIABLES,
   getAvailableVariables,
@@ -50,11 +49,12 @@ function createRegistrationWithRelations(
     formId: form.id,
   });
 
+  const formData = registration.formData as Record<string, unknown> | null;
   return {
     ...registration,
-    firstName: registration.formData?.firstName as string || 'John',
-    lastName: registration.formData?.lastName as string || 'Doe',
-    phone: registration.formData?.phone as string || null,
+    firstName: (formData?.firstName as string) || 'John',
+    lastName: (formData?.lastName as string) || 'Doe',
+    phone: (formData?.phone as string) || null,
     submittedAt: new Date(),
     accessTypeIds: [],
     currency: 'TND',
@@ -299,7 +299,7 @@ describe('Email Variable Service', () => {
 
       testCases.forEach(({ status, expected }) => {
         const registration = createRegistrationWithRelations({
-          paymentStatus: status,
+          paymentStatus: status as RegistrationWithRelations['paymentStatus'],
         });
 
         const context = buildEmailContext(registration);

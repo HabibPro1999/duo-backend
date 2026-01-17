@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { prismaMock } from '../../../tests/mocks/prisma.js';
-import { sendGridMock, resetSendGridMock, mockSendGridFailure } from '../../../tests/mocks/sendgrid.js';
+import { resetSendGridMock } from '../../../tests/mocks/sendgrid.js';
 import {
   createMockClient,
   createMockEvent,
   createMockForm,
-  createMockRegistration,
 } from '../../../tests/helpers/factories.js';
 import { faker } from '@faker-js/faker';
 import {
@@ -43,7 +42,7 @@ vi.mock('./email-template.service.js', () => ({
 
 // Import the mocked modules to access mock functions
 import { sendEmail } from './email-sendgrid.service.js';
-import { resolveVariables, buildEmailContextWithAccess } from './email-variable.service.js';
+import { buildEmailContextWithAccess } from './email-variable.service.js';
 import { getTemplateByTrigger } from './email-template.service.js';
 
 // ============================================================================
@@ -70,7 +69,7 @@ function createMockEmailTemplate(overrides: Partial<EmailTemplate> = {}): EmailT
     name: faker.lorem.words(3),
     description: faker.lorem.sentence(),
     subject: 'Welcome {{firstName}}',
-    content: createMockTiptapDocument(),
+    content: createMockTiptapDocument() as unknown as EmailTemplate['content'],
     mjmlContent: '<mjml><mj-body></mj-body></mjml>',
     htmlContent: '<html><body>Hello {{firstName}}</body></html>',
     plainContent: 'Hello {{firstName}}',
@@ -97,16 +96,16 @@ function createMockEmailLog(overrides: Partial<EmailLog> = {}): EmailLog {
     status: 'QUEUED',
     sendgridMessageId: null,
     retryCount: 0,
+    maxRetries: 3,
     errorMessage: null,
     queuedAt: faker.date.recent(),
+    updatedAt: faker.date.recent(),
     sentAt: null,
     deliveredAt: null,
     openedAt: null,
     clickedAt: null,
     bouncedAt: null,
     failedAt: null,
-    createdAt: faker.date.past(),
-    updatedAt: faker.date.recent(),
     ...overrides,
   };
 }

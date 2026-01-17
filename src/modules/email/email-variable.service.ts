@@ -58,7 +58,20 @@ export const BASE_VARIABLES: VariableDefinition[] = [
   // Bank Details
   { id: 'bankName', label: 'Bank Name', category: 'bank', description: 'Name of the bank', example: 'Banque de Tunisie' },
   { id: 'bankAccountName', label: 'Account Holder', category: 'bank', description: 'Name on the bank account', example: 'Medical Events SARL' },
-  { id: 'bankAccountNumber', label: 'Account Number', category: 'bank', description: 'Bank account number/IBAN', example: 'TN59 1234 5678 9012 3456 7890' }
+  { id: 'bankAccountNumber', label: 'Account Number', category: 'bank', description: 'Bank account number/IBAN', example: 'TN59 1234 5678 9012 3456 7890' },
+
+  // Sponsorship
+  { id: 'labName', label: 'Lab Name', category: 'sponsorship', description: 'Name of the sponsoring laboratory', example: 'Roche Diagnostics Tunisia' },
+  { id: 'labContactName', label: 'Lab Contact Name', category: 'sponsorship', description: 'Lab contact person name', example: 'Jean Dupont' },
+  { id: 'labEmail', label: 'Lab Email', category: 'sponsorship', description: 'Lab contact email', example: 'contact@roche.tn' },
+  { id: 'sponsorshipCode', label: 'Sponsorship Code', category: 'sponsorship', description: 'Unique sponsorship code', example: 'SP-A3B9' },
+  { id: 'sponsorshipAmount', label: 'Sponsorship Amount', category: 'sponsorship', description: 'Total amount covered by sponsorship', example: '450 TND' },
+  { id: 'beneficiaryName', label: 'Beneficiary Name', category: 'sponsorship', description: 'Name of the sponsored doctor', example: 'Dr. Ahmed Salah' },
+  { id: 'beneficiaryCount', label: 'Beneficiary Count', category: 'sponsorship', description: 'Number of doctors sponsored in batch', example: '3' },
+  { id: 'totalBatchAmount', label: 'Total Batch Amount', category: 'sponsorship', description: 'Total amount of all sponsorships in batch', example: '1,350 TND' },
+  { id: 'beneficiaryList', label: 'Beneficiary List', category: 'sponsorship', description: 'List of all doctors and amounts in batch', example: '- Dr. Ahmed: 450 TND\n- Dr. Sarah: 450 TND' },
+  { id: 'sponsoredItems', label: 'Sponsored Items', category: 'sponsorship', description: 'List of items covered by sponsorship', example: '- Base registration: 200 TND\n- Workshop A: 50 TND' },
+  { id: 'remainingAmount', label: 'Remaining Amount', category: 'sponsorship', description: 'Amount remaining after sponsorship', example: '150 TND' }
 ]
 
 // =============================================================================
@@ -359,5 +372,204 @@ export function getSampleEmailContext(): EmailContext {
     bankName: 'Banque de Tunisie',
     bankAccountName: 'Medical Events SARL',
     bankAccountNumber: 'TN59 1234 5678 9012 3456 7890'
+  }
+}
+
+// =============================================================================
+// SPONSORSHIP EMAIL CONTEXT BUILDERS
+// =============================================================================
+
+/**
+ * Input types for sponsorship context builders
+ */
+export interface BatchEmailContextInput {
+  batch: {
+    labName: string
+    contactName: string
+    email: string
+    phone: string | null
+  }
+  sponsorships: Array<{
+    beneficiaryName: string
+    beneficiaryEmail: string
+    totalAmount: number
+  }>
+  event: {
+    name: string
+    startDate: Date
+    location: string | null
+    client: { name: string }
+  }
+  currency: string
+}
+
+export interface LinkedSponsorshipContextInput {
+  sponsorship: {
+    code: string
+    beneficiaryName: string
+    coversBasePrice: boolean
+    coveredAccessIds: string[]
+    totalAmount: number
+    batch: {
+      labName: string
+      contactName: string
+    }
+  }
+  registration: {
+    id: string
+    email: string
+    firstName: string | null
+    lastName: string | null
+    totalAmount: number
+    sponsorshipAmount: number
+    linkBaseUrl: string | null
+    editToken: string | null
+  }
+  event: {
+    name: string
+    slug: string
+    startDate: Date
+    location: string | null
+    client: { name: string }
+  }
+  pricing: { basePrice: number } | null
+  accessItems: Array<{ id: string; name: string; price: number }>
+  currency: string
+}
+
+/**
+ * Build email context for lab confirmation email (SPONSORSHIP_BATCH_SUBMITTED)
+ */
+export function buildBatchEmailContext(input: BatchEmailContextInput): Partial<EmailContext> {
+  const { batch, sponsorships, event, currency } = input
+  const totalAmount = sponsorships.reduce((sum, s) => sum + s.totalAmount, 0)
+
+  return {
+    // Event info
+    eventName: event.name,
+    eventDate: formatDate(event.startDate),
+    eventLocation: event.location || '',
+    organizerName: event.client.name,
+
+    // Lab info
+    labName: batch.labName,
+    labContactName: batch.contactName,
+    labEmail: batch.email,
+
+    // Batch summary
+    beneficiaryCount: String(sponsorships.length),
+    totalBatchAmount: formatCurrency(totalAmount, currency),
+
+    // Beneficiary list (for lab email)
+    beneficiaryList: sponsorships
+      .map((s) => `- ${s.beneficiaryName} (${s.beneficiaryEmail}): ${formatCurrency(s.totalAmount, currency)}`)
+      .join('\n'),
+
+    // Default placeholders for required fields
+    firstName: batch.contactName.split(' ')[0] || batch.contactName,
+    lastName: batch.contactName.split(' ').slice(1).join(' ') || '',
+    fullName: batch.contactName,
+    email: batch.email,
+    phone: batch.phone || '',
+    registrationDate: formatDate(new Date()),
+    registrationId: '',
+    registrationNumber: '',
+    eventEndDate: '',
+    eventDescription: '',
+    totalAmount: formatCurrency(totalAmount, currency),
+    paidAmount: '0 ' + currency,
+    amountDue: formatCurrency(totalAmount, currency),
+    paymentStatus: 'N/A',
+    paymentMethod: '',
+    selectedAccess: '',
+    selectedWorkshops: '',
+    selectedDinners: '',
+    registrationLink: '',
+    editRegistrationLink: '',
+    paymentLink: '',
+    organizerEmail: '',
+    organizerPhone: '',
+    bankName: '',
+    bankAccountName: '',
+    bankAccountNumber: '',
+  }
+}
+
+/**
+ * Build email context for doctor notification (SPONSORSHIP_LINKED or SPONSORSHIP_APPLIED)
+ */
+export function buildLinkedSponsorshipContext(input: LinkedSponsorshipContextInput): Partial<EmailContext> {
+  const { sponsorship, registration, event, pricing, accessItems, currency } = input
+
+  // Build sponsored items list
+  const sponsoredItems: string[] = []
+  if (sponsorship.coversBasePrice && pricing) {
+    sponsoredItems.push(`- Base registration: ${formatCurrency(pricing.basePrice, currency)}`)
+  }
+  for (const accessId of sponsorship.coveredAccessIds) {
+    const access = accessItems.find((a) => a.id === accessId)
+    if (access) {
+      sponsoredItems.push(`- ${access.name}: ${formatCurrency(access.price, currency)}`)
+    }
+  }
+
+  // Calculate remaining
+  const remainingAmount = registration.totalAmount - registration.sponsorshipAmount
+
+  // Build links
+  const baseUrl = registration.linkBaseUrl || process.env.PUBLIC_FORMS_URL || 'https://events.example.com'
+  const token = registration.editToken || ''
+
+  return {
+    // Registration info
+    firstName: registration.firstName || '',
+    lastName: registration.lastName || '',
+    fullName: [registration.firstName, registration.lastName].filter(Boolean).join(' ') || sponsorship.beneficiaryName,
+    email: registration.email,
+    phone: '',
+    registrationDate: formatDate(new Date()),
+    registrationId: registration.id,
+    registrationNumber: registration.id.slice(0, 8).toUpperCase(),
+
+    // Event info
+    eventName: event.name,
+    eventDate: formatDate(event.startDate),
+    eventEndDate: '',
+    eventLocation: event.location || '',
+    eventDescription: '',
+    organizerName: event.client.name,
+    organizerEmail: '',
+    organizerPhone: '',
+
+    // Payment info
+    totalAmount: formatCurrency(registration.totalAmount, currency),
+    paidAmount: '0 ' + currency,
+    amountDue: formatCurrency(remainingAmount, currency),
+    paymentStatus: 'Pending',
+    paymentMethod: '',
+
+    // Access
+    selectedAccess: '',
+    selectedWorkshops: '',
+    selectedDinners: '',
+
+    // Links
+    registrationLink: `${baseUrl}/${event.slug}/registration/${registration.id}/${token}`,
+    editRegistrationLink: `${baseUrl}/${event.slug}/registration/${registration.id}/${token}`,
+    paymentLink: `${baseUrl}/${event.slug}/payment/${registration.id}/${token}`,
+
+    // Bank details (empty - can be filled in if needed)
+    bankName: '',
+    bankAccountName: '',
+    bankAccountNumber: '',
+
+    // Sponsorship info
+    sponsorshipCode: sponsorship.code,
+    sponsorshipAmount: formatCurrency(sponsorship.totalAmount, currency),
+    labName: sponsorship.batch.labName,
+    labContactName: sponsorship.batch.contactName,
+    beneficiaryName: sponsorship.beneficiaryName,
+    sponsoredItems: sponsoredItems.join('\n'),
+    remainingAmount: formatCurrency(remainingAmount, currency),
   }
 }

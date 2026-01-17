@@ -2,6 +2,7 @@ import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
+import { logger } from '@shared/utils/logger.js';
 import {
   generateUniqueCode,
   calculateSponsorshipTotal,
@@ -18,6 +19,11 @@ import type {
   ListSponsorshipsQuery,
 } from './sponsorships.schema.js';
 import type { Prisma, Sponsorship, SponsorshipBatch, SponsorshipUsage } from '@/generated/prisma/client.js';
+import {
+  queueSponsorshipEmail,
+  buildBatchEmailContext,
+  buildLinkedSponsorshipContext,
+} from '@email';
 
 // ============================================================================
 // Types
@@ -100,19 +106,33 @@ export interface CreateBatchResult {
 
 /**
  * Create a sponsorship batch with N sponsorships.
- * Called when sponsor submits the public sponsorship form.
+ * Supports two modes:
+ * - CODE mode: beneficiaries array, creates PENDING sponsorships with codes
+ * - LINKED_ACCOUNT mode: linkedBeneficiaries array, creates USED sponsorships auto-linked to registrations
  */
 export async function createSponsorshipBatch(
   eventId: string,
   formId: string,
   input: CreateSponsorshipBatchInput
 ): Promise<CreateBatchResult> {
-  const { sponsor, customFields, beneficiaries } = input;
+  const { sponsor, customFields, beneficiaries, linkedBeneficiaries } = input;
 
-  // Verify event exists
+  // Determine mode
+  const isLinkedMode = (linkedBeneficiaries?.length ?? 0) > 0;
+  const beneficiaryList = isLinkedMode ? linkedBeneficiaries! : beneficiaries ?? [];
+
+  // Verify event exists and get details for email context
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      status: true,
+      startDate: true,
+      location: true,
+      client: { select: { name: true } },
+    },
   });
 
   if (!event) {
@@ -129,25 +149,34 @@ export async function createSponsorshipBatch(
     throw new AppError('Sponsor form not found for this event', 404, true, ErrorCodes.NOT_FOUND);
   }
 
+  // Get pricing for currency and base price
+  const pricing = await prisma.eventPricing.findUnique({
+    where: { eventId },
+    select: { basePrice: true, currency: true },
+  });
+  const currency = pricing?.currency ?? 'TND';
+
   // Validate all covered access IDs exist and belong to event
   const allAccessIds = new Set<string>();
-  for (const beneficiary of beneficiaries) {
+  for (const beneficiary of beneficiaryList) {
     for (const accessId of beneficiary.coveredAccessIds) {
       allAccessIds.add(accessId);
     }
   }
 
+  // Get access items for validation and email context
+  let accessItems: Array<{ id: string; name: string; price: number }> = [];
   if (allAccessIds.size > 0) {
-    const validAccessItems = await prisma.eventAccess.findMany({
+    accessItems = await prisma.eventAccess.findMany({
       where: {
         id: { in: Array.from(allAccessIds) },
         eventId,
         active: true,
       },
-      select: { id: true },
+      select: { id: true, name: true, price: true },
     });
 
-    const validAccessIds = new Set(validAccessItems.map((a) => a.id));
+    const validAccessIds = new Set(accessItems.map((a) => a.id));
     const invalidIds = Array.from(allAccessIds).filter((id) => !validAccessIds.has(id));
 
     if (invalidIds.length > 0) {
@@ -158,6 +187,62 @@ export async function createSponsorshipBatch(
         ErrorCodes.BAD_REQUEST,
         { invalidAccessIds: invalidIds }
       );
+    }
+  }
+
+  // For LINKED_ACCOUNT mode: validate registrations
+  const registrations: Map<string, {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    totalAmount: number;
+    sponsorshipAmount: number;
+    baseAmount: number;
+    accessTypeIds: string[];
+    priceBreakdown: unknown;
+    linkBaseUrl: string | null;
+    editToken: string | null;
+  }> = new Map();
+
+  if (isLinkedMode) {
+    const registrationIds = linkedBeneficiaries!.map((b) => b.registrationId);
+    const foundRegistrations = await prisma.registration.findMany({
+      where: {
+        id: { in: registrationIds },
+        eventId,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        totalAmount: true,
+        sponsorshipAmount: true,
+        baseAmount: true,
+        accessTypeIds: true,
+        priceBreakdown: true,
+        linkBaseUrl: true,
+        editToken: true,
+      },
+    });
+
+    // Check all registrations were found
+    const foundIds = new Set(foundRegistrations.map((r) => r.id));
+    const missingIds = registrationIds.filter((id) => !foundIds.has(id));
+    if (missingIds.length > 0) {
+      throw new AppError(
+        `Registrations not found: ${missingIds.join(', ')}`,
+        404,
+        true,
+        ErrorCodes.NOT_FOUND,
+        { missingRegistrationIds: missingIds }
+      );
+    }
+
+    // Build map for quick lookup
+    for (const reg of foundRegistrations) {
+      registrations.set(reg.id, reg);
     }
   }
 
@@ -179,47 +264,209 @@ export async function createSponsorshipBatch(
       },
     });
 
-    // Create sponsorships for each beneficiary
-    const sponsorships: Sponsorship[] = [];
+    // Create sponsorships
+    const createdSponsorships: Array<Sponsorship & { linkedRegistrationId?: string }> = [];
 
-    for (const beneficiary of beneficiaries) {
-      // Generate unique code
-      const code = await generateUniqueCode(tx);
+    if (isLinkedMode) {
+      // LINKED_ACCOUNT mode
+      for (const linked of linkedBeneficiaries!) {
+        const registration = registrations.get(linked.registrationId)!;
 
-      // Calculate total amount
-      const totalAmount = await calculateSponsorshipTotal(
-        tx,
-        eventId,
-        beneficiary.coversBasePrice,
-        beneficiary.coveredAccessIds
-      );
+        // Generate unique code
+        const code = await generateUniqueCode(tx);
 
-      const sponsorship = await tx.sponsorship.create({
-        data: {
-          batchId: batch.id,
+        // Calculate total amount
+        const totalAmount = await calculateSponsorshipTotal(
+          tx,
           eventId,
-          code,
-          status: 'PENDING',
-          beneficiaryName: beneficiary.name,
-          beneficiaryEmail: beneficiary.email,
-          beneficiaryPhone: beneficiary.phone ?? null,
-          beneficiaryAddress: beneficiary.address ?? null,
-          coversBasePrice: beneficiary.coversBasePrice,
-          coveredAccessIds: beneficiary.coveredAccessIds,
-          totalAmount,
-        },
-      });
+          linked.coversBasePrice,
+          linked.coveredAccessIds
+        );
 
-      sponsorships.push(sponsorship);
+        // Create sponsorship with USED status
+        const sponsorship = await tx.sponsorship.create({
+          data: {
+            batchId: batch.id,
+            eventId,
+            code,
+            status: 'USED', // Auto-linked, so starts as USED
+            beneficiaryName: linked.name,
+            beneficiaryEmail: linked.email,
+            beneficiaryPhone: null,
+            beneficiaryAddress: null,
+            coversBasePrice: linked.coversBasePrice,
+            coveredAccessIds: linked.coveredAccessIds,
+            totalAmount,
+          },
+        });
+
+        // Calculate applicable amount
+        const priceBreakdown = registration.priceBreakdown as RegistrationForCalculation['priceBreakdown'];
+        const applicableAmount = calculateApplicableAmount(
+          {
+            coversBasePrice: linked.coversBasePrice,
+            coveredAccessIds: linked.coveredAccessIds,
+            totalAmount,
+          },
+          {
+            totalAmount: registration.totalAmount,
+            baseAmount: registration.baseAmount,
+            accessTypeIds: registration.accessTypeIds,
+            priceBreakdown,
+          }
+        );
+
+        // Create SponsorshipUsage (the link)
+        await tx.sponsorshipUsage.create({
+          data: {
+            sponsorshipId: sponsorship.id,
+            registrationId: linked.registrationId,
+            amountApplied: applicableAmount,
+            appliedBy: 'SYSTEM', // System auto-linked
+          },
+        });
+
+        // Update registration's sponsorshipAmount
+        await tx.registration.update({
+          where: { id: linked.registrationId },
+          data: {
+            sponsorshipAmount: { increment: applicableAmount },
+          },
+        });
+
+        createdSponsorships.push({
+          ...sponsorship,
+          linkedRegistrationId: linked.registrationId,
+        });
+      }
+    } else {
+      // CODE mode (existing behavior)
+      for (const beneficiary of beneficiaries!) {
+        // Generate unique code
+        const code = await generateUniqueCode(tx);
+
+        // Calculate total amount
+        const totalAmount = await calculateSponsorshipTotal(
+          tx,
+          eventId,
+          beneficiary.coversBasePrice,
+          beneficiary.coveredAccessIds
+        );
+
+        const sponsorship = await tx.sponsorship.create({
+          data: {
+            batchId: batch.id,
+            eventId,
+            code,
+            status: 'PENDING',
+            beneficiaryName: beneficiary.name,
+            beneficiaryEmail: beneficiary.email,
+            beneficiaryPhone: beneficiary.phone ?? null,
+            beneficiaryAddress: beneficiary.address ?? null,
+            coversBasePrice: beneficiary.coversBasePrice,
+            coveredAccessIds: beneficiary.coveredAccessIds,
+            totalAmount,
+          },
+        });
+
+        createdSponsorships.push(sponsorship);
+      }
     }
 
     return {
       batchId: batch.id,
-      count: sponsorships.length,
+      count: createdSponsorships.length,
+      batch: {
+        labName: sponsor.labName,
+        contactName: sponsor.contactName,
+        email: sponsor.email,
+        phone: sponsor.phone ?? null,
+      },
+      sponsorships: createdSponsorships,
     };
   });
 
-  return result;
+  // Queue emails (outside transaction for reliability)
+  try {
+    // 1. Always send batch confirmation to lab
+    const batchContext = buildBatchEmailContext({
+      batch: result.batch,
+      sponsorships: result.sponsorships.map((s) => ({
+        beneficiaryName: s.beneficiaryName,
+        beneficiaryEmail: s.beneficiaryEmail,
+        totalAmount: s.totalAmount,
+      })),
+      event: {
+        name: event.name,
+        startDate: event.startDate,
+        location: event.location,
+        client: event.client,
+      },
+      currency,
+    });
+
+    await queueSponsorshipEmail('SPONSORSHIP_BATCH_SUBMITTED', eventId, {
+      recipientEmail: result.batch.email,
+      recipientName: result.batch.contactName,
+      context: batchContext,
+    });
+
+    // 2. For LINKED_ACCOUNT mode: Send notification to each doctor
+    if (isLinkedMode) {
+      for (const sponsorship of result.sponsorships) {
+        const registration = registrations.get(sponsorship.linkedRegistrationId!)!;
+
+        // Update sponsorshipAmount with the new total (after increment)
+        const updatedReg = await prisma.registration.findUnique({
+          where: { id: registration.id },
+          select: { sponsorshipAmount: true },
+        });
+
+        const context = buildLinkedSponsorshipContext({
+          sponsorship: {
+            code: sponsorship.code,
+            beneficiaryName: sponsorship.beneficiaryName,
+            coversBasePrice: sponsorship.coversBasePrice,
+            coveredAccessIds: sponsorship.coveredAccessIds,
+            totalAmount: sponsorship.totalAmount,
+            batch: {
+              labName: result.batch.labName,
+              contactName: result.batch.contactName,
+            },
+          },
+          registration: {
+            ...registration,
+            sponsorshipAmount: updatedReg?.sponsorshipAmount ?? registration.sponsorshipAmount,
+          },
+          event: {
+            name: event.name,
+            slug: event.slug,
+            startDate: event.startDate,
+            location: event.location,
+            client: event.client,
+          },
+          pricing: pricing ? { basePrice: pricing.basePrice } : null,
+          accessItems,
+          currency,
+        });
+
+        await queueSponsorshipEmail('SPONSORSHIP_LINKED', eventId, {
+          recipientEmail: registration.email,
+          recipientName: registration.firstName || sponsorship.beneficiaryName,
+          context,
+          registrationId: registration.id,
+        });
+      }
+    }
+  } catch (emailError) {
+    // Log error but don't fail the batch creation
+    logger.error({ error: emailError, batchId: result.batchId }, 'Failed to queue sponsorship emails');
+  }
+
+  return {
+    batchId: result.batchId,
+    count: result.count,
+  };
 }
 
 // ============================================================================
@@ -685,6 +932,79 @@ export async function linkSponsorshipToRegistration(
       warnings,
     };
   });
+
+  // Queue SPONSORSHIP_APPLIED email to the doctor
+  try {
+    // Fetch data needed for email context
+    const [sponsorshipWithBatch, registrationDetails, event, pricing, accessItems] = await Promise.all([
+      prisma.sponsorship.findUnique({
+        where: { id: sponsorshipId },
+        include: { batch: { select: { labName: true, contactName: true } } },
+      }),
+      prisma.registration.findUnique({
+        where: { id: registrationId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          totalAmount: true,
+          sponsorshipAmount: true,
+          linkBaseUrl: true,
+          editToken: true,
+        },
+      }),
+      prisma.event.findUnique({
+        where: { id: sponsorship.eventId },
+        select: {
+          name: true,
+          slug: true,
+          startDate: true,
+          location: true,
+          client: { select: { name: true } },
+        },
+      }),
+      prisma.eventPricing.findUnique({
+        where: { eventId: sponsorship.eventId },
+        select: { basePrice: true, currency: true },
+      }),
+      sponsorship.coveredAccessIds.length > 0
+        ? prisma.eventAccess.findMany({
+            where: { id: { in: sponsorship.coveredAccessIds } },
+            select: { id: true, name: true, price: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    if (sponsorshipWithBatch && registrationDetails && event) {
+      const currency = pricing?.currency ?? 'TND';
+      const context = buildLinkedSponsorshipContext({
+        sponsorship: {
+          code: sponsorshipWithBatch.code,
+          beneficiaryName: sponsorshipWithBatch.beneficiaryName,
+          coversBasePrice: sponsorshipWithBatch.coversBasePrice,
+          coveredAccessIds: sponsorshipWithBatch.coveredAccessIds,
+          totalAmount: sponsorshipWithBatch.totalAmount,
+          batch: sponsorshipWithBatch.batch,
+        },
+        registration: registrationDetails,
+        event,
+        pricing: pricing ? { basePrice: pricing.basePrice } : null,
+        accessItems,
+        currency,
+      });
+
+      await queueSponsorshipEmail('SPONSORSHIP_APPLIED', sponsorship.eventId, {
+        recipientEmail: registrationDetails.email,
+        recipientName: registrationDetails.firstName || sponsorshipWithBatch.beneficiaryName,
+        context,
+        registrationId: registrationDetails.id,
+      });
+    }
+  } catch (emailError) {
+    // Log error but don't fail the link operation
+    logger.error({ error: emailError, sponsorshipId, registrationId }, 'Failed to queue SPONSORSHIP_APPLIED email');
+  }
 
   return result;
 }

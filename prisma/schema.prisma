@@ -427,6 +427,9 @@ enum AutomaticEmailTrigger {
   REGISTRATION_CREATED // When registration form is submitted
   PAYMENT_PROOF_SUBMITTED // When user uploads payment proof
   PAYMENT_CONFIRMED // When admin confirms/validates payment
+  SPONSORSHIP_BATCH_SUBMITTED // When lab submits sponsorship batch (sent to lab)
+  SPONSORSHIP_LINKED // When sponsorship auto-linked to registration (LINKED_ACCOUNT mode, sent to doctor)
+  SPONSORSHIP_APPLIED // When admin manually applies sponsorship code (CODE mode, sent to doctor)
 }
 
 enum EmailStatus {

@@ -504,13 +504,14 @@ describe('Access Service', () => {
       expect(result.groups).toHaveLength(0);
     });
 
-    it('should group access items by type', async () => {
+    it('should group access items by date', async () => {
       const accessItems = [
         createEventAccessWithRelations({
           id: 'workshop-1',
           eventId,
           type: 'WORKSHOP',
           name: 'Workshop A',
+          startsAt: new Date('2025-06-01T09:00:00'),
           active: true,
         }),
         createEventAccessWithRelations({
@@ -518,6 +519,7 @@ describe('Access Service', () => {
           eventId,
           type: 'DINNER',
           name: 'Gala Dinner',
+          startsAt: new Date('2025-06-02T19:00:00'),
           active: true,
         }),
       ];
@@ -526,14 +528,16 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      expect(result.groups.length).toBeGreaterThanOrEqual(2);
-      const workshopGroup = result.groups.find((g) => g.type === 'WORKSHOP');
-      const dinnerGroup = result.groups.find((g) => g.type === 'DINNER');
-      expect(workshopGroup).toBeDefined();
-      expect(dinnerGroup).toBeDefined();
+      expect(result.groups.length).toBe(2);
+      // Groups are organized by date, items within slots have type
+      const allItems = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const workshopItems = allItems.filter((i) => i.type === 'WORKSHOP');
+      const dinnerItems = allItems.filter((i) => i.type === 'DINNER');
+      expect(workshopItems).toHaveLength(1);
+      expect(dinnerItems).toHaveLength(1);
     });
 
-    it('should create time slots within each type group', async () => {
+    it('should create time slots within each date group', async () => {
       const slot1Time = new Date('2025-06-01T09:00:00');
       const slot2Time = new Date('2025-06-01T14:00:00');
 
@@ -568,9 +572,9 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      const workshopGroup = result.groups.find((g) => g.type === 'WORKSHOP');
-      expect(workshopGroup).toBeDefined();
-      expect(workshopGroup!.slots).toHaveLength(2); // Two time slots
+      // All items are on the same date, so there should be 1 group with 2 slots
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].slots).toHaveLength(2); // Two time slots
     });
 
     it('should set selectionType to single for parallel items', async () => {
@@ -597,8 +601,8 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      const workshopGroup = result.groups.find((g) => g.type === 'WORKSHOP');
-      expect(workshopGroup!.slots[0].selectionType).toBe('single');
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].slots[0].selectionType).toBe('single');
     });
 
     it('should set selectionType to multiple for single item in slot', async () => {
@@ -616,8 +620,8 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      const workshopGroup = result.groups.find((g) => g.type === 'WORKSHOP');
-      expect(workshopGroup!.slots[0].selectionType).toBe('multiple');
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].slots[0].selectionType).toBe('multiple');
     });
 
     it('should filter items by availability dates', async () => {
@@ -654,8 +658,10 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      const workshopGroup = result.groups.find((g) => g.type === 'WORKSHOP');
-      expect(workshopGroup?.slots.flatMap((s) => s.items)).toHaveLength(1);
+      // Only the 'available' item should be visible (no date restrictions)
+      const allItems = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      expect(allItems).toHaveLength(1);
+      expect(allItems[0].id).toBe('available');
     });
 
     it('should filter items by form-based conditions', async () => {
@@ -684,10 +690,8 @@ describe('Access Service', () => {
         { profession: 'doctor' },
         []
       );
-      const workshopGroupDoctor = resultDoctor.groups.find(
-        (g) => g.type === 'WORKSHOP'
-      );
-      expect(workshopGroupDoctor?.slots.flatMap((s) => s.items)).toHaveLength(2);
+      const doctorItems = resultDoctor.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      expect(doctorItems).toHaveLength(2);
 
       // Non-doctors only see the second one
       const resultNonDoctor = await getGroupedAccess(
@@ -695,10 +699,8 @@ describe('Access Service', () => {
         { profession: 'nurse' },
         []
       );
-      const workshopGroupNonDoctor = resultNonDoctor.groups.find(
-        (g) => g.type === 'WORKSHOP'
-      );
-      expect(workshopGroupNonDoctor?.slots.flatMap((s) => s.items)).toHaveLength(1);
+      const nonDoctorItems = resultNonDoctor.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      expect(nonDoctorItems).toHaveLength(1);
     });
 
     it('should filter items by access prerequisites', async () => {
@@ -722,25 +724,19 @@ describe('Access Service', () => {
 
       prismaMock.eventAccess.findMany.mockResolvedValue(accessItems as never);
 
-      // Without prerequisite selected - should not show advanced
+      // Without prerequisite selected - should only show SESSION (no prereq required)
       const resultWithoutPrereq = await getGroupedAccess(eventId, {}, []);
-      const workshopGroupNoPrereq = resultWithoutPrereq.groups.find(
-        (g) => g.type === 'WORKSHOP'
-      );
-      expect(
-        workshopGroupNoPrereq?.slots.flatMap((s) => s.items) ?? []
-      ).toHaveLength(0);
+      const itemsNoPrereq = resultWithoutPrereq.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const workshopItemsNoPrereq = itemsNoPrereq.filter((i) => i.type === 'WORKSHOP');
+      expect(workshopItemsNoPrereq).toHaveLength(0);
 
-      // With prerequisite selected - should show advanced
+      // With prerequisite selected - should show advanced workshop
       const resultWithPrereq = await getGroupedAccess(eventId, {}, [
         prerequisiteId,
       ]);
-      const workshopGroupWithPrereq = resultWithPrereq.groups.find(
-        (g) => g.type === 'WORKSHOP'
-      );
-      expect(
-        workshopGroupWithPrereq?.slots.flatMap((s) => s.items)
-      ).toHaveLength(1);
+      const itemsWithPrereq = resultWithPrereq.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const workshopItemsWithPrereq = itemsWithPrereq.filter((i) => i.type === 'WORKSHOP');
+      expect(workshopItemsWithPrereq).toHaveLength(1);
     });
 
     it('should calculate spotsRemaining and isFull correctly', async () => {
@@ -775,24 +771,23 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      const workshopGroup = result.groups.find((g) => g.type === 'WORKSHOP');
-      const items = workshopGroup?.slots.flatMap((s) => s.items) ?? [];
+      const items = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
 
       const fullItem = items.find((i) => i.id === 'full-workshop');
       const availableItem = items.find((i) => i.id === 'available-workshop');
       const unlimitedItem = items.find((i) => i.id === 'unlimited-workshop');
 
-      expect(fullItem.spotsRemaining).toBe(0);
-      expect(fullItem.isFull).toBe(true);
+      expect(fullItem?.spotsRemaining).toBe(0);
+      expect(fullItem?.isFull).toBe(true);
 
-      expect(availableItem.spotsRemaining).toBe(15);
-      expect(availableItem.isFull).toBe(false);
+      expect(availableItem?.spotsRemaining).toBe(15);
+      expect(availableItem?.isFull).toBe(false);
 
-      expect(unlimitedItem.spotsRemaining).toBeNull();
-      expect(unlimitedItem.isFull).toBe(false);
+      expect(unlimitedItem?.spotsRemaining).toBeNull();
+      expect(unlimitedItem?.isFull).toBe(false);
     });
 
-    it('should use custom groupLabel for OTHER type', async () => {
+    it('should include items with OTHER type in date groups', async () => {
       const accessItems = [
         createEventAccessWithRelations({
           id: 'excursion-1',
@@ -800,6 +795,7 @@ describe('Access Service', () => {
           type: 'OTHER',
           name: 'City Tour',
           groupLabel: 'Excursions',
+          startsAt: new Date('2025-06-01T10:00:00'),
           active: true,
         }),
       ];
@@ -808,9 +804,12 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      const excursionGroup = result.groups.find((g) => g.label === 'Excursions');
-      expect(excursionGroup).toBeDefined();
-      expect(excursionGroup!.type).toBe('OTHER');
+      // Items are grouped by date, not by type
+      expect(result.groups).toHaveLength(1);
+      const items = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe('OTHER');
+      expect(items[0].name).toBe('City Tour');
     });
   });
 
@@ -1282,30 +1281,27 @@ describe('Access Service', () => {
       }
     });
 
-    it('should order types in grouped access response', async () => {
+    it('should order date groups chronologically', async () => {
       const accessItems = [
         createEventAccessWithRelations({
           eventId,
           type: 'OTHER',
-          name: 'Other',
+          name: 'Day 3 Item',
+          startsAt: new Date('2025-06-03T10:00:00'),
           active: true,
         }),
         createEventAccessWithRelations({
           eventId,
           type: 'SESSION',
-          name: 'Session',
+          name: 'Day 1 Item',
+          startsAt: new Date('2025-06-01T10:00:00'),
           active: true,
         }),
         createEventAccessWithRelations({
           eventId,
           type: 'WORKSHOP',
-          name: 'Workshop',
-          active: true,
-        }),
-        createEventAccessWithRelations({
-          eventId,
-          type: 'DINNER',
-          name: 'Dinner',
+          name: 'Day 2 Item',
+          startsAt: new Date('2025-06-02T10:00:00'),
           active: true,
         }),
       ];
@@ -1314,11 +1310,11 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      // Check that groups are ordered correctly
-      const typeOrder = result.groups.map((g) => g.type);
-      expect(typeOrder.indexOf('SESSION')).toBeLessThan(typeOrder.indexOf('WORKSHOP'));
-      expect(typeOrder.indexOf('WORKSHOP')).toBeLessThan(typeOrder.indexOf('DINNER'));
-      expect(typeOrder.indexOf('DINNER')).toBeLessThan(typeOrder.indexOf('OTHER'));
+      // Check that date groups are ordered chronologically
+      expect(result.groups).toHaveLength(3);
+      expect(result.groups[0].dateKey).toBe('2025-06-01');
+      expect(result.groups[1].dateKey).toBe('2025-06-02');
+      expect(result.groups[2].dateKey).toBe('2025-06-03');
     });
   });
 });

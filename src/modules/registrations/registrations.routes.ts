@@ -10,6 +10,7 @@ import {
   getRegistrationTableColumns,
   listRegistrationAuditLogs,
   listRegistrationEmailLogs,
+  searchRegistrantsForSponsorship,
 } from './registrations.service.js';
 import {
   RegistrationIdParamSchema,
@@ -19,11 +20,13 @@ import {
   ListRegistrationsQuerySchema,
   ListRegistrationAuditLogsQuerySchema,
   ListRegistrationEmailLogsQuerySchema,
+  SearchRegistrantsQuerySchema,
   type UpdateRegistrationInput,
   type UpdatePaymentInput,
   type ListRegistrationsQuery,
   type ListRegistrationAuditLogsQuery,
   type ListRegistrationEmailLogsQuery,
+  type SearchRegistrantsQuery,
 } from './registrations.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
 
@@ -56,6 +59,36 @@ export async function registrationsRoutes(app: AppInstance): Promise<void> {
 
       const columns = await getRegistrationTableColumns(eventId);
       return reply.send(columns);
+    }
+  );
+
+  // GET /api/events/:eventId/registrants/search - Search registrants for sponsorship linking
+  app.get<{
+    Params: { eventId: string };
+    Querystring: SearchRegistrantsQuery;
+  }>(
+    '/:eventId/registrants/search',
+    {
+      schema: {
+        params: EventIdParamSchema,
+        querystring: SearchRegistrantsQuerySchema,
+      },
+    },
+    async (request, reply) => {
+      const { eventId } = request.params;
+      const query = request.query;
+
+      const event = await getEventById(eventId);
+      if (!event) {
+        throw app.httpErrors.notFound('Event not found');
+      }
+
+      if (!canAccessClient(request.user!, event.clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions');
+      }
+
+      const results = await searchRegistrantsForSponsorship(eventId, query);
+      return reply.send(results);
     }
   );
 

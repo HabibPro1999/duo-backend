@@ -28,6 +28,25 @@ export const BeneficiaryInputSchema = z
 export type BeneficiaryInput = z.infer<typeof BeneficiaryInputSchema>;
 
 // ============================================================================
+// Linked Beneficiary Input Schema (for LINKED_ACCOUNT mode)
+// ============================================================================
+
+export const LinkedBeneficiaryInputSchema = z
+  .object({
+    registrationId: z.string().uuid(),
+    email: z.string().email(),
+    name: z.string().min(2).max(200),
+    coversBasePrice: z.boolean(),
+    coveredAccessIds: z.array(z.string().uuid()).default([]),
+  })
+  .strict()
+  .refine((data) => data.coversBasePrice || data.coveredAccessIds.length > 0, {
+    message: 'Must cover base price or at least one access item',
+  });
+
+export type LinkedBeneficiaryInput = z.infer<typeof LinkedBeneficiaryInputSchema>;
+
+// ============================================================================
 // Sponsor Info Schema
 // ============================================================================
 
@@ -50,9 +69,14 @@ export const CreateSponsorshipBatchSchema = z
   .object({
     sponsor: SponsorInfoSchema,
     customFields: z.record(z.string(), z.unknown()).optional(),
-    beneficiaries: z.array(BeneficiaryInputSchema).min(1).max(100),
+    beneficiaries: z.array(BeneficiaryInputSchema).max(100).optional(), // CODE mode
+    linkedBeneficiaries: z.array(LinkedBeneficiaryInputSchema).max(100).optional(), // LINKED_ACCOUNT mode
   })
-  .strict();
+  .strict()
+  .refine(
+    (data) => (data.beneficiaries?.length ?? 0) > 0 || (data.linkedBeneficiaries?.length ?? 0) > 0,
+    { message: 'Must have at least one beneficiary or linked beneficiary' }
+  );
 
 export type CreateSponsorshipBatchInput = z.infer<typeof CreateSponsorshipBatchSchema>;
 
