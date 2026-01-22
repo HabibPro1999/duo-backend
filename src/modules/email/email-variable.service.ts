@@ -413,6 +413,7 @@ export interface LinkedSponsorshipContextInput {
     batch: {
       labName: string
       contactName: string
+      email: string
     }
   }
   registration: {
@@ -420,6 +421,7 @@ export interface LinkedSponsorshipContextInput {
     email: string
     firstName: string | null
     lastName: string | null
+    phone: string | null
     totalAmount: number
     sponsorshipAmount: number
     linkBaseUrl: string | null
@@ -526,7 +528,7 @@ export function buildLinkedSponsorshipContext(input: LinkedSponsorshipContextInp
     lastName: registration.lastName || '',
     fullName: [registration.firstName, registration.lastName].filter(Boolean).join(' ') || sponsorship.beneficiaryName,
     email: registration.email,
-    phone: '',
+    phone: registration.phone || '',
     registrationDate: formatDate(new Date()),
     registrationId: registration.id,
     registrationNumber: registration.id.slice(0, 8).toUpperCase(),
@@ -568,6 +570,7 @@ export function buildLinkedSponsorshipContext(input: LinkedSponsorshipContextInp
     sponsorshipAmount: formatCurrency(sponsorship.totalAmount, currency),
     labName: sponsorship.batch.labName,
     labContactName: sponsorship.batch.contactName,
+    labEmail: sponsorship.batch.email,
     beneficiaryName: sponsorship.beneficiaryName,
     sponsoredItems: sponsoredItems.join('\n'),
     remainingAmount: formatCurrency(remainingAmount, currency),

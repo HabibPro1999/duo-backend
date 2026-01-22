@@ -91,7 +91,7 @@ export async function queueTriggeredEmail(
   // 1. Get active template for this event + trigger
   const template = await getTemplateByTrigger(eventId, trigger)
   if (!template) {
-    logger.debug({ trigger, eventId }, 'No email template configured for trigger')
+    logger.warn({ trigger, eventId }, 'No email template configured for trigger - email not sent')
     return false
   }
 
@@ -131,7 +131,7 @@ export async function queueSponsorshipEmail(
   // 1. Get active template for this event + trigger
   const template = await getTemplateByTrigger(eventId, trigger)
   if (!template) {
-    logger.debug({ trigger, eventId }, 'No email template configured for sponsorship trigger')
+    logger.warn({ trigger, eventId }, 'No email template configured for trigger - email not sent')
     return false
   }
 

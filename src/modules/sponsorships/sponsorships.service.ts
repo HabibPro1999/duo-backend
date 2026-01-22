@@ -196,6 +196,7 @@ export async function createSponsorshipBatch(
     email: string;
     firstName: string | null;
     lastName: string | null;
+    phone: string | null;
     totalAmount: number;
     sponsorshipAmount: number;
     baseAmount: number;
@@ -217,6 +218,7 @@ export async function createSponsorshipBatch(
         email: true,
         firstName: true,
         lastName: true,
+        phone: true,
         totalAmount: true,
         sponsorshipAmount: true,
         baseAmount: true,
@@ -405,11 +407,14 @@ export async function createSponsorshipBatch(
       currency,
     });
 
-    await queueSponsorshipEmail('SPONSORSHIP_BATCH_SUBMITTED', eventId, {
+    const batchEmailQueued = await queueSponsorshipEmail('SPONSORSHIP_BATCH_SUBMITTED', eventId, {
       recipientEmail: result.batch.email,
       recipientName: result.batch.contactName,
       context: batchContext,
     });
+    if (!batchEmailQueued) {
+      logger.warn({ trigger: 'SPONSORSHIP_BATCH_SUBMITTED', eventId }, 'No email template configured - lab will not receive confirmation email');
+    }
 
     // 2. For LINKED_ACCOUNT mode: Send notification to each doctor
     if (isLinkedMode) {
@@ -432,10 +437,12 @@ export async function createSponsorshipBatch(
             batch: {
               labName: result.batch.labName,
               contactName: result.batch.contactName,
+              email: result.batch.email,
             },
           },
           registration: {
             ...registration,
+            phone: registration.phone ?? null,
             sponsorshipAmount: updatedReg?.sponsorshipAmount ?? registration.sponsorshipAmount,
           },
           event: {
@@ -450,12 +457,15 @@ export async function createSponsorshipBatch(
           currency,
         });
 
-        await queueSponsorshipEmail('SPONSORSHIP_LINKED', eventId, {
+        const linkedEmailQueued = await queueSponsorshipEmail('SPONSORSHIP_LINKED', eventId, {
           recipientEmail: registration.email,
           recipientName: registration.firstName || sponsorship.beneficiaryName,
           context,
           registrationId: registration.id,
         });
+        if (!linkedEmailQueued) {
+          logger.warn({ trigger: 'SPONSORSHIP_LINKED', eventId, registrationId: registration.id }, 'No email template configured - doctor will not receive sponsorship notification');
+        }
       }
     }
   } catch (emailError) {
@@ -939,7 +949,7 @@ export async function linkSponsorshipToRegistration(
     const [sponsorshipWithBatch, registrationDetails, event, pricing, accessItems] = await Promise.all([
       prisma.sponsorship.findUnique({
         where: { id: sponsorshipId },
-        include: { batch: { select: { labName: true, contactName: true } } },
+        include: { batch: { select: { labName: true, contactName: true, email: true } } },
       }),
       prisma.registration.findUnique({
         where: { id: registrationId },
@@ -948,6 +958,7 @@ export async function linkSponsorshipToRegistration(
           email: true,
           firstName: true,
           lastName: true,
+          phone: true,
           totalAmount: true,
           sponsorshipAmount: true,
           linkBaseUrl: true,
@@ -985,7 +996,11 @@ export async function linkSponsorshipToRegistration(
           coversBasePrice: sponsorshipWithBatch.coversBasePrice,
           coveredAccessIds: sponsorshipWithBatch.coveredAccessIds,
           totalAmount: sponsorshipWithBatch.totalAmount,
-          batch: sponsorshipWithBatch.batch,
+          batch: {
+            labName: sponsorshipWithBatch.batch.labName,
+            contactName: sponsorshipWithBatch.batch.contactName,
+            email: sponsorshipWithBatch.batch.email,
+          },
         },
         registration: registrationDetails,
         event,
@@ -994,12 +1009,15 @@ export async function linkSponsorshipToRegistration(
         currency,
       });
 
-      await queueSponsorshipEmail('SPONSORSHIP_APPLIED', sponsorship.eventId, {
+      const appliedEmailQueued = await queueSponsorshipEmail('SPONSORSHIP_APPLIED', sponsorship.eventId, {
         recipientEmail: registrationDetails.email,
         recipientName: registrationDetails.firstName || sponsorshipWithBatch.beneficiaryName,
         context,
         registrationId: registrationDetails.id,
       });
+      if (!appliedEmailQueued) {
+        logger.warn({ trigger: 'SPONSORSHIP_APPLIED', eventId: sponsorship.eventId, registrationId }, 'No email template configured - doctor will not receive sponsorship notification');
+      }
     }
   } catch (emailError) {
     // Log error but don't fail the link operation
