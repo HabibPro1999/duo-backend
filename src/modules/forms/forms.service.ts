@@ -5,7 +5,7 @@ import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { eventExists } from '@events';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
 import { logger } from '@shared/utils/logger.js';
-import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson, SponsorFormSchemaJson, SponsorshipSettings } from './forms.schema.js';
+import type { CreateFormInput, UpdateFormInput, ListFormsQuery, FormSchemaJson, SponsorFormSchemaJson, SponsorshipSettings, UpdateSponsorshipSettingsInput } from './forms.schema.js';
 import type { Form, Prisma, Event, Client, EventAccess, EventPricing } from '@/generated/prisma/client.js';
 
 type FormWithRelations = Form & {
@@ -331,6 +331,58 @@ export async function isSponsorshipModeLocked(formId: string): Promise<boolean> 
 }
 
 /**
+ * Update sponsorship settings for a SPONSOR form.
+ * Only updates the sponsorshipSettings portion of the schema.
+ */
+export async function updateSponsorshipSettings(
+  formId: string,
+  settings: UpdateSponsorshipSettingsInput
+): Promise<Form> {
+  // Fetch form and verify it's a SPONSOR form
+  const form = await prisma.form.findUnique({ where: { id: formId } });
+  if (!form) {
+    throw new AppError('Form not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  if (form.type !== 'SPONSOR') {
+    throw new AppError('Sponsorship settings can only be updated for sponsor forms', 400, true, ErrorCodes.BAD_REQUEST);
+  }
+
+  // Get current schema and settings
+  const currentSchema = form.schema as unknown as SponsorFormSchemaJson;
+  const currentMode = currentSchema.sponsorshipSettings?.sponsorshipMode ?? 'CODE';
+
+  // If mode is changing, check if it's locked
+  if (settings.sponsorshipMode !== currentMode) {
+    const isLocked = await isSponsorshipModeLocked(formId);
+    if (isLocked) {
+      throw new AppError(
+        'Cannot change sponsorship mode after sponsorship batches have been submitted',
+        409,
+        true,
+        ErrorCodes.CONFLICT
+      );
+    }
+  }
+
+  // Merge new settings into schema
+  const updatedSchema: SponsorFormSchemaJson = {
+    ...currentSchema,
+    sponsorshipSettings: {
+      ...currentSchema.sponsorshipSettings,
+      ...settings,
+    },
+  };
+
+  return prisma.form.update({
+    where: { id: formId },
+    data: {
+      schema: updatedSchema as unknown as Prisma.InputJsonValue,
+    },
+  });
+}
+
+/**
  * Helper function to get form's client ID via event (for ownership checks).
  */
 export async function getFormClientId(id: string): Promise<string | null> {
@@ -418,6 +470,9 @@ export function createDefaultSponsorSchema(): SponsorFormSchemaJson {
       ],
       minCount: 1,
       maxCount: 100,
+    },
+    sponsorshipSettings: {
+      sponsorshipMode: 'CODE',
     },
   };
 }

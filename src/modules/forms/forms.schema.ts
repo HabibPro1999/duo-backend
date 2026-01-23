@@ -181,6 +181,15 @@ export const FormIdParamSchema = z
   })
   .strict();
 
+// Update sponsorship settings (for SPONSOR forms only)
+export const UpdateSponsorshipSettingsSchema = z
+  .object({
+    sponsorshipMode: SponsorshipModeSchema,
+    registrantSearchScope: RegistrantSearchScopeSchema.optional(),
+    autoApproveSponsorship: z.boolean().optional(),
+  })
+  .strict();
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -202,3 +211,4 @@ export type SponsorFormSchemaJson = z.infer<typeof SponsorFormSchemaJsonSchema>;
 export type CreateFormInput = z.infer<typeof CreateFormSchema>;
 export type UpdateFormInput = z.infer<typeof UpdateFormSchema>;
 export type ListFormsQuery = z.infer<typeof ListFormsQuerySchema>;
+export type UpdateSponsorshipSettingsInput = z.infer<typeof UpdateSponsorshipSettingsSchema>;

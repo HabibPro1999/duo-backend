@@ -10,15 +10,18 @@ import {
   getSponsorFormByEventId,
   createSponsorForm,
   isSponsorshipModeLocked,
+  updateSponsorshipSettings,
 } from './forms.service.js';
 import {
   CreateFormSchema,
   UpdateFormSchema,
   ListFormsQuerySchema,
   FormIdParamSchema,
+  UpdateSponsorshipSettingsSchema,
   type CreateFormInput,
   type UpdateFormInput,
   type ListFormsQuery,
+  type UpdateSponsorshipSettingsInput,
 } from './forms.schema.js';
 import type { AppInstance } from '@shared/types/fastify.js';
 import { UserRole } from '@identity';
@@ -130,6 +133,30 @@ export async function formsRoutes(app: AppInstance): Promise<void> {
 
       const locked = await isSponsorshipModeLocked(request.params.id);
       return reply.send({ locked });
+    }
+  );
+
+  // PATCH /api/forms/:id/sponsorship-settings - Update sponsorship settings
+  app.patch<{ Params: { id: string }; Body: UpdateSponsorshipSettingsInput }>(
+    '/:id/sponsorship-settings',
+    {
+      schema: { params: FormIdParamSchema, body: UpdateSponsorshipSettingsSchema },
+    },
+    async (request, reply) => {
+      // Get form to check ownership
+      const form = await getFormById(request.params.id);
+      if (!form) {
+        throw app.httpErrors.notFound('Form not found');
+      }
+
+      // Check if user is super_admin or updating their own client's form
+      const clientId = await getFormClientId(request.params.id);
+      if (clientId && !canAccessClient(request.user!, clientId)) {
+        throw app.httpErrors.forbidden('Insufficient permissions to update this form');
+      }
+
+      const updatedForm = await updateSponsorshipSettings(request.params.id, request.body);
+      return reply.send(updatedForm);
     }
   );
 
