@@ -131,12 +131,15 @@ export async function getFormById(id: string): Promise<Form | null> {
  * Only returns forms for OPEN events with event and client data.
  */
 export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRelations | null> {
-  // Find the form via event slug, including all related data
+  // Find the REGISTRATION form via event slug, including all related data
   const form = await prisma.form.findFirst({
     where: {
+      type: 'REGISTRATION',
       event: {
         slug: eventSlug,
+        status: 'OPEN',
       },
+      active: true,
     },
     include: {
       event: {
@@ -158,11 +161,6 @@ export async function getFormByEventSlug(eventSlug: string): Promise<FormWithRel
       },
     },
   });
-
-  // Only return forms for OPEN events
-  if (!form || form.event.status !== 'OPEN') {
-    return null;
-  }
 
   return form;
 }
