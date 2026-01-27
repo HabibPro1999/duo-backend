@@ -353,7 +353,8 @@ describe('Email Queue Service', () => {
       };
 
       // Mock transaction
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -378,7 +379,8 @@ describe('Email Queue Service', () => {
         registration: null,
       };
 
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -400,7 +402,8 @@ describe('Email Queue Service', () => {
         registration: null,
       };
 
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -435,7 +438,8 @@ describe('Email Queue Service', () => {
         },
       };
 
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -477,7 +481,8 @@ describe('Email Queue Service', () => {
         },
       };
 
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -505,7 +510,8 @@ describe('Email Queue Service', () => {
     });
 
     it('should return empty result when queue is empty', async () => {
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -537,7 +543,8 @@ describe('Email Queue Service', () => {
         registration: null,
       };
 
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -561,7 +568,8 @@ describe('Email Queue Service', () => {
         registration: null, // No registration to build context from
       };
 
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -582,7 +590,8 @@ describe('Email Queue Service', () => {
     });
 
     it('should respect batch size parameter', async () => {
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -598,7 +607,8 @@ describe('Email Queue Service', () => {
     });
 
     it('should only process emails that have not exceeded max retries', async () => {
-      prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<EmailLogWithRelations[]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prismaMock.$transaction.mockImplementation(async (callback: any) => {
         return callback(prismaMock);
       });
 
@@ -737,7 +747,8 @@ describe('Email Queue Service', () => {
         { status: 'BOUNCED', _count: { status: 2 } },
       ];
 
-      prismaMock.emailLog.groupBy.mockResolvedValue(mockStats as never);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prismaMock.emailLog.groupBy as any).mockResolvedValue(mockStats);
 
       const result = await getQueueStats();
 
@@ -751,7 +762,8 @@ describe('Email Queue Service', () => {
     });
 
     it('should return empty object when no emails in queue', async () => {
-      prismaMock.emailLog.groupBy.mockResolvedValue([] as never);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prismaMock.emailLog.groupBy as any).mockResolvedValue([]);
 
       const result = await getQueueStats();
 
@@ -761,7 +773,8 @@ describe('Email Queue Service', () => {
     it('should handle single status in queue', async () => {
       const mockStats = [{ status: 'QUEUED', _count: { status: 5 } }];
 
-      prismaMock.emailLog.groupBy.mockResolvedValue(mockStats as never);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (prismaMock.emailLog.groupBy as any).mockResolvedValue(mockStats);
 
       const result = await getQueueStats();
 

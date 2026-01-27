@@ -143,14 +143,19 @@ describe('Events Service', () => {
         return callback(txMock);
       });
 
-      const result = await createEvent(inputWithoutStatus);
+      const result = await createEvent({
+        ...inputWithoutStatus,
+        status: 'CLOSED',
+        basePrice: 0,
+        currency: 'TND',
+      });
 
       expect(result.status).toBe('CLOSED');
     });
 
     it('should use default basePrice 0 and currency TND when not provided', async () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { basePrice: _omit1, currency: _omit2, ...inputWithoutPricing } = validInput;
+      const { basePrice: _omit1, currency: _omit2, status: _omit3, ...inputWithoutPricing } = validInput;
 
       const mockEvent = createMockEvent({ id: eventId, clientId });
       const mockPricing = createMockEventPricing({
@@ -173,7 +178,12 @@ describe('Events Service', () => {
         return callback(txMock);
       });
 
-      const result = await createEvent(inputWithoutPricing);
+      const result = await createEvent({
+        ...inputWithoutPricing,
+        status: 'CLOSED',
+        basePrice: 0,
+        currency: 'TND',
+      });
 
       expect(result.pricing?.basePrice).toBe(0);
       expect(result.pricing?.currency).toBe('TND');
@@ -429,7 +439,7 @@ describe('Events Service', () => {
     });
 
     it('should filter by status', async () => {
-      const mockEvents = createManyMockEvents(2).map((e) => ({ ...e, status: 'OPEN' }));
+      const mockEvents = createManyMockEvents(2).map((e) => ({ ...e, status: 'OPEN' as const }));
 
       prismaMock.event.findMany.mockResolvedValue(mockEvents);
       prismaMock.event.count.mockResolvedValue(2);

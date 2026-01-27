@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { prismaMock } from '../../../tests/mocks/prisma.js';
 import { firebaseAuthMock, createMockDecodedToken } from '../../../tests/mocks/firebase.js';
