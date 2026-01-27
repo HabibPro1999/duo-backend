@@ -183,6 +183,8 @@ export async function updateEmailTemplate(
     description?: string | null;
     subject?: string;
     content?: TiptapDocument;
+    category?: 'AUTOMATIC' | 'MANUAL';
+    trigger?: AutomaticEmailTrigger | null;
     isActive?: boolean;
   }
 ): Promise<EmailTemplate> {
@@ -190,6 +192,52 @@ export async function updateEmailTemplate(
 
   if (!existing) {
     throw new AppError('Email template not found', 404, true, ErrorCodes.NOT_FOUND);
+  }
+
+  // Determine final category and trigger values
+  const finalCategory = input.category ?? existing.category;
+  const finalTrigger = input.trigger !== undefined ? input.trigger : existing.trigger;
+
+  // Validate category/trigger consistency
+  if (finalCategory === 'AUTOMATIC' && !finalTrigger) {
+    throw new AppError(
+      'Automatic templates require a trigger',
+      400,
+      true,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+  if (finalCategory === 'MANUAL' && finalTrigger) {
+    throw new AppError(
+      'Manual templates should not have a trigger',
+      400,
+      true,
+      ErrorCodes.BAD_REQUEST
+    );
+  }
+
+  // Check for duplicate trigger if changing to automatic or changing trigger
+  if (
+    finalCategory === 'AUTOMATIC' &&
+    finalTrigger &&
+    (finalTrigger !== existing.trigger || finalCategory !== existing.category)
+  ) {
+    const duplicate = await prisma.emailTemplate.findFirst({
+      where: {
+        eventId: existing.eventId,
+        trigger: finalTrigger,
+        isActive: true,
+        id: { not: id }, // Exclude current template
+      },
+    });
+    if (duplicate) {
+      throw new AppError(
+        `An active template for trigger "${finalTrigger}" already exists for this event`,
+        409,
+        true,
+        ErrorCodes.CONFLICT
+      );
+    }
   }
 
   // If content is updated, re-compile
@@ -214,6 +262,8 @@ export async function updateEmailTemplate(
       ...(input.subject !== undefined && { subject: input.subject }),
       ...(input.content && { content: input.content as unknown as Prisma.InputJsonValue }),
       ...compiledContent,
+      ...(input.category !== undefined && { category: input.category }),
+      ...(input.trigger !== undefined && { trigger: input.trigger }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
     },
   });
