@@ -1,17 +1,26 @@
 import { PrismaClient } from '@/generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 import { config } from '@config/app.config.js';
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  // Create pg Pool with proper configuration
+  const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: config.database.poolSize, // 20 for prod, 5 for dev
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+
+  const adapter = new PrismaPg(pool);
 
   return new PrismaClient({
     adapter,
     log: config.isDevelopment ? ['query', 'error', 'warn'] : ['error', 'warn'],
     transactionOptions: {
-      isolationLevel: 'Serializable',
-      maxWait: 5000,
-      timeout: 10000,
+      isolationLevel: 'ReadCommitted', // Changed from Serializable to reduce conflicts
+      maxWait: 10000, // Increased from 5s
+      timeout: 30000, // Increased from 10s
     },
   }).$extends({
     query: {

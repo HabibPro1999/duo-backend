@@ -36,12 +36,25 @@ export async function registerPlugins(app: AppInstance) {
     credentials: true,
   });
 
+  // Security headers
   await app.register(helmet, {
     contentSecurityPolicy: config.isProduction,
+    strictTransportSecurity: config.isProduction
+      ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+      : false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   });
 
+  // Global rate limiting
   await app.register(rateLimit, {
     max: config.security.rateLimit.max,
     timeWindow: config.security.rateLimit.timeWindow,
   });
 }
+
+// Rate limit presets for public endpoints
+export const publicRateLimits = {
+  registration: { max: 5, timeWindow: '1 minute' },
+  paymentProof: { max: 10, timeWindow: '1 minute' },
+  editToken: { max: 3, timeWindow: '1 minute' },
+};

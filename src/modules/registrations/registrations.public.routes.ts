@@ -24,6 +24,7 @@ import {
 import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
+import { publicRateLimits } from '@core/plugins.js';
 import type { AppInstance } from '@shared/types/fastify.js';
 
 // Schema for edit token query parameter
@@ -45,6 +46,9 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
   }>(
     '/:formId/register',
     {
+      config: {
+        rateLimit: publicRateLimits.registration,
+      },
       schema: {
         params: FormIdParamSchema,
         body: CreateRegistrationSchema.omit({ formId: true }),
@@ -159,6 +163,9 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
   }>(
     '/:registrationId',
     {
+      config: {
+        rateLimit: publicRateLimits.editToken,
+      },
       schema: {
         params: RegistrationIdPublicParamSchema,
         querystring: EditTokenQuerySchema,
@@ -218,6 +225,9 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
   }>(
     '/:registrationId/payment-proof',
     {
+      config: {
+        rateLimit: publicRateLimits.paymentProof,
+      },
       schema: {
         params: RegistrationIdPublicParamSchema,
         querystring: EditTokenQuerySchema,

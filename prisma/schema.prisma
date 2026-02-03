@@ -411,6 +411,7 @@ model Registration {
   @@index([formId])
   @@index([email])
   @@index([sponsorshipCode])
+  @@index([paymentStatus, updatedAt]) // For queue/batch processing
   @@map("registrations")
 }
 
@@ -540,6 +541,7 @@ model EmailLog {
   // Indexes
   @@index([registrationId])
   @@index([status, queuedAt]) // For queue processing
+  @@index([status, retryCount]) // For retry processing
   @@index([recipientEmail])
   @@index([sendgridMessageId]) // For webhook lookups
   @@index([trigger, queuedAt])

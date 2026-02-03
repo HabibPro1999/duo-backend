@@ -6,6 +6,9 @@ import { paginate, getSkip, type PaginatedResult } from '@shared/utils/paginatio
 import type { CreateEventInput, UpdateEventInput, ListEventsQuery } from './events.schema.js';
 import type { Event, EventPricing, Prisma } from '@/generated/prisma/client.js';
 
+// Transaction client type that works with Prisma extensions
+type TransactionClient = { $executeRaw: typeof prisma.$executeRaw };
+
 // Type for Event with pricing included
 type EventWithPricing = Event & { pricing: EventPricing | null };
 
@@ -227,6 +230,26 @@ export async function incrementRegisteredCount(id: string): Promise<Event> {
 }
 
 /**
+ * Atomic increment of registered count within a transaction.
+ * Uses raw SQL to prevent race conditions under concurrent load.
+ */
+export async function incrementRegisteredCountTx(
+  tx: TransactionClient,
+  id: string
+): Promise<void> {
+  const result = await tx.$executeRaw`
+    UPDATE "Event"
+    SET registered_count = registered_count + 1
+    WHERE id = ${id}
+    AND (max_capacity IS NULL OR registered_count < max_capacity)
+  `;
+
+  if (result === 0) {
+    throw new AppError('Event is at capacity', 409, true, ErrorCodes.EVENT_FULL);
+  }
+}
+
+/**
  * Decrement registered count for an event.
  */
 export async function decrementRegisteredCount(id: string): Promise<Event> {
@@ -234,4 +257,18 @@ export async function decrementRegisteredCount(id: string): Promise<Event> {
     where: { id },
     data: { registeredCount: { decrement: 1 } },
   });
+}
+
+/**
+ * Atomic decrement of registered count within a transaction.
+ */
+export async function decrementRegisteredCountTx(
+  tx: TransactionClient,
+  id: string
+): Promise<void> {
+  await tx.$executeRaw`
+    UPDATE "Event"
+    SET registered_count = GREATEST(0, registered_count - 1)
+    WHERE id = ${id}
+  `;
 }

@@ -2,19 +2,53 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/database/client.js';
 import { logger } from '@shared/utils/logger.js';
 
-export function gracefulShutdown(server: FastifyInstance) {
+const SHUTDOWN_TIMEOUT_MS = 30000; // 30 seconds max for graceful shutdown
+
+export function gracefulShutdown(
+  server: FastifyInstance,
+  emailQueueInterval?: ReturnType<typeof setInterval> | null
+) {
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+  let isShuttingDown = false;
 
   signals.forEach((signal) => {
     process.on(signal, () => {
-      logger.info(`Received ${signal}, shutting down gracefully...`);
+      // Prevent duplicate handling
+      if (isShuttingDown) return;
+      isShuttingDown = true;
+
+      logger.info(`Received ${signal}, initiating graceful shutdown...`);
+
+      // Force exit after timeout
+      const forceExitTimer = setTimeout(() => {
+        logger.error('Graceful shutdown timed out, forcing exit');
+        process.exit(1);
+      }, SHUTDOWN_TIMEOUT_MS);
 
       void (async () => {
-        await server.close();
-        await prisma.$disconnect();
+        try {
+          // Stop email queue worker
+          if (emailQueueInterval) {
+            clearInterval(emailQueueInterval);
+            logger.info('Email queue worker stopped');
+          }
 
-        logger.info('Server closed');
-        process.exit(0);
+          // Stop accepting new connections
+          await server.close();
+          logger.info('HTTP server closed');
+
+          // Disconnect database
+          await prisma.$disconnect();
+          logger.info('Database disconnected');
+
+          clearTimeout(forceExitTimer);
+          logger.info('Graceful shutdown complete');
+          process.exit(0);
+        } catch (error) {
+          logger.error({ error }, 'Error during graceful shutdown');
+          clearTimeout(forceExitTimer);
+          process.exit(1);
+        }
       })();
     });
   });

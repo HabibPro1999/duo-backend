@@ -48,28 +48,77 @@ export async function buildServer(): Promise<AppInstance> {
   // Register lifecycle hooks
   registerHooks(app);
 
-  // Health check with database connectivity
+  // Enhanced health check with detailed diagnostics
   app.get('/health', async (_request, reply) => {
-    const checks: Record<string, 'connected' | 'disconnected'> = {
-      database: 'disconnected',
-    };
+    const startTime = Date.now();
 
+    const checks: Record<string, {
+      status: 'healthy' | 'unhealthy' | 'degraded';
+      latencyMs?: number;
+      error?: string;
+    }> = {};
+
+    // Database check with latency measurement
     try {
+      const dbStart = Date.now();
       await prisma.$queryRaw`SELECT 1`;
-      checks.database = 'connected';
-    } catch {
-      // Database check failed
+      checks.database = {
+        status: 'healthy',
+        latencyMs: Date.now() - dbStart,
+      };
+    } catch (error) {
+      checks.database = {
+        status: 'unhealthy',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
 
-    const allHealthy = Object.values(checks).every((v) => v === 'connected');
-    const status = allHealthy ? 'ok' : 'degraded';
-    const statusCode = allHealthy ? 200 : 503;
+    // Memory check
+    const memUsage = process.memoryUsage();
+    const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+    const heapPercent = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+
+    checks.memory = {
+      status: heapPercent > 90 ? 'degraded' : 'healthy',
+      latencyMs: heapUsedMB, // Using this field to report heap usage in MB
+    };
+
+    // Determine overall status
+    const hasUnhealthy = Object.values(checks).some((c) => c.status === 'unhealthy');
+    const hasDegraded = Object.values(checks).some((c) => c.status === 'degraded');
+
+    const overallStatus = hasUnhealthy ? 'unhealthy' : (hasDegraded ? 'degraded' : 'healthy');
+    const statusCode = hasUnhealthy ? 503 : 200;
 
     return reply.status(statusCode).send({
-      status,
+      status: overallStatus,
       timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      responseTimeMs: Date.now() - startTime,
+      memory: {
+        heapUsedMB,
+        heapTotalMB,
+        heapPercent: Math.round(heapPercent),
+      },
       checks,
+      version: process.env.npm_package_version || '1.0.0',
     });
+  });
+
+  // Liveness probe (Kubernetes-style) - simple "am I running?" check
+  app.get('/health/live', async (_request, reply) => {
+    return reply.send({ status: 'ok' });
+  });
+
+  // Readiness probe - "am I ready to accept traffic?"
+  app.get('/health/ready', async (_request, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      return reply.send({ status: 'ready' });
+    } catch {
+      return reply.status(503).send({ status: 'not ready' });
+    }
   });
 
   // Register module routes

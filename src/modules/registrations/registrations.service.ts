@@ -4,7 +4,7 @@ import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { logger } from '@shared/utils/logger.js';
 import { paginate, getSkip, type PaginatedResult } from '@shared/utils/pagination.js';
-import { incrementRegisteredCount, decrementRegisteredCount } from '@events';
+import { incrementRegisteredCountTx, decrementRegisteredCountTx } from '@events';
 import {
   validateAccessSelections,
   reserveAccessSpot,
@@ -383,8 +383,8 @@ export async function createRegistration(
       }
     }
 
-    // Increment event registered count
-    await incrementRegisteredCount(eventId);
+    // Increment event registered count (atomic SQL within transaction)
+    await incrementRegisteredCountTx(tx, eventId);
 
     // Return full registration with derived accessSelections
     const createdReg = await tx.registration.findUnique({
@@ -651,8 +651,8 @@ export async function deleteRegistration(id: string, performedBy?: string): Prom
       }
     }
 
-    // Decrement event registered count
-    await decrementRegisteredCount(registration.eventId);
+    // Decrement event registered count (atomic SQL within transaction)
+    await decrementRegisteredCountTx(tx, registration.eventId);
 
     // Delete the registration
     await tx.registration.delete({ where: { id } });

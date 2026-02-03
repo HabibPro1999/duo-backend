@@ -4,6 +4,18 @@ import { prisma } from '@/database/client.js';
 import { AppError } from '@shared/errors/app-error.js';
 import { ErrorCodes } from '@shared/errors/error-codes.js';
 import { UserRole } from '@modules/identity/permissions.js';
+import { SimpleCache } from '@shared/utils/cache.js';
+import type { User } from '@/generated/prisma/client.js';
+
+// Cache user lookups for 60 seconds to reduce DB hits
+const userCache = new SimpleCache<User>(60);
+
+/**
+ * Invalidate user cache entry (call when user is updated/deleted).
+ */
+export function invalidateUserCache(userId: string): void {
+  userCache.invalidate(userId);
+}
 
 /**
  * Middleware to require authentication.
@@ -29,10 +41,20 @@ export async function requireAuth(
   try {
     const decoded = await verifyToken(token);
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.uid },
-    });
+    // Check cache first
+    let user = userCache.get(decoded.uid);
+
+    if (!user) {
+      // Get user from database
+      user = await prisma.user.findUnique({
+        where: { id: decoded.uid },
+      }) ?? undefined;
+
+      // Cache the user if found
+      if (user) {
+        userCache.set(decoded.uid, user);
+      }
+    }
 
     if (!user) {
       throw new AppError(

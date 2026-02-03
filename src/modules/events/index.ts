@@ -8,7 +8,9 @@ export {
   deleteEvent,
   eventExists,
   incrementRegisteredCount,
+  incrementRegisteredCountTx,
   decrementRegisteredCount,
+  decrementRegisteredCountTx,
 } from './events.service.js';
 
 // Schemas & Types

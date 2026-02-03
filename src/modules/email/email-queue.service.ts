@@ -240,21 +240,22 @@ export async function processEmailQueue(batchSize = 50): Promise<ProcessQueueRes
 
   result.processed = batch.length
 
-  // Process each email
-  for (const emailLog of batch) {
+  // Process emails in parallel with controlled concurrency
+  const CONCURRENCY_LIMIT = 10
+
+  // Process a single email and return the outcome
+  async function processEmail(emailLog: typeof batch[number]): Promise<'sent' | 'failed' | 'skipped'> {
     try {
       // Skip if no template
       if (!emailLog.template) {
         await markAsSkipped(emailLog.id, 'No template found')
-        result.skipped++
-        continue
+        return 'skipped'
       }
 
       // Skip if template is inactive
       if (!emailLog.template.isActive) {
         await markAsSkipped(emailLog.id, 'Template is inactive')
-        result.skipped++
-        continue
+        return 'skipped'
       }
 
       // Build context
@@ -269,8 +270,7 @@ export async function processEmailQueue(batchSize = 50): Promise<ProcessQueueRes
 
       if (!context || Object.keys(context).length === 0) {
         await markAsSkipped(emailLog.id, 'Could not build email context')
-        result.skipped++
-        continue
+        return 'skipped'
       }
 
       // Resolve variables
@@ -297,16 +297,28 @@ export async function processEmailQueue(batchSize = 50): Promise<ProcessQueueRes
 
       if (sendResult.success) {
         await markAsSent(emailLog.id, sendResult.messageId)
-        result.sent++
+        return 'sent'
       } else {
         await markAsFailed(emailLog.id, sendResult.error || 'Unknown error', emailLog.retryCount)
-        result.failed++
+        return 'failed'
       }
     } catch (error: unknown) {
       const err = error as Error
       logger.error({ emailLogId: emailLog.id, error: err.message }, 'Error processing email')
       await markAsFailed(emailLog.id, err.message, emailLog.retryCount)
-      result.failed++
+      return 'failed'
+    }
+  }
+
+  // Process in chunks to limit concurrency
+  for (let i = 0; i < batch.length; i += CONCURRENCY_LIMIT) {
+    const chunk = batch.slice(i, i + CONCURRENCY_LIMIT)
+    const outcomes = await Promise.all(chunk.map(processEmail))
+
+    for (const outcome of outcomes) {
+      if (outcome === 'sent') result.sent++
+      else if (outcome === 'failed') result.failed++
+      else result.skipped++
     }
   }
 

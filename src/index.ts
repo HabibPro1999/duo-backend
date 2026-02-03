@@ -4,6 +4,17 @@ import { logger } from '@shared/utils/logger.js';
 import { gracefulShutdown } from '@core/shutdown.js';
 import { processEmailQueue } from '@modules/email/index.js';
 
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ reason, promise }, 'Unhandled Promise Rejection');
+  // Don't exit - let the application continue
+});
+
+process.on('uncaughtException', (error) => {
+  logger.fatal({ error }, 'Uncaught Exception - shutting down');
+  process.exit(1);
+});
+
 async function main() {
   const server = await buildServer();
 
@@ -11,7 +22,8 @@ async function main() {
   logger.info(`Server running on port ${config.PORT}`);
 
   // Start email queue worker (processes every 15 seconds for faster email delivery)
-  setInterval(() => {
+  // Store reference for graceful shutdown cleanup
+  const emailQueueInterval = setInterval(() => {
     processEmailQueue(50)
       .then((result) => {
         if (result.processed > 0) {
@@ -24,7 +36,7 @@ async function main() {
   }, 15_000);
   logger.info('Email queue worker started (15s interval)');
 
-  gracefulShutdown(server);
+  gracefulShutdown(server, emailQueueInterval);
 }
 
 main().catch((err) => {
