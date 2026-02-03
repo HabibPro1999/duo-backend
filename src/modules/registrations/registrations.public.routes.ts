@@ -61,7 +61,10 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
           // Return existing registration (idempotent response with 200)
           const priceBreakdown = existingRegistration.priceBreakdown as unknown;
           return reply.status(200).send({
-            registration: existingRegistration,
+            registration: {
+              ...existingRegistration,
+              token: existingRegistration.editToken, // Map editToken to token for frontend compatibility
+            },
             priceBreakdown,
           });
         }
@@ -133,7 +136,10 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
       const registration = await createRegistration(input, registrationPriceBreakdown);
 
       return reply.status(201).send({
-        registration,
+        registration: {
+          ...registration,
+          token: registration.editToken, // Map editToken to token for frontend compatibility
+        },
         priceBreakdown: registrationPriceBreakdown,
       });
     }
