@@ -238,7 +238,7 @@ export async function incrementRegisteredCountTx(
   id: string
 ): Promise<void> {
   const result = await tx.$executeRaw`
-    UPDATE "Event"
+    UPDATE "events"
     SET registered_count = registered_count + 1
     WHERE id = ${id}
     AND (max_capacity IS NULL OR registered_count < max_capacity)
@@ -267,7 +267,7 @@ export async function decrementRegisteredCountTx(
   id: string
 ): Promise<void> {
   await tx.$executeRaw`
-    UPDATE "Event"
+    UPDATE "events"
     SET registered_count = GREATEST(0, registered_count - 1)
     WHERE id = ${id}
   `;
