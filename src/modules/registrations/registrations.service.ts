@@ -1415,9 +1415,12 @@ export async function editRegistrationPublic(
       }
     }
 
-    // Calculate new total — always use recalculated price.
-    // Access removal is blocked for paid registrations, so new total >= old total.
-    const newTotalAmount = newPriceBreakdown.total;
+    // Calculate new total. For paid registrations, never decrease below
+    // the original total — pricing rule changes via form data edits
+    // should not reduce what was already owed.
+    const newTotalAmount = isPaid
+      ? Math.max(registration.totalAmount, newPriceBreakdown.total)
+      : newPriceBreakdown.total;
 
     // Update registration
     await tx.registration.update({
