@@ -27,10 +27,14 @@ export function renderTemplateToMjml(document: TiptapDocument): string {
   return `
 <mjml>
   <mj-head>
+    <mj-raw>
+      <meta name="color-scheme" content="light dark">
+      <meta name="supported-color-schemes" content="light dark">
+    </mj-raw>
     <mj-attributes>
       <mj-all font-family="Arial, sans-serif" />
       <mj-text font-size="14px" line-height="1.6" color="#333333" />
-      <mj-button background-color="#4F46E5" color="#ffffff" border-radius="6px" />
+      <mj-button background-color="#4F46E5" color="#ffffff" border-radius="6px" inner-padding="10px 25px" />
     </mj-attributes>
     <mj-style>
       .variable {
@@ -88,7 +92,7 @@ export function compileMjmlToHtml(mjml: string): MjmlCompilationResult {
   const result = mjml2html(mjml, {
     validationLevel: "strict",
     minify: false,
-    beautify: true,
+    beautify: false,
   });
 
   // Filter out errors that are just template variable placeholders (expected)
@@ -230,9 +234,19 @@ function renderHeading(node: TiptapNode): string {
     6: "14px",
   };
 
-  const fontSize = sizes[level] || "14px";
+  const lineHeights: Record<number, string> = {
+    1: "1.3",
+    2: "1.4",
+    3: "1.4",
+    4: "1.4",
+    5: "1.5",
+    6: "1.5",
+  };
 
-  return `<mj-text align="${align}" font-size="${fontSize}" font-weight="bold" padding-bottom="10px">${content}</mj-text>`;
+  const fontSize = sizes[level] || "14px";
+  const lineHeight = lineHeights[level] || "1.4";
+
+  return `<mj-text align="${align}" font-size="${fontSize}" font-weight="bold" line-height="${lineHeight}" padding-bottom="10px">${content}</mj-text>`;
 }
 
 /**
@@ -290,8 +304,8 @@ function renderBlockquote(node: TiptapNode): string {
  */
 function renderImage(node: TiptapNode): string {
   const src = escapeHtml(String(node.attrs?.src || ""));
-  const alt = escapeHtml(String(node.attrs?.alt || ""));
-  const width = String(node.attrs?.width || "100%");
+  const alt = escapeHtml(String(node.attrs?.alt ?? ""));
+  const width = String(node.attrs?.width || "600");
 
   if (!src) return "";
 
