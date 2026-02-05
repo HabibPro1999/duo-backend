@@ -1033,7 +1033,12 @@ type RegistrationForEdit = RegistrationWithRelations & {
 export type GetRegistrationForEditResult = {
   registration: RegistrationForEdit;
   canEdit: boolean;
+  canEditPersonalInfo: boolean;
+  canEditAccess: boolean;
+  canAddAccess: boolean;
   canRemoveAccess: boolean;
+  isFullySponsored: boolean;
+  amountDue: number;
   editRestrictions: string[];
 };
 
@@ -1106,20 +1111,44 @@ export async function getRegistrationForEdit(
 
   const enrichedRegistration = { ...registration, accessSelections };
 
+  // Start with all permissions enabled
   const restrictions: string[] = [];
   let canEdit = true;
+  let canEditPersonalInfo = true;
+  let canEditAccess = true;
+  let canAddAccess = true;
   let canRemoveAccess = true;
+  let isFullySponsored = false;
 
+  // REFUNDED → block everything
   if (registration.paymentStatus === "REFUNDED") {
     canEdit = false;
+    canEditPersonalInfo = false;
+    canEditAccess = false;
+    canAddAccess = false;
+    canRemoveAccess = false;
     restrictions.push("Registration has been refunded");
   }
 
+  // Event not OPEN → block everything
   if (registration.event.status !== "OPEN") {
     canEdit = false;
+    canEditPersonalInfo = false;
+    canEditAccess = false;
+    canAddAccess = false;
+    canRemoveAccess = false;
     restrictions.push("Event is not accepting changes");
   }
 
+  // VERIFYING → block access edits only (personal info stays editable)
+  if (registration.paymentStatus === "VERIFYING") {
+    canEditAccess = false;
+    canAddAccess = false;
+    canRemoveAccess = false;
+    restrictions.push("Payment proof is under review");
+  }
+
+  // PAID or paidAmount > 0 → cannot remove access (can still add)
   const isPaid =
     registration.paymentStatus === "PAID" || registration.paidAmount > 0;
   if (isPaid) {
@@ -1127,10 +1156,43 @@ export async function getRegistrationForEdit(
     restrictions.push("Cannot remove access items (payment received)");
   }
 
+  // WAIVED → block all access edits
+  if (registration.paymentStatus === "WAIVED") {
+    canEditAccess = false;
+    canAddAccess = false;
+    canRemoveAccess = false;
+    restrictions.push("Waived registrations cannot modify access selections");
+  }
+
+  // Fully sponsored → block all access edits
+  if (
+    registration.sponsorshipAmount >= registration.totalAmount &&
+    registration.totalAmount > 0
+  ) {
+    isFullySponsored = true;
+    canEditAccess = false;
+    canAddAccess = false;
+    canRemoveAccess = false;
+    restrictions.push(
+      "Fully sponsored registration cannot modify access selections",
+    );
+  }
+
+  // Compute amount due
+  const amountDue = Math.max(
+    0,
+    registration.totalAmount - registration.paidAmount,
+  );
+
   return {
     registration: enrichedRegistration as RegistrationForEdit,
     canEdit,
+    canEditPersonalInfo,
+    canEditAccess,
+    canAddAccess,
     canRemoveAccess,
+    isFullySponsored,
+    amountDue,
     editRestrictions: restrictions,
   };
 }
@@ -1187,6 +1249,40 @@ export async function editRegistrationPublic(
       400,
       true,
       ErrorCodes.REGISTRATION_EDIT_FORBIDDEN,
+    );
+  }
+
+  // 2b. Block access edits for VERIFYING registrations
+  if (registration.paymentStatus === "VERIFYING" && input.accessSelections) {
+    throw new AppError(
+      "Cannot modify access while payment is under review",
+      400,
+      true,
+      ErrorCodes.REGISTRATION_VERIFYING_BLOCKED,
+    );
+  }
+
+  // 2c. Block access edits for WAIVED registrations
+  if (registration.paymentStatus === "WAIVED" && input.accessSelections) {
+    throw new AppError(
+      "Waived registrations cannot modify access selections",
+      400,
+      true,
+      ErrorCodes.REGISTRATION_WAIVED_ACCESS_BLOCKED,
+    );
+  }
+
+  // 2d. Block access edits for fully sponsored registrations
+  if (
+    registration.sponsorshipAmount >= registration.totalAmount &&
+    registration.totalAmount > 0 &&
+    input.accessSelections
+  ) {
+    throw new AppError(
+      "Fully sponsored registrations cannot modify access selections",
+      400,
+      true,
+      ErrorCodes.REGISTRATION_FULLY_SPONSORED_BLOCKED,
     );
   }
 
@@ -1319,10 +1415,9 @@ export async function editRegistrationPublic(
       }
     }
 
-    // Calculate new total
-    const newTotalAmount = isPaid
-      ? registration.totalAmount
-      : newPriceBreakdown.total;
+    // Calculate new total — always use recalculated price.
+    // Access removal is blocked for paid registrations, so new total >= old total.
+    const newTotalAmount = newPriceBreakdown.total;
 
     // Update registration
     await tx.registration.update({
