@@ -1,36 +1,36 @@
-import { z } from 'zod';
+import { z } from "zod";
 import {
   createRegistration,
   getRegistrationForEdit,
   editRegistrationPublic,
   verifyEditToken,
   uploadPaymentProof,
-  submitPaymentProofUrl,
   getRegistrationByIdempotencyKey,
-} from './registrations.service.js';
-import { calculatePrice } from '@pricing';
-import { getFormById } from '@forms';
-import { getEventById } from '@events';
+} from "./registrations.service.js";
+import { calculatePrice } from "@pricing";
+import { getFormById } from "@forms";
+import { getEventById } from "@events";
 import {
   CreateRegistrationSchema,
   FormIdParamSchema,
   RegistrationIdPublicParamSchema,
   PublicEditRegistrationSchema,
-  SubmitPaymentProofUrlSchema,
   type CreateRegistrationInput,
   type PublicEditRegistrationInput,
-  type SubmitPaymentProofUrlInput,
-} from './registrations.schema.js';
-import { validateFormData, type FormSchema } from '@shared/utils/form-data-validator.js';
-import { AppError } from '@shared/errors/app-error.js';
-import { ErrorCodes } from '@shared/errors/error-codes.js';
-import { publicRateLimits } from '@core/plugins.js';
-import type { AppInstance } from '@shared/types/fastify.js';
+} from "./registrations.schema.js";
+import {
+  validateFormData,
+  type FormSchema,
+} from "@shared/utils/form-data-validator.js";
+import { AppError } from "@shared/errors/app-error.js";
+import { ErrorCodes } from "@shared/errors/error-codes.js";
+import { publicRateLimits } from "@core/plugins.js";
+import type { AppInstance } from "@shared/types/fastify.js";
 
 // Schema for edit token query parameter
 const EditTokenQuerySchema = z
   .object({
-    token: z.string().length(64, 'Invalid edit token'),
+    token: z.string().length(64, "Invalid edit token"),
   })
   .strict();
 
@@ -38,13 +38,15 @@ const EditTokenQuerySchema = z
 // Public Routes (No Auth - for form submission)
 // ============================================================================
 
-export async function registrationsPublicRoutes(app: AppInstance): Promise<void> {
+export async function registrationsPublicRoutes(
+  app: AppInstance,
+): Promise<void> {
   // POST /api/public/forms/:formId/register - Submit registration
   app.post<{
     Params: { formId: string };
-    Body: Omit<CreateRegistrationInput, 'formId'>;
+    Body: Omit<CreateRegistrationInput, "formId">;
   }>(
-    '/:formId/register',
+    "/:formId/register",
     {
       config: {
         rateLimit: publicRateLimits.registration,
@@ -60,7 +62,9 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
 
       // Check idempotency key - return existing registration if found
       if (input.idempotencyKey) {
-        const existingRegistration = await getRegistrationByIdempotencyKey(input.idempotencyKey);
+        const existingRegistration = await getRegistrationByIdempotencyKey(
+          input.idempotencyKey,
+        );
         if (existingRegistration) {
           // Return existing registration (idempotent response with 200)
           const priceBreakdown = existingRegistration.priceBreakdown as unknown;
@@ -77,36 +81,37 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
       // Verify form exists
       const form = await getFormById(formId);
       if (!form) {
-        throw app.httpErrors.notFound('Form not found');
+        throw app.httpErrors.notFound("Form not found");
       }
 
       // Verify event is OPEN for registrations
       const event = await getEventById(form.eventId);
-      if (!event || event.status !== 'OPEN') {
-        throw app.httpErrors.badRequest('Event is not accepting registrations');
+      if (!event || event.status !== "OPEN") {
+        throw app.httpErrors.badRequest("Event is not accepting registrations");
       }
 
       // Validate formData against form schema
       const validationResult = validateFormData(
         form.schema as unknown as FormSchema,
-        input.formData
+        input.formData,
       );
       if (!validationResult.valid) {
         throw new AppError(
-          'Form validation failed',
+          "Form validation failed",
           400,
           true,
           ErrorCodes.FORM_VALIDATION_ERROR,
-          { fieldErrors: validationResult.errors }
+          { fieldErrors: validationResult.errors },
         );
       }
 
       // Calculate price breakdown using the event ID from the form
       // Convert access selections to the format expected by calculatePrice
-      const selectedExtras = input.accessSelections?.map((selection) => ({
-        extraId: selection.accessId,
-        quantity: selection.quantity,
-      })) ?? [];
+      const selectedExtras =
+        input.accessSelections?.map((selection) => ({
+          extraId: selection.accessId,
+          quantity: selection.quantity,
+        })) ?? [];
 
       const priceBreakdown = await calculatePrice(form.eventId, {
         formData: input.formData,
@@ -126,7 +131,7 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
           unitPrice: extra.unitPrice,
           quantity: extra.quantity,
           subtotal: extra.subtotal,
-          status: 'confirmed' as const, // Will be updated by createRegistration
+          status: "confirmed" as const, // Will be updated by createRegistration
         })),
         accessTotal: priceBreakdown.extrasTotal,
         subtotal: priceBreakdown.subtotal,
@@ -137,7 +142,10 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
       };
 
       // Create registration
-      const registration = await createRegistration(input, registrationPriceBreakdown);
+      const registration = await createRegistration(
+        input,
+        registrationPriceBreakdown,
+      );
 
       return reply.status(201).send({
         registration: {
@@ -146,7 +154,7 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
         },
         priceBreakdown: registrationPriceBreakdown,
       });
-    }
+    },
   );
 }
 
@@ -154,14 +162,16 @@ export async function registrationsPublicRoutes(app: AppInstance): Promise<void>
 // Public Registration Edit Routes (Self-Service)
 // ============================================================================
 
-export async function registrationEditPublicRoutes(app: AppInstance): Promise<void> {
+export async function registrationEditPublicRoutes(
+  app: AppInstance,
+): Promise<void> {
   // GET /api/public/registrations/:registrationId - Get registration for editing
   // Requires valid edit token in query string
   app.get<{
     Params: { registrationId: string };
     Querystring: { token: string };
   }>(
-    '/:registrationId',
+    "/:registrationId",
     {
       config: {
         rateLimit: publicRateLimits.editToken,
@@ -178,12 +188,12 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
       // Verify edit token before returning any data
       const isValid = await verifyEditToken(registrationId, token);
       if (!isValid) {
-        throw app.httpErrors.forbidden('Invalid or expired edit token');
+        throw app.httpErrors.forbidden("Invalid or expired edit token");
       }
 
       const result = await getRegistrationForEdit(registrationId);
       return reply.send(result);
-    }
+    },
   );
 
   // PATCH /api/public/registrations/:registrationId - Edit registration
@@ -193,7 +203,7 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
     Querystring: { token: string };
     Body: PublicEditRegistrationInput;
   }>(
-    '/:registrationId',
+    "/:registrationId",
     {
       schema: {
         params: RegistrationIdPublicParamSchema,
@@ -209,12 +219,12 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
       // Verify edit token before allowing edit
       const isValid = await verifyEditToken(registrationId, token);
       if (!isValid) {
-        throw app.httpErrors.forbidden('Invalid or expired edit token');
+        throw app.httpErrors.forbidden("Invalid or expired edit token");
       }
 
       const result = await editRegistrationPublic(registrationId, input);
       return reply.send(result);
-    }
+    },
   );
 
   // POST /api/public/registrations/:registrationId/payment-proof - Upload payment proof
@@ -223,7 +233,7 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
     Params: { registrationId: string };
     Querystring: { token: string };
   }>(
-    '/:registrationId/payment-proof',
+    "/:registrationId/payment-proof",
     {
       config: {
         rateLimit: publicRateLimits.paymentProof,
@@ -240,13 +250,13 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
       // Verify edit token before allowing upload
       const isValid = await verifyEditToken(registrationId, token);
       if (!isValid) {
-        throw app.httpErrors.forbidden('Invalid or expired edit token');
+        throw app.httpErrors.forbidden("Invalid or expired edit token");
       }
 
       // Get file from multipart request
       const data = await request.file();
       if (!data) {
-        throw app.httpErrors.badRequest('No file uploaded');
+        throw app.httpErrors.badRequest("No file uploaded");
       }
 
       const buffer = await data.toBuffer();
@@ -257,37 +267,6 @@ export async function registrationEditPublicRoutes(app: AppInstance): Promise<vo
       });
 
       return reply.status(201).send(result);
-    }
-  );
-
-  // POST /api/public/registrations/:registrationId/payment-proof-url - Submit payment proof URL (direct upload)
-  // Used when frontend uploads directly to Firebase Storage and submits the URL
-  // Requires valid edit token in query string
-  app.post<{
-    Params: { registrationId: string };
-    Querystring: { token: string };
-    Body: SubmitPaymentProofUrlInput;
-  }>(
-    '/:registrationId/payment-proof-url',
-    {
-      schema: {
-        params: RegistrationIdPublicParamSchema,
-        querystring: EditTokenQuerySchema,
-        body: SubmitPaymentProofUrlSchema,
-      },
     },
-    async (request, reply) => {
-      const { registrationId } = request.params;
-      const { token } = request.query;
-
-      // Verify edit token before allowing submission
-      const isValid = await verifyEditToken(registrationId, token);
-      if (!isValid) {
-        throw app.httpErrors.forbidden('Invalid or expired edit token');
-      }
-
-      const result = await submitPaymentProofUrl(registrationId, request.body.paymentProofUrl);
-      return reply.status(201).send(result);
-    }
   );
 }

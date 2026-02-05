@@ -1,23 +1,19 @@
-import { z } from 'zod';
-import { AccessSelectionSchema } from '@access';
+import { z } from "zod";
+import { AccessSelectionSchema } from "@access";
 
 // ============================================================================
 // Enums
 // ============================================================================
 
 export const PaymentStatusSchema = z.enum([
-  'PENDING',
-  'VERIFYING',
-  'PAID',
-  'REFUNDED',
-  'WAIVED',
+  "PENDING",
+  "VERIFYING",
+  "PAID",
+  "REFUNDED",
+  "WAIVED",
 ]);
 
-export const PaymentMethodSchema = z.enum([
-  'BANK_TRANSFER',
-  'ONLINE',
-  'CASH',
-]);
+export const PaymentMethodSchema = z.enum(["BANK_TRANSFER", "ONLINE", "CASH"]);
 
 // ============================================================================
 // Create Registration Schema (Public - for form submission)
@@ -130,7 +126,7 @@ export const PublicEditRegistrationSchema = z
       data.lastName !== undefined ||
       data.phone !== undefined ||
       data.accessSelections !== undefined,
-    { message: 'At least one field must be provided for update' }
+    { message: "At least one field must be provided for update" },
   );
 
 export const RegistrationIdPublicParamSchema = z
@@ -140,36 +136,24 @@ export const RegistrationIdPublicParamSchema = z
   .strict();
 
 // ============================================================================
-// Submit Payment Proof URL Schema (Direct Firebase Upload)
-// ============================================================================
-
-export const SubmitPaymentProofUrlSchema = z
-  .object({
-    paymentProofUrl: z.string().url(),
-  })
-  .strict();
-
-export type SubmitPaymentProofUrlInput = z.infer<typeof SubmitPaymentProofUrlSchema>;
-
-// ============================================================================
 // Table Column Schemas (for dynamic table rendering)
 // ============================================================================
 
 export const TableColumnTypeSchema = z.enum([
-  'text',
-  'email',
-  'phone',
-  'number',
-  'date',
-  'datetime',
-  'dropdown',
-  'radio',
-  'checkbox',
-  'currency',
-  'status',
-  'payment',
-  'file',
-  'textarea',
+  "text",
+  "email",
+  "phone",
+  "number",
+  "date",
+  "datetime",
+  "dropdown",
+  "radio",
+  "checkbox",
+  "currency",
+  "status",
+  "payment",
+  "file",
+  "textarea",
 ]);
 
 export const TableColumnOptionSchema = z.object({
@@ -201,7 +185,7 @@ export const PriceBreakdownSchema = z.object({
       ruleName: z.string(),
       effect: z.number(),
       reason: z.string().optional(),
-    })
+    }),
   ),
   calculatedBasePrice: z.number(),
   accessItems: z.array(
@@ -211,7 +195,7 @@ export const PriceBreakdownSchema = z.object({
       unitPrice: z.number(),
       quantity: z.number(),
       subtotal: z.number(),
-    })
+    }),
   ),
   accessTotal: z.number(),
   subtotal: z.number(),
@@ -220,7 +204,7 @@ export const PriceBreakdownSchema = z.object({
       code: z.string(),
       amount: z.number(),
       valid: z.boolean(),
-    })
+    }),
   ),
   sponsorshipTotal: z.number(),
   total: z.number(),
@@ -236,13 +220,19 @@ export type PaymentMethod = z.infer<typeof PaymentMethodSchema>;
 export type CreateRegistrationInput = z.infer<typeof CreateRegistrationSchema>;
 export type UpdateRegistrationInput = z.infer<typeof UpdateRegistrationSchema>;
 export type UpdatePaymentInput = z.infer<typeof UpdatePaymentSchema>;
-export type ListRegistrationsQuery = z.infer<typeof ListRegistrationsQuerySchema>;
+export type ListRegistrationsQuery = z.infer<
+  typeof ListRegistrationsQuerySchema
+>;
 export type PriceBreakdown = z.infer<typeof PriceBreakdownSchema>;
-export type PublicEditRegistrationInput = z.infer<typeof PublicEditRegistrationSchema>;
+export type PublicEditRegistrationInput = z.infer<
+  typeof PublicEditRegistrationSchema
+>;
 export type TableColumnType = z.infer<typeof TableColumnTypeSchema>;
 export type TableColumnOption = z.infer<typeof TableColumnOptionSchema>;
 export type TableColumn = z.infer<typeof TableColumnSchema>;
-export type RegistrationColumnsResponse = z.infer<typeof RegistrationColumnsResponseSchema>;
+export type RegistrationColumnsResponse = z.infer<
+  typeof RegistrationColumnsResponseSchema
+>;
 
 // ============================================================================
 // Audit Log Schemas
@@ -256,11 +246,11 @@ export const ListRegistrationAuditLogsQuerySchema = z
   .strict();
 
 export const AuditActionSchema = z.enum([
-  'CREATE',
-  'UPDATE',
-  'DELETE',
-  'PAYMENT_CONFIRMED',
-  'PAYMENT_PROOF_UPLOADED',
+  "CREATE",
+  "UPDATE",
+  "DELETE",
+  "PAYMENT_CONFIRMED",
+  "PAYMENT_PROOF_UPLOADED",
 ]);
 
 export const RegistrationAuditLogSchema = z.object({
@@ -272,7 +262,7 @@ export const RegistrationAuditLogSchema = z.object({
       z.object({
         old: z.unknown().nullable(),
         new: z.unknown().nullable(),
-      })
+      }),
     )
     .nullable(),
   performedBy: z.string().nullable(),
@@ -281,7 +271,9 @@ export const RegistrationAuditLogSchema = z.object({
   ipAddress: z.string().nullable(),
 });
 
-export type ListRegistrationAuditLogsQuery = z.infer<typeof ListRegistrationAuditLogsQuerySchema>;
+export type ListRegistrationAuditLogsQuery = z.infer<
+  typeof ListRegistrationAuditLogsQuerySchema
+>;
 export type AuditAction = z.infer<typeof AuditActionSchema>;
 export type RegistrationAuditLog = z.infer<typeof RegistrationAuditLogSchema>;
 
@@ -297,23 +289,23 @@ export const ListRegistrationEmailLogsQuerySchema = z
   .strict();
 
 export const EmailStatusSchema = z.enum([
-  'QUEUED',
-  'SENDING',
-  'SENT',
-  'DELIVERED',
-  'OPENED',
-  'CLICKED',
-  'BOUNCED',
-  'DROPPED',
-  'FAILED',
-  'SKIPPED',
+  "QUEUED",
+  "SENDING",
+  "SENT",
+  "DELIVERED",
+  "OPENED",
+  "CLICKED",
+  "BOUNCED",
+  "DROPPED",
+  "FAILED",
+  "SKIPPED",
 ]);
 
 export const AutomaticEmailTriggerSchema = z
   .enum([
-    'REGISTRATION_CREATED',
-    'PAYMENT_PROOF_SUBMITTED',
-    'PAYMENT_CONFIRMED',
+    "REGISTRATION_CREATED",
+    "PAYMENT_PROOF_SUBMITTED",
+    "PAYMENT_CONFIRMED",
   ])
   .nullable();
 
@@ -333,7 +325,9 @@ export const RegistrationEmailLogSchema = z.object({
   failedAt: z.string().nullable(),
 });
 
-export type ListRegistrationEmailLogsQuery = z.infer<typeof ListRegistrationEmailLogsQuerySchema>;
+export type ListRegistrationEmailLogsQuery = z.infer<
+  typeof ListRegistrationEmailLogsQuerySchema
+>;
 export type EmailStatus = z.infer<typeof EmailStatusSchema>;
 export type AutomaticEmailTrigger = z.infer<typeof AutomaticEmailTriggerSchema>;
 export type RegistrationEmailLog = z.infer<typeof RegistrationEmailLogSchema>;
@@ -360,5 +354,9 @@ export const RegistrantSearchResultSchema = z.object({
   accessTypeIds: z.array(z.string()),
 });
 
-export type SearchRegistrantsQuery = z.infer<typeof SearchRegistrantsQuerySchema>;
-export type RegistrantSearchResult = z.infer<typeof RegistrantSearchResultSchema>;
+export type SearchRegistrantsQuery = z.infer<
+  typeof SearchRegistrantsQuerySchema
+>;
+export type RegistrantSearchResult = z.infer<
+  typeof RegistrantSearchResultSchema
+>;
