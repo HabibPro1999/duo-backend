@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createTestApp } from '../helpers/test-app.js';
-import type { AppInstance } from '../../src/shared/types/fastify.js';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { createTestApp } from "../helpers/test-app.js";
+import type { AppInstance } from "../../src/shared/types/fastify.js";
 
-describe('Health Check', () => {
+describe("Health Check", () => {
   let app: AppInstance;
 
   beforeAll(async () => {
@@ -13,22 +13,22 @@ describe('Health Check', () => {
     await app.close();
   });
 
-  it('GET /health returns ok status', async () => {
+  it("GET /health returns ok status", async () => {
     const response = await app.inject({
-      method: 'GET',
-      url: '/health',
+      method: "GET",
+      url: "/health",
     });
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
-    expect(body.status).toBe('ok');
-    expect(body.checks.database).toBe('connected');
+    expect(body.status).toBe("healthy");
+    expect(body.checks.database.status).toBe("healthy");
   });
 
-  it('GET /health includes timestamp', async () => {
+  it("GET /health includes timestamp", async () => {
     const response = await app.inject({
-      method: 'GET',
-      url: '/health',
+      method: "GET",
+      url: "/health",
     });
 
     const body = response.json();

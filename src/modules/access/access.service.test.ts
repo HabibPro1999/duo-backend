@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { prismaMock } from '../../../tests/mocks/prisma.js';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { prismaMock } from "../../../tests/mocks/prisma.js";
 import {
   createMockEventAccess,
   createMockEvent,
-} from '../../../tests/helpers/factories.js';
+} from "../../../tests/helpers/factories.js";
 import {
   createEventAccess,
   updateEventAccess,
@@ -15,17 +15,17 @@ import {
   reserveAccessSpot,
   releaseAccessSpot,
   validateAccessSelections,
-} from './access.service.js';
-import { AppError } from '@shared/errors/app-error.js';
-import { ErrorCodes } from '@shared/errors/error-codes.js';
-import type { CreateEventAccessInput } from './access.schema.js';
+} from "./access.service.js";
+import { AppError } from "@shared/errors/app-error.js";
+import { ErrorCodes } from "@shared/errors/error-codes.js";
+import type { CreateEventAccessInput } from "./access.schema.js";
 
 // Helper to create EventAccess with all required fields including relations
 function createEventAccessWithRelations(
   overrides: Partial<ReturnType<typeof createMockEventAccess>> & {
     requiredAccess?: { id: string; name?: string }[];
     event?: { startDate: Date; endDate: Date };
-  } = {}
+  } = {},
 ) {
   const { requiredAccess, event, ...accessOverrides } = overrides;
   const base = createMockEventAccess(accessOverrides);
@@ -36,13 +36,13 @@ function createEventAccessWithRelations(
   };
 }
 
-describe('Access Service', () => {
-  const eventId = 'event-123';
-  const clientId = 'client-123';
+describe("Access Service", () => {
+  const eventId = "event-123";
+  const clientId = "client-123";
 
   // Create event with proper dates for testing
-  const eventStartDate = new Date('2025-06-01');
-  const eventEndDate = new Date('2025-06-03');
+  const eventStartDate = new Date("2025-06-01");
+  const eventEndDate = new Date("2025-06-03");
   const mockEvent = createMockEvent({
     id: eventId,
     clientId,
@@ -54,20 +54,20 @@ describe('Access Service', () => {
   // CRUD Operations
   // ============================================================================
 
-  describe('createEventAccess', () => {
-    it('should create a new access item successfully', async () => {
+  describe("createEventAccess", () => {
+    it("should create a new access item successfully", async () => {
       const input = {
         eventId,
-        name: 'Morning Workshop',
-        type: 'WORKSHOP' as const,
+        name: "Morning Workshop",
+        type: "WORKSHOP" as const,
         price: 50,
         maxCapacity: 30,
-        startsAt: new Date('2025-06-01T09:00:00'),
-        endsAt: new Date('2025-06-01T12:00:00'),
+        startsAt: new Date("2025-06-01T09:00:00"),
+        endsAt: new Date("2025-06-01T12:00:00"),
       };
 
       const createdAccess = createEventAccessWithRelations({
-        id: 'access-1',
+        id: "access-1",
         eventId,
         name: input.name,
         type: input.type,
@@ -83,25 +83,28 @@ describe('Access Service', () => {
 
       const result = await createEventAccess(input as CreateEventAccessInput);
 
-      expect(result.name).toBe('Morning Workshop');
-      expect(result.type).toBe('WORKSHOP');
+      expect(result.name).toBe("Morning Workshop");
+      expect(result.type).toBe("WORKSHOP");
       expect(result.price).toBe(50);
       expect(prismaMock.eventAccess.create).toHaveBeenCalled();
     });
 
-    it('should throw when event not found', async () => {
+    it("should throw when event not found", async () => {
       prismaMock.event.findUnique.mockResolvedValue(null);
 
       await expect(
-        createEventAccess({ eventId: 'non-existent', name: 'Test' } as CreateEventAccessInput)
+        createEventAccess({
+          eventId: "non-existent",
+          name: "Test",
+        } as CreateEventAccessInput),
       ).rejects.toThrow(AppError);
     });
 
-    it('should throw when access dates are outside event boundaries', async () => {
+    it("should throw when access dates are outside event boundaries", async () => {
       const input = {
         eventId,
-        name: 'Workshop',
-        startsAt: new Date('2025-05-01'), // Before event start
+        name: "Workshop",
+        startsAt: new Date("2025-05-01"), // Before event start
       } as CreateEventAccessInput;
 
       prismaMock.event.findUnique.mockResolvedValue(mockEvent);
@@ -112,17 +115,20 @@ describe('Access Service', () => {
       });
     });
 
-    it('should validate prerequisite access items exist', async () => {
+    it("should validate prerequisite access items exist", async () => {
       const input = {
         eventId,
-        name: 'Advanced Workshop',
-        requiredAccessIds: ['prerequisite-1', 'prerequisite-2'],
+        name: "Advanced Workshop",
+        requiredAccessIds: ["prerequisite-1", "prerequisite-2"],
       } as CreateEventAccessInput;
 
       // Only one prerequisite found
       prismaMock.event.findUnique.mockResolvedValue(mockEvent);
       prismaMock.eventAccess.findMany.mockResolvedValue([
-        createEventAccessWithRelations({ id: 'prerequisite-1', eventId }) as never,
+        createEventAccessWithRelations({
+          id: "prerequisite-1",
+          eventId,
+        }) as never,
       ]);
 
       await expect(createEventAccess(input)).rejects.toThrow(AppError);
@@ -131,23 +137,23 @@ describe('Access Service', () => {
       });
     });
 
-    it('should create access with prerequisites when all exist', async () => {
-      const prerequisiteIds = ['prerequisite-1', 'prerequisite-2'];
+    it("should create access with prerequisites when all exist", async () => {
+      const prerequisiteIds = ["prerequisite-1", "prerequisite-2"];
       const input = {
         eventId,
-        name: 'Advanced Workshop',
+        name: "Advanced Workshop",
         requiredAccessIds: prerequisiteIds,
       } as CreateEventAccessInput;
 
       const prerequisites = prerequisiteIds.map((id) =>
-        createEventAccessWithRelations({ id, eventId })
+        createEventAccessWithRelations({ id, eventId }),
       );
 
       const createdAccess = createEventAccessWithRelations({
-        id: 'access-new',
+        id: "access-new",
         eventId,
         name: input.name,
-        requiredAccess: prerequisiteIds.map((id) => ({ id, name: 'Prereq' })),
+        requiredAccess: prerequisiteIds.map((id) => ({ id, name: "Prereq" })),
       });
 
       prismaMock.event.findUnique.mockResolvedValue(mockEvent);
@@ -159,15 +165,18 @@ describe('Access Service', () => {
       expect(result.requiredAccess).toHaveLength(2);
     });
 
-    it('should set default values correctly', async () => {
-      const input = { eventId, name: 'Simple Access' } as CreateEventAccessInput;
+    it("should set default values correctly", async () => {
+      const input = {
+        eventId,
+        name: "Simple Access",
+      } as CreateEventAccessInput;
 
       const createdAccess = createEventAccessWithRelations({
         eventId,
-        name: 'Simple Access',
-        type: 'OTHER',
+        name: "Simple Access",
+        type: "OTHER",
         price: 0,
-        currency: 'TND',
+        currency: "TND",
         active: true,
       });
 
@@ -179,23 +188,23 @@ describe('Access Service', () => {
       expect(prismaMock.eventAccess.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            type: 'OTHER',
+            type: "OTHER",
             price: 0,
-            currency: 'TND',
+            currency: "TND",
             active: true,
           }),
-        })
+        }),
       );
     });
   });
 
-  describe('updateEventAccess', () => {
-    it('should update an existing access item', async () => {
-      const accessId = 'access-1';
+  describe("updateEventAccess", () => {
+    it("should update an existing access item", async () => {
+      const accessId = "access-1";
       const existingAccess = createEventAccessWithRelations({
         id: accessId,
         eventId,
-        name: 'Old Name',
+        name: "Old Name",
         price: 50,
         requiredAccess: [],
         event: { startDate: eventStartDate, endDate: eventEndDate },
@@ -204,59 +213,63 @@ describe('Access Service', () => {
       const updatedAccess = createEventAccessWithRelations({
         id: accessId,
         eventId,
-        name: 'New Name',
+        name: "New Name",
         price: 75,
         requiredAccess: [],
       });
 
-      prismaMock.eventAccess.findUnique.mockResolvedValue(existingAccess as never);
+      prismaMock.eventAccess.findUnique.mockResolvedValue(
+        existingAccess as never,
+      );
       prismaMock.eventAccess.update.mockResolvedValue(updatedAccess as never);
 
       const result = await updateEventAccess(accessId, {
-        name: 'New Name',
+        name: "New Name",
         price: 75,
       });
 
-      expect(result.name).toBe('New Name');
+      expect(result.name).toBe("New Name");
       expect(result.price).toBe(75);
     });
 
-    it('should throw when access not found', async () => {
+    it("should throw when access not found", async () => {
       prismaMock.eventAccess.findUnique.mockResolvedValue(null);
 
       await expect(
-        updateEventAccess('non-existent', { name: 'Test' })
+        updateEventAccess("non-existent", { name: "Test" }),
       ).rejects.toThrow(AppError);
       await expect(
-        updateEventAccess('non-existent', { name: 'Test' })
+        updateEventAccess("non-existent", { name: "Test" }),
       ).rejects.toMatchObject({
         code: ErrorCodes.ACCESS_NOT_FOUND,
       });
     });
 
-    it('should throw when updated dates are outside event boundaries', async () => {
-      const accessId = 'access-1';
+    it("should throw when updated dates are outside event boundaries", async () => {
+      const accessId = "access-1";
       const existingAccess = createEventAccessWithRelations({
         id: accessId,
         eventId,
-        startsAt: new Date('2025-06-01T10:00:00'),
+        startsAt: new Date("2025-06-01T10:00:00"),
         requiredAccess: [],
         event: { startDate: eventStartDate, endDate: eventEndDate },
       });
 
-      prismaMock.eventAccess.findUnique.mockResolvedValue(existingAccess as never);
+      prismaMock.eventAccess.findUnique.mockResolvedValue(
+        existingAccess as never,
+      );
 
       await expect(
         updateEventAccess(accessId, {
-          startsAt: new Date('2025-07-01'), // Outside event dates
-        })
+          startsAt: new Date("2025-07-01"), // Outside event dates
+        }),
       ).rejects.toThrow(AppError);
     });
 
-    it('should detect circular prerequisites', async () => {
-      const accessA = 'access-a';
-      const accessB = 'access-b';
-      const accessC = 'access-c';
+    it("should detect circular prerequisites", async () => {
+      const accessA = "access-a";
+      const accessB = "access-b";
+      const accessC = "access-c";
 
       // Existing graph: A -> B -> C
       // Trying to add: C -> A (creates cycle)
@@ -289,18 +302,18 @@ describe('Access Service', () => {
         .mockResolvedValueOnce(allAccess as never); // circular check (2nd call)
 
       await expect(
-        updateEventAccess(accessC, { requiredAccessIds: [accessA] })
+        updateEventAccess(accessC, { requiredAccessIds: [accessA] }),
       ).rejects.toThrow(AppError);
       await expect(
-        updateEventAccess(accessC, { requiredAccessIds: [accessA] })
+        updateEventAccess(accessC, { requiredAccessIds: [accessA] }),
       ).rejects.toMatchObject({
         code: ErrorCodes.ACCESS_CIRCULAR_DEPENDENCY,
       });
     });
 
-    it('should allow valid prerequisite updates', async () => {
-      const accessId = 'access-main';
-      const prerequisiteId = 'access-prereq';
+    it("should allow valid prerequisite updates", async () => {
+      const accessId = "access-main";
+      const prerequisiteId = "access-prereq";
 
       const existingAccess = createEventAccessWithRelations({
         id: accessId,
@@ -317,7 +330,7 @@ describe('Access Service', () => {
       const updatedAccess = createEventAccessWithRelations({
         id: accessId,
         eventId,
-        requiredAccess: [{ id: prerequisiteId, name: 'Prerequisite' }],
+        requiredAccess: [{ id: prerequisiteId, name: "Prerequisite" }],
       });
 
       // No circular dependency (simple A -> B)
@@ -326,7 +339,9 @@ describe('Access Service', () => {
         { id: prerequisiteId, requiredAccess: [] },
       ];
 
-      prismaMock.eventAccess.findUnique.mockResolvedValue(existingAccess as never);
+      prismaMock.eventAccess.findUnique.mockResolvedValue(
+        existingAccess as never,
+      );
       prismaMock.eventAccess.findMany
         .mockResolvedValueOnce([prerequisite] as never) // prerequisite validation
         .mockResolvedValueOnce(allAccess as never); // circular check
@@ -340,15 +355,17 @@ describe('Access Service', () => {
     });
   });
 
-  describe('deleteEventAccess', () => {
-    it('should delete an access item without registrations', async () => {
-      const accessId = 'access-1';
+  describe("deleteEventAccess", () => {
+    it("should delete an access item without registrations", async () => {
+      const accessId = "access-1";
       const existingAccess = createEventAccessWithRelations({
         id: accessId,
         eventId,
       });
 
-      prismaMock.eventAccess.findUnique.mockResolvedValue(existingAccess as never);
+      prismaMock.eventAccess.findUnique.mockResolvedValue(
+        existingAccess as never,
+      );
       prismaMock.registration.count.mockResolvedValue(0);
       prismaMock.eventAccess.delete.mockResolvedValue(existingAccess as never);
 
@@ -359,23 +376,25 @@ describe('Access Service', () => {
       });
     });
 
-    it('should throw when access not found', async () => {
+    it("should throw when access not found", async () => {
       prismaMock.eventAccess.findUnique.mockResolvedValue(null);
 
-      await expect(deleteEventAccess('non-existent')).rejects.toThrow(AppError);
-      await expect(deleteEventAccess('non-existent')).rejects.toMatchObject({
+      await expect(deleteEventAccess("non-existent")).rejects.toThrow(AppError);
+      await expect(deleteEventAccess("non-existent")).rejects.toMatchObject({
         code: ErrorCodes.ACCESS_NOT_FOUND,
       });
     });
 
-    it('should throw when access has registrations', async () => {
-      const accessId = 'access-1';
+    it("should throw when access has registrations", async () => {
+      const accessId = "access-1";
       const existingAccess = createEventAccessWithRelations({
         id: accessId,
         eventId,
       });
 
-      prismaMock.eventAccess.findUnique.mockResolvedValue(existingAccess as never);
+      prismaMock.eventAccess.findUnique.mockResolvedValue(
+        existingAccess as never,
+      );
       prismaMock.registration.count.mockResolvedValue(5);
 
       await expect(deleteEventAccess(accessId)).rejects.toThrow(AppError);
@@ -385,12 +404,12 @@ describe('Access Service', () => {
     });
   });
 
-  describe('listEventAccess', () => {
-    it('should list all access items for an event', async () => {
+  describe("listEventAccess", () => {
+    it("should list all access items for an event", async () => {
       const accessItems = [
-        createEventAccessWithRelations({ eventId, name: 'Workshop 1' }),
-        createEventAccessWithRelations({ eventId, name: 'Workshop 2' }),
-        createEventAccessWithRelations({ eventId, name: 'Dinner' }),
+        createEventAccessWithRelations({ eventId, name: "Workshop 1" }),
+        createEventAccessWithRelations({ eventId, name: "Workshop 2" }),
+        createEventAccessWithRelations({ eventId, name: "Dinner" }),
       ];
 
       prismaMock.eventAccess.findMany.mockResolvedValue(accessItems as never);
@@ -401,11 +420,11 @@ describe('Access Service', () => {
       expect(prismaMock.eventAccess.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { eventId },
-        })
+        }),
       );
     });
 
-    it('should filter by active status', async () => {
+    it("should filter by active status", async () => {
       const activeAccess = [
         createEventAccessWithRelations({ eventId, active: true }),
       ];
@@ -417,70 +436,72 @@ describe('Access Service', () => {
       expect(prismaMock.eventAccess.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { eventId, active: true },
-        })
+        }),
       );
     });
 
-    it('should filter by type', async () => {
+    it("should filter by type", async () => {
       const workshops = [
-        createEventAccessWithRelations({ eventId, type: 'WORKSHOP' }),
+        createEventAccessWithRelations({ eventId, type: "WORKSHOP" }),
       ];
 
       prismaMock.eventAccess.findMany.mockResolvedValue(workshops as never);
 
-      await listEventAccess(eventId, { type: 'WORKSHOP' });
+      await listEventAccess(eventId, { type: "WORKSHOP" });
 
       expect(prismaMock.eventAccess.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { eventId, type: 'WORKSHOP' },
-        })
+          where: { eventId, type: "WORKSHOP" },
+        }),
       );
     });
   });
 
-  describe('getEventAccessById', () => {
-    it('should return access by ID', async () => {
-      const accessId = 'access-1';
+  describe("getEventAccessById", () => {
+    it("should return access by ID", async () => {
+      const accessId = "access-1";
       const access = createEventAccessWithRelations({
         id: accessId,
-        name: 'Test Access',
+        name: "Test Access",
       });
 
       prismaMock.eventAccess.findUnique.mockResolvedValue(access as never);
 
       const result = await getEventAccessById(accessId);
 
-      expect(result?.name).toBe('Test Access');
+      expect(result?.name).toBe("Test Access");
     });
 
-    it('should return null when not found', async () => {
+    it("should return null when not found", async () => {
       prismaMock.eventAccess.findUnique.mockResolvedValue(null);
 
-      const result = await getEventAccessById('non-existent');
+      const result = await getEventAccessById("non-existent");
 
       expect(result).toBeNull();
     });
   });
 
-  describe('getAccessClientId', () => {
-    it('should return client ID for access', async () => {
-      const accessId = 'access-1';
+  describe("getAccessClientId", () => {
+    it("should return client ID for access", async () => {
+      const accessId = "access-1";
       const accessWithEvent = {
         id: accessId,
         event: { clientId },
       };
 
-      prismaMock.eventAccess.findUnique.mockResolvedValue(accessWithEvent as never);
+      prismaMock.eventAccess.findUnique.mockResolvedValue(
+        accessWithEvent as never,
+      );
 
       const result = await getAccessClientId(accessId);
 
       expect(result).toBe(clientId);
     });
 
-    it('should return null when access not found', async () => {
+    it("should return null when access not found", async () => {
       prismaMock.eventAccess.findUnique.mockResolvedValue(null);
 
-      const result = await getAccessClientId('non-existent');
+      const result = await getAccessClientId("non-existent");
 
       expect(result).toBeNull();
     });
@@ -490,13 +511,13 @@ describe('Access Service', () => {
   // Grouped Access (Hierarchical Type → Time Slots)
   // ============================================================================
 
-  describe('getGroupedAccess', () => {
+  describe("getGroupedAccess", () => {
     beforeEach(() => {
       vi.useFakeTimers();
-      vi.setSystemTime(new Date('2025-06-01T10:00:00'));
+      vi.setSystemTime(new Date("2025-06-01T10:00:00"));
     });
 
-    it('should return empty groups when no active access', async () => {
+    it("should return empty groups when no active access", async () => {
       prismaMock.eventAccess.findMany.mockResolvedValue([]);
 
       const result = await getGroupedAccess(eventId, {}, []);
@@ -504,22 +525,22 @@ describe('Access Service', () => {
       expect(result.groups).toHaveLength(0);
     });
 
-    it('should group access items by date', async () => {
+    it("should group access items by date", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'workshop-1',
+          id: "workshop-1",
           eventId,
-          type: 'WORKSHOP',
-          name: 'Workshop A',
-          startsAt: new Date('2025-06-01T09:00:00'),
+          type: "WORKSHOP",
+          name: "Workshop A",
+          startsAt: new Date("2025-06-01T09:00:00"),
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'dinner-1',
+          id: "dinner-1",
           eventId,
-          type: 'DINNER',
-          name: 'Gala Dinner',
-          startsAt: new Date('2025-06-02T19:00:00'),
+          type: "DINNER",
+          name: "Gala Dinner",
+          startsAt: new Date("2025-06-02T19:00:00"),
           active: true,
         }),
       ];
@@ -530,39 +551,41 @@ describe('Access Service', () => {
 
       expect(result.groups.length).toBe(2);
       // Groups are organized by date, items within slots have type
-      const allItems = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
-      const workshopItems = allItems.filter((i) => i.type === 'WORKSHOP');
-      const dinnerItems = allItems.filter((i) => i.type === 'DINNER');
+      const allItems = result.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
+      const workshopItems = allItems.filter((i) => i.type === "WORKSHOP");
+      const dinnerItems = allItems.filter((i) => i.type === "DINNER");
       expect(workshopItems).toHaveLength(1);
       expect(dinnerItems).toHaveLength(1);
     });
 
-    it('should create time slots within each date group', async () => {
-      const slot1Time = new Date('2025-06-01T09:00:00');
-      const slot2Time = new Date('2025-06-01T14:00:00');
+    it("should create time slots within each date group", async () => {
+      const slot1Time = new Date("2025-06-01T09:00:00");
+      const slot2Time = new Date("2025-06-01T14:00:00");
 
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'ws-1',
+          id: "ws-1",
           eventId,
-          type: 'WORKSHOP',
-          name: 'Morning Workshop 1',
+          type: "WORKSHOP",
+          name: "Morning Workshop 1",
           startsAt: slot1Time,
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'ws-2',
+          id: "ws-2",
           eventId,
-          type: 'WORKSHOP',
-          name: 'Morning Workshop 2',
+          type: "WORKSHOP",
+          name: "Morning Workshop 2",
           startsAt: slot1Time, // Same time slot
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'ws-3',
+          id: "ws-3",
           eventId,
-          type: 'WORKSHOP',
-          name: 'Afternoon Workshop',
+          type: "WORKSHOP",
+          name: "Afternoon Workshop",
           startsAt: slot2Time, // Different time slot
           active: true,
         }),
@@ -577,21 +600,21 @@ describe('Access Service', () => {
       expect(result.groups[0].slots).toHaveLength(2); // Two time slots
     });
 
-    it('should set selectionType to single for parallel items', async () => {
-      const sameTime = new Date('2025-06-01T09:00:00');
+    it("should set selectionType to single for parallel items", async () => {
+      const sameTime = new Date("2025-06-01T09:00:00");
 
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'ws-1',
+          id: "ws-1",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           startsAt: sameTime,
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'ws-2',
+          id: "ws-2",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           startsAt: sameTime,
           active: true,
         }),
@@ -602,16 +625,16 @@ describe('Access Service', () => {
       const result = await getGroupedAccess(eventId, {}, []);
 
       expect(result.groups).toHaveLength(1);
-      expect(result.groups[0].slots[0].selectionType).toBe('single');
+      expect(result.groups[0].slots[0].selectionType).toBe("single");
     });
 
-    it('should set selectionType to multiple for single item in slot', async () => {
+    it("should set selectionType to multiple for single item in slot", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'ws-1',
+          id: "ws-1",
           eventId,
-          type: 'WORKSHOP',
-          startsAt: new Date('2025-06-01T09:00:00'),
+          type: "WORKSHOP",
+          startsAt: new Date("2025-06-01T09:00:00"),
           active: true,
         }),
       ];
@@ -621,34 +644,34 @@ describe('Access Service', () => {
       const result = await getGroupedAccess(eventId, {}, []);
 
       expect(result.groups).toHaveLength(1);
-      expect(result.groups[0].slots[0].selectionType).toBe('multiple');
+      expect(result.groups[0].slots[0].selectionType).toBe("multiple");
     });
 
-    it('should filter items by availability dates', async () => {
-      const now = new Date('2025-06-01T10:00:00');
+    it("should filter items by availability dates", async () => {
+      const now = new Date("2025-06-01T10:00:00");
 
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'available',
+          id: "available",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           active: true,
           availableFrom: null,
           availableTo: null,
         }),
         createEventAccessWithRelations({
-          id: 'not-yet-available',
+          id: "not-yet-available",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           active: true,
-          availableFrom: new Date('2025-06-02'), // Future
+          availableFrom: new Date("2025-06-02"), // Future
         }),
         createEventAccessWithRelations({
-          id: 'expired',
+          id: "expired",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           active: true,
-          availableTo: new Date('2025-05-31'), // Past
+          availableTo: new Date("2025-05-31"), // Past
         }),
       ];
 
@@ -659,24 +682,28 @@ describe('Access Service', () => {
       const result = await getGroupedAccess(eventId, {}, []);
 
       // Only the 'available' item should be visible (no date restrictions)
-      const allItems = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const allItems = result.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
       expect(allItems).toHaveLength(1);
-      expect(allItems[0].id).toBe('available');
+      expect(allItems[0].id).toBe("available");
     });
 
-    it('should filter items by form-based conditions', async () => {
+    it("should filter items by form-based conditions", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'for-doctors',
+          id: "for-doctors",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           active: true,
-          conditions: [{ fieldId: 'profession', operator: 'equals', value: 'doctor' }],
+          conditions: [
+            { fieldId: "profession", operator: "equals", value: "doctor" },
+          ],
         }),
         createEventAccessWithRelations({
-          id: 'for-everyone',
+          id: "for-everyone",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           active: true,
           conditions: null,
         }),
@@ -687,36 +714,40 @@ describe('Access Service', () => {
       // Only doctors can see the first workshop
       const resultDoctor = await getGroupedAccess(
         eventId,
-        { profession: 'doctor' },
-        []
+        { profession: "doctor" },
+        [],
       );
-      const doctorItems = resultDoctor.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const doctorItems = resultDoctor.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
       expect(doctorItems).toHaveLength(2);
 
       // Non-doctors only see the second one
       const resultNonDoctor = await getGroupedAccess(
         eventId,
-        { profession: 'nurse' },
-        []
+        { profession: "nurse" },
+        [],
       );
-      const nonDoctorItems = resultNonDoctor.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const nonDoctorItems = resultNonDoctor.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
       expect(nonDoctorItems).toHaveLength(1);
     });
 
-    it('should filter items by access prerequisites', async () => {
-      const prerequisiteId = 'basic-access';
+    it("should filter items by access prerequisites", async () => {
+      const prerequisiteId = "basic-access";
 
       const accessItems = [
         createEventAccessWithRelations({
           id: prerequisiteId,
           eventId,
-          type: 'SESSION',
+          type: "SESSION",
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'advanced-access',
+          id: "advanced-access",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           active: true,
           requiredAccess: [{ id: prerequisiteId }] as never,
         }),
@@ -726,41 +757,49 @@ describe('Access Service', () => {
 
       // Without prerequisite selected - should only show SESSION (no prereq required)
       const resultWithoutPrereq = await getGroupedAccess(eventId, {}, []);
-      const itemsNoPrereq = resultWithoutPrereq.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
-      const workshopItemsNoPrereq = itemsNoPrereq.filter((i) => i.type === 'WORKSHOP');
+      const itemsNoPrereq = resultWithoutPrereq.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
+      const workshopItemsNoPrereq = itemsNoPrereq.filter(
+        (i) => i.type === "WORKSHOP",
+      );
       expect(workshopItemsNoPrereq).toHaveLength(0);
 
       // With prerequisite selected - should show advanced workshop
       const resultWithPrereq = await getGroupedAccess(eventId, {}, [
         prerequisiteId,
       ]);
-      const itemsWithPrereq = resultWithPrereq.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
-      const workshopItemsWithPrereq = itemsWithPrereq.filter((i) => i.type === 'WORKSHOP');
+      const itemsWithPrereq = resultWithPrereq.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
+      const workshopItemsWithPrereq = itemsWithPrereq.filter(
+        (i) => i.type === "WORKSHOP",
+      );
       expect(workshopItemsWithPrereq).toHaveLength(1);
     });
 
-    it('should calculate spotsRemaining and isFull correctly', async () => {
+    it("should calculate spotsRemaining and isFull correctly", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'full-workshop',
+          id: "full-workshop",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           maxCapacity: 10,
           registeredCount: 10,
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'available-workshop',
+          id: "available-workshop",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           maxCapacity: 20,
           registeredCount: 5,
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'unlimited-workshop',
+          id: "unlimited-workshop",
           eventId,
-          type: 'WORKSHOP',
+          type: "WORKSHOP",
           maxCapacity: null,
           registeredCount: 100,
           active: true,
@@ -771,11 +810,13 @@ describe('Access Service', () => {
 
       const result = await getGroupedAccess(eventId, {}, []);
 
-      const items = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const items = result.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
 
-      const fullItem = items.find((i) => i.id === 'full-workshop');
-      const availableItem = items.find((i) => i.id === 'available-workshop');
-      const unlimitedItem = items.find((i) => i.id === 'unlimited-workshop');
+      const fullItem = items.find((i) => i.id === "full-workshop");
+      const availableItem = items.find((i) => i.id === "available-workshop");
+      const unlimitedItem = items.find((i) => i.id === "unlimited-workshop");
 
       expect(fullItem?.spotsRemaining).toBe(0);
       expect(fullItem?.isFull).toBe(true);
@@ -787,15 +828,15 @@ describe('Access Service', () => {
       expect(unlimitedItem?.isFull).toBe(false);
     });
 
-    it('should include items with OTHER type in date groups', async () => {
+    it("should include items with OTHER type in date groups", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'excursion-1',
+          id: "excursion-1",
           eventId,
-          type: 'OTHER',
-          name: 'City Tour',
-          groupLabel: 'Excursions',
-          startsAt: new Date('2025-06-01T10:00:00'),
+          type: "OTHER",
+          name: "City Tour",
+          groupLabel: "Excursions",
+          startsAt: new Date("2025-06-01T10:00:00"),
           active: true,
         }),
       ];
@@ -806,10 +847,12 @@ describe('Access Service', () => {
 
       // Items are grouped by date, not by type
       expect(result.groups).toHaveLength(1);
-      const items = result.groups.flatMap((g) => g.slots.flatMap((s) => s.items));
+      const items = result.groups.flatMap((g) =>
+        g.slots.flatMap((s) => s.items),
+      );
       expect(items).toHaveLength(1);
-      expect(items[0].type).toBe('OTHER');
-      expect(items[0].name).toBe('City Tour');
+      expect(items[0].type).toBe("OTHER");
+      expect(items[0].name).toBe("City Tour");
     });
   });
 
@@ -817,37 +860,39 @@ describe('Access Service', () => {
   // Capacity Management
   // ============================================================================
 
-  describe('reserveAccessSpot', () => {
-    it('should reserve a spot with atomic update', async () => {
+  describe("reserveAccessSpot", () => {
+    it("should reserve a spot with atomic update", async () => {
       prismaMock.$executeRaw.mockResolvedValue(1);
 
-      await reserveAccessSpot('access-1', 1);
+      await reserveAccessSpot("access-1", 1);
 
       expect(prismaMock.$executeRaw).toHaveBeenCalled();
     });
 
-    it('should reserve multiple spots', async () => {
+    it("should reserve multiple spots", async () => {
       prismaMock.$executeRaw.mockResolvedValue(1);
 
-      await reserveAccessSpot('access-1', 3);
+      await reserveAccessSpot("access-1", 3);
 
       expect(prismaMock.$executeRaw).toHaveBeenCalled();
     });
 
-    it('should throw when access not found', async () => {
+    it("should throw when access not found", async () => {
       prismaMock.$executeRaw.mockResolvedValue(0);
       prismaMock.eventAccess.findUnique.mockResolvedValue(null);
 
-      await expect(reserveAccessSpot('non-existent', 1)).rejects.toThrow(AppError);
-      await expect(reserveAccessSpot('non-existent', 1)).rejects.toMatchObject({
+      await expect(reserveAccessSpot("non-existent", 1)).rejects.toThrow(
+        AppError,
+      );
+      await expect(reserveAccessSpot("non-existent", 1)).rejects.toMatchObject({
         code: ErrorCodes.ACCESS_NOT_FOUND,
       });
     });
 
-    it('should throw when capacity exceeded', async () => {
+    it("should throw when capacity exceeded", async () => {
       const access = createEventAccessWithRelations({
-        id: 'access-1',
-        name: 'Workshop',
+        id: "access-1",
+        name: "Workshop",
         maxCapacity: 10,
         registeredCount: 8,
       });
@@ -855,36 +900,36 @@ describe('Access Service', () => {
       prismaMock.$executeRaw.mockResolvedValue(0);
       prismaMock.eventAccess.findUnique.mockResolvedValue(access as never);
 
-      await expect(reserveAccessSpot('access-1', 5)).rejects.toThrow(AppError);
-      await expect(reserveAccessSpot('access-1', 5)).rejects.toMatchObject({
+      await expect(reserveAccessSpot("access-1", 5)).rejects.toThrow(AppError);
+      await expect(reserveAccessSpot("access-1", 5)).rejects.toMatchObject({
         code: ErrorCodes.ACCESS_CAPACITY_EXCEEDED,
       });
     });
   });
 
-  describe('releaseAccessSpot', () => {
-    it('should release a spot with floor constraint', async () => {
+  describe("releaseAccessSpot", () => {
+    it("should release a spot with floor constraint", async () => {
       prismaMock.eventAccess.updateMany.mockResolvedValue({ count: 1 });
 
-      await releaseAccessSpot('access-1', 1);
+      await releaseAccessSpot("access-1", 1);
 
       expect(prismaMock.eventAccess.updateMany).toHaveBeenCalledWith({
         where: {
-          id: 'access-1',
+          id: "access-1",
           registeredCount: { gte: 1 },
         },
         data: { registeredCount: { decrement: 1 } },
       });
     });
 
-    it('should release multiple spots', async () => {
+    it("should release multiple spots", async () => {
       prismaMock.eventAccess.updateMany.mockResolvedValue({ count: 1 });
 
-      await releaseAccessSpot('access-1', 3);
+      await releaseAccessSpot("access-1", 3);
 
       expect(prismaMock.eventAccess.updateMany).toHaveBeenCalledWith({
         where: {
-          id: 'access-1',
+          id: "access-1",
           registeredCount: { gte: 3 },
         },
         data: { registeredCount: { decrement: 3 } },
@@ -896,58 +941,100 @@ describe('Access Service', () => {
   // Validation
   // ============================================================================
 
-  describe('validateAccessSelections', () => {
+  describe("validateAccessSelections", () => {
     beforeEach(() => {
       vi.useFakeTimers();
-      vi.setSystemTime(new Date('2025-06-01T10:00:00'));
+      vi.setSystemTime(new Date("2025-06-01T10:00:00"));
     });
 
-    it('should return valid for empty selections', async () => {
+    it("should return valid for empty selections", async () => {
       const result = await validateAccessSelections(eventId, [], {});
 
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should validate that all selected items exist', async () => {
+    it("should validate that all selected items exist", async () => {
       const existingAccess = createEventAccessWithRelations({
-        id: 'access-1',
+        id: "access-1",
         eventId,
         active: true,
       });
 
-      prismaMock.eventAccess.findMany.mockResolvedValue([existingAccess] as never);
+      prismaMock.eventAccess.findMany.mockResolvedValue([
+        existingAccess,
+      ] as never);
 
       const result = await validateAccessSelections(
         eventId,
         [
-          { accessId: 'access-1', quantity: 1 },
-          { accessId: 'non-existent', quantity: 1 },
+          { accessId: "access-1", quantity: 1 },
+          { accessId: "non-existent", quantity: 1 },
         ],
-        {}
+        {},
       );
 
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('not found'))).toBe(true);
+      expect(result.errors.some((e) => e.includes("not found"))).toBe(true);
     });
 
-    it('should detect time conflicts within same type', async () => {
-      const sameTime = new Date('2025-06-01T09:00:00');
+    it("should detect time conflicts within same type", async () => {
+      const sameTime = new Date("2025-06-01T09:00:00");
+      const sameEndTime = new Date("2025-06-01T12:00:00");
 
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'ws-1',
+          id: "ws-1",
           eventId,
-          type: 'WORKSHOP',
-          name: 'Workshop A',
+          type: "WORKSHOP",
+          name: "Workshop A",
+          startsAt: sameTime,
+          endsAt: sameEndTime,
+          active: true,
+        }),
+        createEventAccessWithRelations({
+          id: "ws-2",
+          eventId,
+          type: "WORKSHOP",
+          name: "Workshop B",
+          startsAt: sameTime,
+          endsAt: sameEndTime,
+          active: true,
+        }),
+      ];
+
+      prismaMock.eventAccess.findMany.mockResolvedValue(accessItems as never);
+
+      const result = await validateAccessSelections(
+        eventId,
+        [
+          { accessId: "ws-1", quantity: 1 },
+          { accessId: "ws-2", quantity: 1 },
+        ],
+        {},
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes("Time conflict"))).toBe(true);
+    });
+
+    it("should allow same time across different types", async () => {
+      const sameTime = new Date("2025-06-01T09:00:00");
+
+      const accessItems = [
+        createEventAccessWithRelations({
+          id: "ws-1",
+          eventId,
+          type: "WORKSHOP",
+          name: "Workshop",
           startsAt: sameTime,
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'ws-2',
+          id: "session-1",
           eventId,
-          type: 'WORKSHOP',
-          name: 'Workshop B',
+          type: "SESSION",
+          name: "Session",
           startsAt: sameTime,
           active: true,
         }),
@@ -958,66 +1045,29 @@ describe('Access Service', () => {
       const result = await validateAccessSelections(
         eventId,
         [
-          { accessId: 'ws-1', quantity: 1 },
-          { accessId: 'ws-2', quantity: 1 },
+          { accessId: "ws-1", quantity: 1 },
+          { accessId: "session-1", quantity: 1 },
         ],
-        {}
-      );
-
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('Time conflict'))).toBe(true);
-    });
-
-    it('should allow same time across different types', async () => {
-      const sameTime = new Date('2025-06-01T09:00:00');
-
-      const accessItems = [
-        createEventAccessWithRelations({
-          id: 'ws-1',
-          eventId,
-          type: 'WORKSHOP',
-          name: 'Workshop',
-          startsAt: sameTime,
-          active: true,
-        }),
-        createEventAccessWithRelations({
-          id: 'session-1',
-          eventId,
-          type: 'SESSION',
-          name: 'Session',
-          startsAt: sameTime,
-          active: true,
-        }),
-      ];
-
-      prismaMock.eventAccess.findMany.mockResolvedValue(accessItems as never);
-
-      const result = await validateAccessSelections(
-        eventId,
-        [
-          { accessId: 'ws-1', quantity: 1 },
-          { accessId: 'session-1', quantity: 1 },
-        ],
-        {}
+        {},
       );
 
       expect(result.valid).toBe(true);
     });
 
-    it('should validate prerequisites are selected', async () => {
+    it("should validate prerequisites are selected", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'basic',
+          id: "basic",
           eventId,
-          name: 'Basic Workshop',
+          name: "Basic Workshop",
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'advanced',
+          id: "advanced",
           eventId,
-          name: 'Advanced Workshop',
+          name: "Advanced Workshop",
           active: true,
-          requiredAccess: [{ id: 'basic' }] as never,
+          requiredAccess: [{ id: "basic" }] as never,
         }),
       ];
 
@@ -1026,28 +1076,28 @@ describe('Access Service', () => {
       // Selecting advanced without basic prerequisite
       const result = await validateAccessSelections(
         eventId,
-        [{ accessId: 'advanced', quantity: 1 }],
-        {}
+        [{ accessId: "advanced", quantity: 1 }],
+        {},
       );
 
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('prerequisite'))).toBe(true);
+      expect(result.errors.some((e) => e.includes("prerequisite"))).toBe(true);
     });
 
-    it('should pass when prerequisites are selected', async () => {
+    it("should pass when prerequisites are selected", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'basic',
+          id: "basic",
           eventId,
-          name: 'Basic Workshop',
+          name: "Basic Workshop",
           active: true,
         }),
         createEventAccessWithRelations({
-          id: 'advanced',
+          id: "advanced",
           eventId,
-          name: 'Advanced Workshop',
+          name: "Advanced Workshop",
           active: true,
-          requiredAccess: [{ id: 'basic' }] as never,
+          requiredAccess: [{ id: "basic" }] as never,
         }),
       ];
 
@@ -1057,30 +1107,30 @@ describe('Access Service', () => {
       const result = await validateAccessSelections(
         eventId,
         [
-          { accessId: 'basic', quantity: 1 },
-          { accessId: 'advanced', quantity: 1 },
+          { accessId: "basic", quantity: 1 },
+          { accessId: "advanced", quantity: 1 },
         ],
-        {}
+        {},
       );
 
       expect(result.valid).toBe(true);
     });
 
-    it('should validate date availability', async () => {
+    it("should validate date availability", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'not-yet',
+          id: "not-yet",
           eventId,
-          name: 'Future Workshop',
+          name: "Future Workshop",
           active: true,
-          availableFrom: new Date('2025-06-05'),
+          availableFrom: new Date("2025-06-05"),
         }),
         createEventAccessWithRelations({
-          id: 'expired',
+          id: "expired",
           eventId,
-          name: 'Expired Workshop',
+          name: "Expired Workshop",
           active: true,
-          availableTo: new Date('2025-05-31'),
+          availableTo: new Date("2025-05-31"),
         }),
       ];
 
@@ -1088,35 +1138,37 @@ describe('Access Service', () => {
 
       const resultNotYet = await validateAccessSelections(
         eventId,
-        [{ accessId: 'not-yet', quantity: 1 }],
-        {}
+        [{ accessId: "not-yet", quantity: 1 }],
+        {},
       );
 
       expect(resultNotYet.valid).toBe(false);
-      expect(resultNotYet.errors.some((e) => e.includes('not yet available'))).toBe(
-        true
-      );
+      expect(
+        resultNotYet.errors.some((e) => e.includes("not yet available")),
+      ).toBe(true);
 
       const resultExpired = await validateAccessSelections(
         eventId,
-        [{ accessId: 'expired', quantity: 1 }],
-        {}
+        [{ accessId: "expired", quantity: 1 }],
+        {},
       );
 
       expect(resultExpired.valid).toBe(false);
-      expect(resultExpired.errors.some((e) => e.includes('no longer available'))).toBe(
-        true
-      );
+      expect(
+        resultExpired.errors.some((e) => e.includes("no longer available")),
+      ).toBe(true);
     });
 
-    it('should validate form-based conditions', async () => {
+    it("should validate form-based conditions", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'doctors-only',
+          id: "doctors-only",
           eventId,
-          name: 'Medical Workshop',
+          name: "Medical Workshop",
           active: true,
-          conditions: [{ fieldId: 'profession', operator: 'equals', value: 'doctor' }],
+          conditions: [
+            { fieldId: "profession", operator: "equals", value: "doctor" },
+          ],
         }),
       ];
 
@@ -1125,20 +1177,20 @@ describe('Access Service', () => {
       // Non-doctor trying to select
       const result = await validateAccessSelections(
         eventId,
-        [{ accessId: 'doctors-only', quantity: 1 }],
-        { profession: 'nurse' }
+        [{ accessId: "doctors-only", quantity: 1 }],
+        { profession: "nurse" },
       );
 
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('form answers'))).toBe(true);
+      expect(result.errors.some((e) => e.includes("form answers"))).toBe(true);
     });
 
-    it('should validate capacity', async () => {
+    it("should validate capacity", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'limited',
+          id: "limited",
           eventId,
-          name: 'Limited Workshop',
+          name: "Limited Workshop",
           maxCapacity: 10,
           registeredCount: 9,
           active: true,
@@ -1149,20 +1201,20 @@ describe('Access Service', () => {
 
       const result = await validateAccessSelections(
         eventId,
-        [{ accessId: 'limited', quantity: 2 }],
-        {}
+        [{ accessId: "limited", quantity: 2 }],
+        {},
       );
 
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('full'))).toBe(true);
+      expect(result.errors.some((e) => e.includes("full"))).toBe(true);
     });
 
-    it('should pass validation when all checks succeed', async () => {
+    it("should pass validation when all checks succeed", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'available',
+          id: "available",
           eventId,
-          name: 'Available Workshop',
+          name: "Available Workshop",
           maxCapacity: 50,
           registeredCount: 10,
           active: true,
@@ -1173,25 +1225,25 @@ describe('Access Service', () => {
 
       const result = await validateAccessSelections(
         eventId,
-        [{ accessId: 'available', quantity: 1 }],
-        {}
+        [{ accessId: "available", quantity: 1 }],
+        {},
       );
 
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
-    it('should handle AND condition logic', async () => {
+    it("should handle AND condition logic", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'multi-condition',
+          id: "multi-condition",
           eventId,
-          name: 'Exclusive Workshop',
+          name: "Exclusive Workshop",
           active: true,
-          conditionLogic: 'AND',
+          conditionLogic: "AND",
           conditions: [
-            { fieldId: 'profession', operator: 'equals', value: 'doctor' },
-            { fieldId: 'specialty', operator: 'equals', value: 'cardiology' },
+            { fieldId: "profession", operator: "equals", value: "doctor" },
+            { fieldId: "specialty", operator: "equals", value: "cardiology" },
           ],
         }),
       ];
@@ -1201,8 +1253,8 @@ describe('Access Service', () => {
       // Only meets one condition
       const resultPartial = await validateAccessSelections(
         eventId,
-        [{ accessId: 'multi-condition', quantity: 1 }],
-        { profession: 'doctor', specialty: 'neurology' }
+        [{ accessId: "multi-condition", quantity: 1 }],
+        { profession: "doctor", specialty: "neurology" },
       );
 
       expect(resultPartial.valid).toBe(false);
@@ -1210,24 +1262,24 @@ describe('Access Service', () => {
       // Meets both conditions
       const resultFull = await validateAccessSelections(
         eventId,
-        [{ accessId: 'multi-condition', quantity: 1 }],
-        { profession: 'doctor', specialty: 'cardiology' }
+        [{ accessId: "multi-condition", quantity: 1 }],
+        { profession: "doctor", specialty: "cardiology" },
       );
 
       expect(resultFull.valid).toBe(true);
     });
 
-    it('should handle OR condition logic', async () => {
+    it("should handle OR condition logic", async () => {
       const accessItems = [
         createEventAccessWithRelations({
-          id: 'multi-condition',
+          id: "multi-condition",
           eventId,
-          name: 'Flexible Workshop',
+          name: "Flexible Workshop",
           active: true,
-          conditionLogic: 'OR',
+          conditionLogic: "OR",
           conditions: [
-            { fieldId: 'profession', operator: 'equals', value: 'doctor' },
-            { fieldId: 'profession', operator: 'equals', value: 'nurse' },
+            { fieldId: "profession", operator: "equals", value: "doctor" },
+            { fieldId: "profession", operator: "equals", value: "nurse" },
           ],
         }),
       ];
@@ -1237,8 +1289,8 @@ describe('Access Service', () => {
       // Meets one condition (OR should pass)
       const result = await validateAccessSelections(
         eventId,
-        [{ accessId: 'multi-condition', quantity: 1 }],
-        { profession: 'nurse' }
+        [{ accessId: "multi-condition", quantity: 1 }],
+        { profession: "nurse" },
       );
 
       expect(result.valid).toBe(true);
@@ -1249,16 +1301,16 @@ describe('Access Service', () => {
   // Access Types
   // ============================================================================
 
-  describe('Access Types', () => {
-    it('should support all access types', async () => {
+  describe("Access Types", () => {
+    it("should support all access types", async () => {
       const types = [
-        'WORKSHOP',
-        'DINNER',
-        'SESSION',
-        'NETWORKING',
-        'ACCOMMODATION',
-        'TRANSPORT',
-        'OTHER',
+        "WORKSHOP",
+        "DINNER",
+        "SESSION",
+        "NETWORKING",
+        "ACCOMMODATION",
+        "TRANSPORT",
+        "OTHER",
       ] as const;
 
       for (const type of types) {
@@ -1281,27 +1333,27 @@ describe('Access Service', () => {
       }
     });
 
-    it('should order date groups chronologically', async () => {
+    it("should order date groups chronologically", async () => {
       const accessItems = [
         createEventAccessWithRelations({
           eventId,
-          type: 'OTHER',
-          name: 'Day 3 Item',
-          startsAt: new Date('2025-06-03T10:00:00'),
+          type: "OTHER",
+          name: "Day 3 Item",
+          startsAt: new Date("2025-06-03T10:00:00"),
           active: true,
         }),
         createEventAccessWithRelations({
           eventId,
-          type: 'SESSION',
-          name: 'Day 1 Item',
-          startsAt: new Date('2025-06-01T10:00:00'),
+          type: "SESSION",
+          name: "Day 1 Item",
+          startsAt: new Date("2025-06-01T10:00:00"),
           active: true,
         }),
         createEventAccessWithRelations({
           eventId,
-          type: 'WORKSHOP',
-          name: 'Day 2 Item',
-          startsAt: new Date('2025-06-02T10:00:00'),
+          type: "WORKSHOP",
+          name: "Day 2 Item",
+          startsAt: new Date("2025-06-02T10:00:00"),
           active: true,
         }),
       ];
@@ -1312,9 +1364,9 @@ describe('Access Service', () => {
 
       // Check that date groups are ordered chronologically
       expect(result.groups).toHaveLength(3);
-      expect(result.groups[0].dateKey).toBe('2025-06-01');
-      expect(result.groups[1].dateKey).toBe('2025-06-02');
-      expect(result.groups[2].dateKey).toBe('2025-06-03');
+      expect(result.groups[0].dateKey).toBe("2025-06-01");
+      expect(result.groups[1].dateKey).toBe("2025-06-02");
+      expect(result.groups[2].dateKey).toBe("2025-06-03");
     });
   });
 });

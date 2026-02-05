@@ -1,11 +1,11 @@
-import type { FastifyRequest, FastifyReply } from 'fastify';
-import { verifyToken } from '@shared/services/firebase.service.js';
-import { prisma } from '@/database/client.js';
-import { AppError } from '@shared/errors/app-error.js';
-import { ErrorCodes } from '@shared/errors/error-codes.js';
-import { UserRole } from '@modules/identity/permissions.js';
-import { SimpleCache } from '@shared/utils/cache.js';
-import type { User } from '@/generated/prisma/client.js';
+import type { FastifyRequest, FastifyReply } from "fastify";
+import { verifyToken } from "@shared/services/firebase.service.js";
+import { prisma } from "@/database/client.js";
+import { AppError } from "@shared/errors/app-error.js";
+import { ErrorCodes } from "@shared/errors/error-codes.js";
+import { UserRole } from "@modules/identity/permissions.js";
+import { SimpleCache } from "@shared/utils/cache.js";
+import type { User } from "@/generated/prisma/client.js";
 
 // Cache user lookups for 60 seconds to reduce DB hits
 const userCache = new SimpleCache<User>(60);
@@ -18,25 +18,32 @@ export function invalidateUserCache(userId: string): void {
 }
 
 /**
+ * Clear all user cache entries (useful for testing).
+ */
+export function clearUserCache(): void {
+  userCache.clear();
+}
+
+/**
  * Middleware to require authentication.
  * Verifies Firebase ID token and attaches user to request.
  */
 export async function requireAuth(
   request: FastifyRequest,
-  _reply: FastifyReply
+  _reply: FastifyReply,
 ): Promise<void> {
   const authHeader = request.headers.authorization;
 
-  if (!authHeader?.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith("Bearer ")) {
     throw new AppError(
-      'Missing or invalid authorization header',
+      "Missing or invalid authorization header",
       401,
       true,
-      ErrorCodes.UNAUTHORIZED
+      ErrorCodes.UNAUTHORIZED,
     );
   }
 
-  const token = authHeader.replace('Bearer ', '');
+  const token = authHeader.replace("Bearer ", "");
 
   try {
     const decoded = await verifyToken(token);
@@ -46,9 +53,10 @@ export async function requireAuth(
 
     if (!user) {
       // Get user from database
-      user = await prisma.user.findUnique({
-        where: { id: decoded.uid },
-      }) ?? undefined;
+      user =
+        (await prisma.user.findUnique({
+          where: { id: decoded.uid },
+        })) ?? undefined;
 
       // Cache the user if found
       if (user) {
@@ -58,19 +66,19 @@ export async function requireAuth(
 
     if (!user) {
       throw new AppError(
-        'User not found in database',
+        "User not found in database",
         401,
         true,
-        ErrorCodes.UNAUTHORIZED
+        ErrorCodes.UNAUTHORIZED,
       );
     }
 
     if (!user.active) {
       throw new AppError(
-        'User account is disabled',
+        "User account is disabled",
         401,
         true,
-        ErrorCodes.UNAUTHORIZED
+        ErrorCodes.UNAUTHORIZED,
       );
     }
 
@@ -81,10 +89,10 @@ export async function requireAuth(
       throw error;
     }
     throw new AppError(
-      'Invalid or expired token',
+      "Invalid or expired token",
       401,
       true,
-      ErrorCodes.INVALID_TOKEN
+      ErrorCodes.INVALID_TOKEN,
     );
   }
 }
@@ -94,22 +102,25 @@ export async function requireAuth(
  * @param roles - Array of allowed role numbers (0 = super_admin, 1 = client_admin)
  */
 export function requireRole(...roles: number[]) {
-  return async (request: FastifyRequest, _reply: FastifyReply): Promise<void> => {
+  return async (
+    request: FastifyRequest,
+    _reply: FastifyReply,
+  ): Promise<void> => {
     if (!request.user) {
       throw new AppError(
-        'Authentication required',
+        "Authentication required",
         401,
         true,
-        ErrorCodes.UNAUTHORIZED
+        ErrorCodes.UNAUTHORIZED,
       );
     }
 
     if (!roles.includes(request.user.role)) {
       throw new AppError(
-        'Insufficient permissions',
+        "Insufficient permissions",
         403,
         true,
-        ErrorCodes.FORBIDDEN
+        ErrorCodes.FORBIDDEN,
       );
     }
   };
@@ -123,7 +134,10 @@ export const requireSuperAdmin = requireRole(UserRole.SUPER_ADMIN);
 /**
  * Middleware that allows both super admin and client admin.
  */
-export const requireAdmin = requireRole(UserRole.SUPER_ADMIN, UserRole.CLIENT_ADMIN);
+export const requireAdmin = requireRole(
+  UserRole.SUPER_ADMIN,
+  UserRole.CLIENT_ADMIN,
+);
 
 /**
  * Check if user can access a client's resources.
@@ -132,7 +146,7 @@ export const requireAdmin = requireRole(UserRole.SUPER_ADMIN, UserRole.CLIENT_AD
  */
 export function canAccessClient(
   user: { role: number; clientId: string | null },
-  clientId: string
+  clientId: string,
 ): boolean {
   return user.role === UserRole.SUPER_ADMIN || user.clientId === clientId;
 }

@@ -1,6 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { prismaMock } from '../../../tests/mocks/prisma.js';
-import { createMockForm, createMockEvent, createMockClient } from '../../../tests/helpers/factories.js';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { prismaMock } from "../../../tests/mocks/prisma.js";
+import {
+  createMockForm,
+  createMockEvent,
+  createMockClient,
+} from "../../../tests/helpers/factories.js";
 import {
   createForm,
   getFormById,
@@ -14,20 +18,20 @@ import {
   getSponsorFormByEventSlug,
   getSponsorFormByEventId,
   createSponsorForm,
-} from './forms.service.js';
-import { AppError } from '@shared/errors/app-error.js';
-import { ErrorCodes } from '@shared/errors/error-codes.js';
-import { faker } from '@faker-js/faker';
-import type { Form } from '@/generated/prisma/client.js';
+} from "./forms.service.js";
+import { AppError } from "@shared/errors/app-error.js";
+import { ErrorCodes } from "@shared/errors/error-codes.js";
+import { faker } from "@faker-js/faker";
+import type { Form } from "@/generated/prisma/client.js";
 
 // Mock the events module
-vi.mock('@events', () => ({
+vi.mock("@events", () => ({
   eventExists: vi.fn(),
 }));
 
-import { eventExists as mockEventExists } from '@events';
+import { eventExists as mockEventExists } from "@events";
 
-describe('Forms Service', () => {
+describe("Forms Service", () => {
   const eventId = faker.string.uuid();
   const formId = faker.string.uuid();
 
@@ -39,18 +43,18 @@ describe('Forms Service', () => {
   // createForm
   // ============================================================================
 
-  describe('createForm', () => {
-    it('should create a form with provided schema', async () => {
+  describe("createForm", () => {
+    it("should create a form with provided schema", async () => {
       const mockForm = createMockForm({ eventId });
       const input = {
         eventId,
-        name: 'Registration Form',
+        name: "Registration Form",
         schema: {
           steps: [
             {
-              id: 'step-1',
-              title: 'Info',
-              fields: [{ id: 'field-1', type: 'text' as const, label: 'Name' }],
+              id: "step-1",
+              title: "Info",
+              fields: [{ id: "field-1", type: "text" as const, label: "Name" }],
             },
           ],
         },
@@ -66,17 +70,17 @@ describe('Forms Service', () => {
       expect(prismaMock.form.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           eventId,
-          name: 'Registration Form',
+          name: "Registration Form",
           schema: input.schema,
         }),
       });
     });
 
-    it('should create a form with default schema when none provided', async () => {
+    it("should create a form with default schema when none provided", async () => {
       const mockForm = createMockForm({ eventId });
       const input = {
         eventId,
-        name: 'Default Form',
+        name: "Default Form",
       };
 
       vi.mocked(mockEventExists).mockResolvedValue(true);
@@ -88,16 +92,16 @@ describe('Forms Service', () => {
       expect(prismaMock.form.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           eventId,
-          name: 'Default Form',
+          name: "Default Form",
           schema: expect.objectContaining({
             steps: expect.arrayContaining([
               expect.objectContaining({
-                title: 'Informations personnelles',
+                title: "Informations personnelles",
                 fields: expect.arrayContaining([
-                  expect.objectContaining({ fieldKey: 'firstName' }),
-                  expect.objectContaining({ fieldKey: 'lastName' }),
-                  expect.objectContaining({ fieldKey: 'email' }),
-                  expect.objectContaining({ fieldKey: 'phone' }),
+                  expect.objectContaining({ fieldKey: "firstName" }),
+                  expect.objectContaining({ fieldKey: "lastName" }),
+                  expect.objectContaining({ fieldKey: "email" }),
+                  expect.objectContaining({ fieldKey: "phone" }),
                 ]),
               }),
             ]),
@@ -106,13 +110,13 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should create a form with successTitle and successMessage', async () => {
+    it("should create a form with successTitle and successMessage", async () => {
       const mockForm = createMockForm({ eventId });
       const input = {
         eventId,
-        name: 'Form with Success',
-        successTitle: 'Thank you!',
-        successMessage: 'Your registration is confirmed.',
+        name: "Form with Success",
+        successTitle: "Thank you!",
+        successMessage: "Your registration is confirmed.",
       };
 
       vi.mocked(mockEventExists).mockResolvedValue(true);
@@ -123,16 +127,16 @@ describe('Forms Service', () => {
 
       expect(prismaMock.form.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          successTitle: 'Thank you!',
-          successMessage: 'Your registration is confirmed.',
+          successTitle: "Thank you!",
+          successMessage: "Your registration is confirmed.",
         }),
       });
     });
 
-    it('should throw when event does not exist', async () => {
+    it("should throw when event does not exist", async () => {
       const input = {
-        eventId: 'non-existent-event',
-        name: 'Test Form',
+        eventId: "non-existent-event",
+        name: "Test Form",
       };
 
       vi.mocked(mockEventExists).mockResolvedValue(false);
@@ -144,11 +148,11 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should throw conflict when event already has a registration form', async () => {
-      const existingForm = createMockForm({ eventId, type: 'REGISTRATION' });
+    it("should throw conflict when event already has a registration form", async () => {
+      const existingForm = createMockForm({ eventId, type: "REGISTRATION" });
       const input = {
         eventId,
-        name: 'Another Form',
+        name: "Another Form",
       };
 
       vi.mocked(mockEventExists).mockResolvedValue(true);
@@ -166,21 +170,23 @@ describe('Forms Service', () => {
   // getFormById
   // ============================================================================
 
-  describe('getFormById', () => {
-    it('should return form when found', async () => {
+  describe("getFormById", () => {
+    it("should return form when found", async () => {
       const mockForm = createMockForm({ id: formId });
       prismaMock.form.findUnique.mockResolvedValue(mockForm);
 
       const result = await getFormById(formId);
 
       expect(result).toEqual(mockForm);
-      expect(prismaMock.form.findUnique).toHaveBeenCalledWith({ where: { id: formId } });
+      expect(prismaMock.form.findUnique).toHaveBeenCalledWith({
+        where: { id: formId },
+      });
     });
 
-    it('should return null when form not found', async () => {
+    it("should return null when form not found", async () => {
       prismaMock.form.findUnique.mockResolvedValue(null);
 
-      const result = await getFormById('non-existent');
+      const result = await getFormById("non-existent");
 
       expect(result).toBeNull();
     });
@@ -190,12 +196,12 @@ describe('Forms Service', () => {
   // getFormByEventSlug
   // ============================================================================
 
-  describe('getFormByEventSlug', () => {
-    it('should return form with relations for OPEN event', async () => {
+  describe("getFormByEventSlug", () => {
+    it("should return form with relations for OPEN event", async () => {
       const mockClient = createMockClient();
       const mockEvent = createMockEvent({
         clientId: mockClient.id,
-        status: 'OPEN',
+        status: "OPEN",
       });
       const mockForm = createMockForm({
         eventId: mockEvent.id,
@@ -215,16 +221,21 @@ describe('Forms Service', () => {
         },
       };
 
-      prismaMock.form.findFirst.mockResolvedValue(formWithRelations as Form & { event: unknown });
+      prismaMock.form.findFirst.mockResolvedValue(
+        formWithRelations as Form & { event: unknown },
+      );
 
       const result = await getFormByEventSlug(mockEvent.slug);
 
       expect(result).toEqual(formWithRelations);
       expect(prismaMock.form.findFirst).toHaveBeenCalledWith({
         where: {
+          type: "REGISTRATION",
           event: {
             slug: mockEvent.slug,
+            status: "OPEN",
           },
+          active: true,
         },
         include: expect.objectContaining({
           event: expect.objectContaining({
@@ -238,25 +249,21 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should return null for non-OPEN event', async () => {
-      const mockEvent = createMockEvent({ status: 'CLOSED' });
-      const mockForm = createMockForm({ eventId: mockEvent.id });
-      const formWithRelations = {
-        ...mockForm,
-        event: mockEvent,
-      };
+    it("should return null for non-OPEN event", async () => {
+      const mockEvent = createMockEvent({ status: "CLOSED" });
 
-      prismaMock.form.findFirst.mockResolvedValue(formWithRelations as Form & { event: unknown });
+      // The query filters by status: 'OPEN', so findFirst returns null for CLOSED events
+      prismaMock.form.findFirst.mockResolvedValue(null);
 
       const result = await getFormByEventSlug(mockEvent.slug);
 
       expect(result).toBeNull();
     });
 
-    it('should return null when form not found', async () => {
+    it("should return null when form not found", async () => {
       prismaMock.form.findFirst.mockResolvedValue(null);
 
-      const result = await getFormByEventSlug('non-existent-slug');
+      const result = await getFormByEventSlug("non-existent-slug");
 
       expect(result).toBeNull();
     });
@@ -266,24 +273,24 @@ describe('Forms Service', () => {
   // updateForm
   // ============================================================================
 
-  describe('updateForm', () => {
-    it('should update form name', async () => {
-      const mockForm = createMockForm({ id: formId, name: 'Old Name' });
-      const updatedForm = createMockForm({ id: formId, name: 'New Name' });
+  describe("updateForm", () => {
+    it("should update form name", async () => {
+      const mockForm = createMockForm({ id: formId, name: "Old Name" });
+      const updatedForm = createMockForm({ id: formId, name: "New Name" });
 
       prismaMock.form.findUnique.mockResolvedValue(mockForm);
       prismaMock.form.update.mockResolvedValue(updatedForm);
 
-      const result = await updateForm(formId, { name: 'New Name' });
+      const result = await updateForm(formId, { name: "New Name" });
 
-      expect(result.name).toBe('New Name');
+      expect(result.name).toBe("New Name");
       expect(prismaMock.form.update).toHaveBeenCalledWith({
         where: { id: formId },
-        data: { name: 'New Name' },
+        data: { name: "New Name" },
       });
     });
 
-    it('should update success messages', async () => {
+    it("should update success messages", async () => {
       const mockForm = createMockForm({ id: formId });
       const updatedForm = createMockForm({
         id: formId,
@@ -293,24 +300,24 @@ describe('Forms Service', () => {
       prismaMock.form.update.mockResolvedValue(updatedForm);
 
       await updateForm(formId, {
-        successTitle: 'New Title',
-        successMessage: 'New Message',
+        successTitle: "New Title",
+        successMessage: "New Message",
       });
 
       expect(prismaMock.form.update).toHaveBeenCalledWith({
         where: { id: formId },
         data: {
-          successTitle: 'New Title',
-          successMessage: 'New Message',
+          successTitle: "New Title",
+          successMessage: "New Message",
         },
       });
     });
 
-    it('should increment schemaVersion when schema changes', async () => {
+    it("should increment schemaVersion when schema changes", async () => {
       const mockForm = createMockForm({
         id: formId,
         schemaVersion: 1,
-        schema: { steps: [{ id: 'old-step', title: 'Old', fields: [] }] },
+        schema: { steps: [{ id: "old-step", title: "Old", fields: [] }] },
       });
       const updatedForm = createMockForm({ id: formId, schemaVersion: 2 });
 
@@ -318,7 +325,9 @@ describe('Forms Service', () => {
       prismaMock.registration.count.mockResolvedValue(0);
       prismaMock.form.update.mockResolvedValue(updatedForm);
 
-      const newSchema = { steps: [{ id: 'new-step', title: 'New', fields: [] }] };
+      const newSchema = {
+        steps: [{ id: "new-step", title: "New", fields: [] }],
+      };
       await updateForm(formId, { schema: newSchema });
 
       expect(prismaMock.form.update).toHaveBeenCalledWith({
@@ -330,8 +339,10 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should not increment schemaVersion when schema is unchanged', async () => {
-      const existingSchema = { steps: [{ id: 'step-1', title: 'Info', fields: [] }] };
+    it("should not increment schemaVersion when schema is unchanged", async () => {
+      const existingSchema = {
+        steps: [{ id: "step-1", title: "Info", fields: [] }],
+      };
       const mockForm = createMockForm({
         id: formId,
         schemaVersion: 1,
@@ -350,27 +361,31 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should throw when form not found', async () => {
+    it("should throw when form not found", async () => {
       prismaMock.form.findUnique.mockResolvedValue(null);
 
-      await expect(updateForm('non-existent', { name: 'Test' })).rejects.toThrow(AppError);
-      await expect(updateForm('non-existent', { name: 'Test' })).rejects.toMatchObject({
+      await expect(
+        updateForm("non-existent", { name: "Test" }),
+      ).rejects.toThrow(AppError);
+      await expect(
+        updateForm("non-existent", { name: "Test" }),
+      ).rejects.toMatchObject({
         statusCode: 404,
         code: ErrorCodes.NOT_FOUND,
       });
     });
 
-    it('should log warning when removing fields with existing registrations', async () => {
+    it("should log warning when removing fields with existing registrations", async () => {
       const mockForm = createMockForm({
         id: formId,
         schema: {
           steps: [
             {
-              id: 'step-1',
-              title: 'Info',
+              id: "step-1",
+              title: "Info",
               fields: [
-                { id: 'field-to-remove', type: 'text', label: 'Name' },
-                { id: 'field-to-keep', type: 'email', label: 'Email' },
+                { id: "field-to-remove", type: "text", label: "Name" },
+                { id: "field-to-keep", type: "email", label: "Email" },
               ],
             },
           ],
@@ -385,9 +400,9 @@ describe('Forms Service', () => {
       const newSchema = {
         steps: [
           {
-            id: 'step-1',
-            title: 'Info',
-            fields: [{ id: 'field-to-keep', type: 'email', label: 'Email' }],
+            id: "step-1",
+            title: "Info",
+            fields: [{ id: "field-to-keep", type: "email", label: "Email" }],
           },
         ],
       };
@@ -405,11 +420,11 @@ describe('Forms Service', () => {
   // listForms
   // ============================================================================
 
-  describe('listForms', () => {
-    it('should return paginated forms', async () => {
+  describe("listForms", () => {
+    it("should return paginated forms", async () => {
       const mockForms = [
-        createMockForm({ name: 'Form 1' }),
-        createMockForm({ name: 'Form 2' }),
+        createMockForm({ name: "Form 1" }),
+        createMockForm({ name: "Form 2" }),
       ];
 
       prismaMock.form.findMany.mockResolvedValue(mockForms);
@@ -424,7 +439,7 @@ describe('Forms Service', () => {
       expect(result.meta.totalPages).toBe(1);
     });
 
-    it('should filter by eventId', async () => {
+    it("should filter by eventId", async () => {
       prismaMock.form.findMany.mockResolvedValue([]);
       prismaMock.form.count.mockResolvedValue(0);
 
@@ -433,39 +448,39 @@ describe('Forms Service', () => {
       expect(prismaMock.form.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { eventId },
-        })
+        }),
       );
     });
 
-    it('should filter by type', async () => {
+    it("should filter by type", async () => {
       prismaMock.form.findMany.mockResolvedValue([]);
       prismaMock.form.count.mockResolvedValue(0);
 
-      await listForms({ page: 1, limit: 10, type: 'SPONSOR' });
+      await listForms({ page: 1, limit: 10, type: "SPONSOR" });
 
       expect(prismaMock.form.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { type: 'SPONSOR' },
-        })
+          where: { type: "SPONSOR" },
+        }),
       );
     });
 
-    it('should filter by search term', async () => {
+    it("should filter by search term", async () => {
       prismaMock.form.findMany.mockResolvedValue([]);
       prismaMock.form.count.mockResolvedValue(0);
 
-      await listForms({ page: 1, limit: 10, search: 'registration' });
+      await listForms({ page: 1, limit: 10, search: "registration" });
 
       expect(prismaMock.form.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            OR: [{ name: { contains: 'registration', mode: 'insensitive' } }],
+            OR: [{ name: { contains: "registration", mode: "insensitive" } }],
           },
-        })
+        }),
       );
     });
 
-    it('should handle pagination correctly', async () => {
+    it("should handle pagination correctly", async () => {
       const mockForms = [createMockForm()];
       prismaMock.form.findMany.mockResolvedValue(mockForms);
       prismaMock.form.count.mockResolvedValue(25);
@@ -478,7 +493,7 @@ describe('Forms Service', () => {
         expect.objectContaining({
           skip: 10, // (page - 1) * limit
           take: 10,
-        })
+        }),
       );
     });
   });
@@ -487,22 +502,24 @@ describe('Forms Service', () => {
   // deleteForm
   // ============================================================================
 
-  describe('deleteForm', () => {
-    it('should delete form when found', async () => {
+  describe("deleteForm", () => {
+    it("should delete form when found", async () => {
       const mockForm = createMockForm({ id: formId });
       prismaMock.form.findUnique.mockResolvedValue(mockForm);
       prismaMock.form.delete.mockResolvedValue(mockForm);
 
       await deleteForm(formId);
 
-      expect(prismaMock.form.delete).toHaveBeenCalledWith({ where: { id: formId } });
+      expect(prismaMock.form.delete).toHaveBeenCalledWith({
+        where: { id: formId },
+      });
     });
 
-    it('should throw when form not found', async () => {
+    it("should throw when form not found", async () => {
       prismaMock.form.findUnique.mockResolvedValue(null);
 
-      await expect(deleteForm('non-existent')).rejects.toThrow(AppError);
-      await expect(deleteForm('non-existent')).rejects.toMatchObject({
+      await expect(deleteForm("non-existent")).rejects.toThrow(AppError);
+      await expect(deleteForm("non-existent")).rejects.toMatchObject({
         statusCode: 404,
         code: ErrorCodes.NOT_FOUND,
       });
@@ -513,20 +530,22 @@ describe('Forms Service', () => {
   // formExists
   // ============================================================================
 
-  describe('formExists', () => {
-    it('should return true when form exists', async () => {
+  describe("formExists", () => {
+    it("should return true when form exists", async () => {
       prismaMock.form.count.mockResolvedValue(1);
 
       const result = await formExists(formId);
 
       expect(result).toBe(true);
-      expect(prismaMock.form.count).toHaveBeenCalledWith({ where: { id: formId } });
+      expect(prismaMock.form.count).toHaveBeenCalledWith({
+        where: { id: formId },
+      });
     });
 
-    it('should return false when form does not exist', async () => {
+    it("should return false when form does not exist", async () => {
       prismaMock.form.count.mockResolvedValue(0);
 
-      const result = await formExists('non-existent');
+      const result = await formExists("non-existent");
 
       expect(result).toBe(false);
     });
@@ -536,8 +555,8 @@ describe('Forms Service', () => {
   // getFormClientId
   // ============================================================================
 
-  describe('getFormClientId', () => {
-    it('should return clientId via event relation', async () => {
+  describe("getFormClientId", () => {
+    it("should return clientId via event relation", async () => {
       const clientId = faker.string.uuid();
       prismaMock.form.findUnique.mockResolvedValue({
         event: { clientId },
@@ -556,10 +575,10 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should return null when form not found', async () => {
+    it("should return null when form not found", async () => {
       prismaMock.form.findUnique.mockResolvedValue(null);
 
-      const result = await getFormClientId('non-existent');
+      const result = await getFormClientId("non-existent");
 
       expect(result).toBeNull();
     });
@@ -569,51 +588,51 @@ describe('Forms Service', () => {
   // Sponsor Form Functions
   // ============================================================================
 
-  describe('createDefaultSponsorSchema', () => {
-    it('should create valid sponsor form schema', () => {
+  describe("createDefaultSponsorSchema", () => {
+    it("should create valid sponsor form schema", () => {
       const schema = createDefaultSponsorSchema();
 
-      expect(schema.formType).toBe('SPONSOR');
+      expect(schema.formType).toBe("SPONSOR");
       expect(schema.sponsorSteps).toHaveLength(1);
-      expect(schema.sponsorSteps[0].title).toBe('Informations du laboratoire');
+      expect(schema.sponsorSteps[0].title).toBe("Informations du laboratoire");
       expect(schema.beneficiaryTemplate).toBeDefined();
       expect(schema.beneficiaryTemplate.minCount).toBe(1);
       expect(schema.beneficiaryTemplate.maxCount).toBe(100);
     });
 
-    it('should include required sponsor step fields', () => {
+    it("should include required sponsor step fields", () => {
       const schema = createDefaultSponsorSchema();
       const fields = schema.sponsorSteps[0].fields;
       const fieldIds = fields.map((f) => f.id);
 
-      expect(fieldIds).toContain('labName');
-      expect(fieldIds).toContain('contactName');
-      expect(fieldIds).toContain('email');
-      expect(fieldIds).toContain('phone');
+      expect(fieldIds).toContain("labName");
+      expect(fieldIds).toContain("contactName");
+      expect(fieldIds).toContain("email");
+      expect(fieldIds).toContain("phone");
     });
 
-    it('should include beneficiary template fields', () => {
+    it("should include beneficiary template fields", () => {
       const schema = createDefaultSponsorSchema();
       const fields = schema.beneficiaryTemplate.fields;
       const fieldIds = fields.map((f) => f.id);
 
-      expect(fieldIds).toContain('name');
-      expect(fieldIds).toContain('email');
-      expect(fieldIds).toContain('phone');
-      expect(fieldIds).toContain('address');
+      expect(fieldIds).toContain("name");
+      expect(fieldIds).toContain("email");
+      expect(fieldIds).toContain("phone");
+      expect(fieldIds).toContain("address");
     });
   });
 
-  describe('getSponsorFormByEventSlug', () => {
-    it('should return sponsor form for OPEN event', async () => {
+  describe("getSponsorFormByEventSlug", () => {
+    it("should return sponsor form for OPEN event", async () => {
       const mockClient = createMockClient();
       const mockEvent = createMockEvent({
         clientId: mockClient.id,
-        status: 'OPEN',
+        status: "OPEN",
       });
       const mockForm = createMockForm({
         eventId: mockEvent.id,
-        type: 'SPONSOR',
+        type: "SPONSOR",
         active: true,
       });
       const formWithRelations = {
@@ -631,17 +650,19 @@ describe('Forms Service', () => {
         },
       };
 
-      prismaMock.form.findFirst.mockResolvedValue(formWithRelations as Form & { event: unknown });
+      prismaMock.form.findFirst.mockResolvedValue(
+        formWithRelations as Form & { event: unknown },
+      );
 
       const result = await getSponsorFormByEventSlug(mockEvent.slug);
 
       expect(result).toEqual(formWithRelations);
       expect(prismaMock.form.findFirst).toHaveBeenCalledWith({
         where: {
-          type: 'SPONSOR',
+          type: "SPONSOR",
           event: {
             slug: mockEvent.slug,
-            status: 'OPEN',
+            status: "OPEN",
           },
           active: true,
         },
@@ -649,29 +670,29 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should return null when sponsor form not found', async () => {
+    it("should return null when sponsor form not found", async () => {
       prismaMock.form.findFirst.mockResolvedValue(null);
 
-      const result = await getSponsorFormByEventSlug('non-existent');
+      const result = await getSponsorFormByEventSlug("non-existent");
 
       expect(result).toBeNull();
     });
   });
 
-  describe('getSponsorFormByEventId', () => {
-    it('should return sponsor form by eventId', async () => {
-      const mockForm = createMockForm({ eventId, type: 'SPONSOR' });
+  describe("getSponsorFormByEventId", () => {
+    it("should return sponsor form by eventId", async () => {
+      const mockForm = createMockForm({ eventId, type: "SPONSOR" });
       prismaMock.form.findFirst.mockResolvedValue(mockForm);
 
       const result = await getSponsorFormByEventId(eventId);
 
       expect(result).toEqual(mockForm);
       expect(prismaMock.form.findFirst).toHaveBeenCalledWith({
-        where: { eventId, type: 'SPONSOR' },
+        where: { eventId, type: "SPONSOR" },
       });
     });
 
-    it('should return null when no sponsor form exists', async () => {
+    it("should return null when no sponsor form exists", async () => {
       prismaMock.form.findFirst.mockResolvedValue(null);
 
       const result = await getSponsorFormByEventId(eventId);
@@ -680,9 +701,9 @@ describe('Forms Service', () => {
     });
   });
 
-  describe('createSponsorForm', () => {
-    it('should create sponsor form with default schema', async () => {
-      const mockForm = createMockForm({ eventId, type: 'SPONSOR' });
+  describe("createSponsorForm", () => {
+    it("should create sponsor form with default schema", async () => {
+      const mockForm = createMockForm({ eventId, type: "SPONSOR" });
 
       vi.mocked(mockEventExists).mockResolvedValue(true);
       prismaMock.form.findFirst.mockResolvedValue(null);
@@ -694,11 +715,11 @@ describe('Forms Service', () => {
       expect(prismaMock.form.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           eventId,
-          type: 'SPONSOR',
-          name: 'Formulaire Sponsor',
+          type: "SPONSOR",
+          name: "Formulaire Sponsor",
           active: true,
           schema: expect.objectContaining({
-            formType: 'SPONSOR',
+            formType: "SPONSOR",
             sponsorSteps: expect.any(Array),
             beneficiaryTemplate: expect.any(Object),
           }),
@@ -706,23 +727,23 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should create sponsor form with custom name', async () => {
-      const mockForm = createMockForm({ eventId, type: 'SPONSOR' });
+    it("should create sponsor form with custom name", async () => {
+      const mockForm = createMockForm({ eventId, type: "SPONSOR" });
 
       vi.mocked(mockEventExists).mockResolvedValue(true);
       prismaMock.form.findFirst.mockResolvedValue(null);
       prismaMock.form.create.mockResolvedValue(mockForm);
 
-      await createSponsorForm(eventId, 'Custom Sponsor Form');
+      await createSponsorForm(eventId, "Custom Sponsor Form");
 
       expect(prismaMock.form.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          name: 'Custom Sponsor Form',
+          name: "Custom Sponsor Form",
         }),
       });
     });
 
-    it('should throw when event does not exist', async () => {
+    it("should throw when event does not exist", async () => {
       vi.mocked(mockEventExists).mockResolvedValue(false);
 
       await expect(createSponsorForm(eventId)).rejects.toThrow(AppError);
@@ -732,8 +753,8 @@ describe('Forms Service', () => {
       });
     });
 
-    it('should throw conflict when event already has a sponsor form', async () => {
-      const existingForm = createMockForm({ eventId, type: 'SPONSOR' });
+    it("should throw conflict when event already has a sponsor form", async () => {
+      const existingForm = createMockForm({ eventId, type: "SPONSOR" });
 
       vi.mocked(mockEventExists).mockResolvedValue(true);
       prismaMock.form.findFirst.mockResolvedValue(existingForm);
