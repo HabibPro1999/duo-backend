@@ -3,13 +3,13 @@
 // Converts Tiptap JSON documents to MJML, then compiles to responsive HTML
 // =============================================================================
 
-import mjml2html from 'mjml'
+import mjml2html from "mjml";
 import type {
   TiptapDocument,
   TiptapNode,
   TiptapMark,
   MjmlCompilationResult,
-} from './email.types.js'
+} from "./email.types.js";
 
 // =============================================================================
 // MAIN EXPORTS
@@ -20,7 +20,9 @@ import type {
  * Wraps content in a full MJML structure with header, body, and footer
  */
 export function renderTemplateToMjml(document: TiptapDocument): string {
-  const bodyContent = document.content.map((node) => renderNode(node)).join('\n')
+  const bodyContent = document.content
+    .map((node) => renderNode(node))
+    .join("\n");
 
   return `
 <mjml>
@@ -75,7 +77,7 @@ export function renderTemplateToMjml(document: TiptapDocument): string {
     </mj-section>
   </mj-body>
 </mjml>
-  `.trim()
+  `.trim();
 }
 
 /**
@@ -84,28 +86,30 @@ export function renderTemplateToMjml(document: TiptapDocument): string {
  */
 export function compileMjmlToHtml(mjml: string): MjmlCompilationResult {
   const result = mjml2html(mjml, {
-    validationLevel: 'strict',
+    validationLevel: "strict",
     minify: false,
     beautify: true,
-  })
+  });
 
   // Filter out errors that are just template variable placeholders (expected)
   const errors = (result.errors || []).filter((error) => {
-    const msg = error.message || ''
+    const msg = error.message || "";
     // Allow {{variable}} patterns which are intentional template placeholders
-    return !msg.includes('{{') && !msg.includes('}}')
-  })
+    return !msg.includes("{{") && !msg.includes("}}");
+  });
 
   // If there are real MJML errors after filtering, throw an error
   if (errors.length > 0) {
-    const errorMessages = errors.map((e) => e.message || e.formattedMessage).join('; ')
-    throw new Error(`MJML compilation failed: ${errorMessages}`)
+    const errorMessages = errors
+      .map((e) => e.message || e.formattedMessage)
+      .join("; ");
+    throw new Error(`MJML compilation failed: ${errorMessages}`);
   }
 
   return {
     html: result.html,
     errors: [],
-  }
+  };
 }
 
 /**
@@ -115,8 +119,8 @@ export function compileMjmlToHtml(mjml: string): MjmlCompilationResult {
 export function extractPlainText(document: TiptapDocument): string {
   return document.content
     .map((node) => extractTextFromNode(node))
-    .join('\n')
-    .trim()
+    .join("\n")
+    .trim();
 }
 
 // =============================================================================
@@ -128,73 +132,107 @@ export function extractPlainText(document: TiptapDocument): string {
  */
 export function renderNode(node: TiptapNode): string {
   switch (node.type) {
-    case 'paragraph':
-      return renderParagraph(node)
-    case 'heading':
-      return renderHeading(node)
-    case 'bulletList':
-      return renderBulletList(node)
-    case 'orderedList':
-      return renderOrderedList(node)
-    case 'listItem':
-      return renderListItem(node)
-    case 'blockquote':
-      return renderBlockquote(node)
-    case 'horizontalRule':
-      return '<mj-divider border-color="#e5e7eb" border-width="1px" />'
-    case 'hardBreak':
-      return '<br />'
-    case 'image':
-      return renderImage(node)
+    case "paragraph":
+      return renderParagraph(node);
+    case "heading":
+      return renderHeading(node);
+    case "bulletList":
+      return renderBulletList(node);
+    case "orderedList":
+      return renderOrderedList(node);
+    case "listItem":
+      return renderListItem(node);
+    case "blockquote":
+      return renderBlockquote(node);
+    case "horizontalRule":
+      return '<mj-divider border-color="#e5e7eb" border-width="1px" />';
+    case "hardBreak":
+      return "<br />";
+    case "image":
+      return renderImage(node);
     default:
       // For unknown nodes, try to render content
       if (node.content) {
-        return node.content.map(renderNode).join('')
+        return node.content.map(renderNode).join("");
       }
-      return ''
+      return "";
   }
 }
 
 /**
+ * Link-type variable IDs that should render as buttons/links instead of plain text
+ */
+const LINK_VARIABLE_IDS = new Set([
+  "registrationLink",
+  "editRegistrationLink",
+  "paymentLink",
+]);
+
+/**
+ * Button labels for link-type variables
+ */
+const LINK_BUTTON_LABELS: Record<string, string> = {
+  registrationLink: "View Registration",
+  editRegistrationLink: "Edit Registration",
+  paymentLink: "Upload Payment Receipt",
+};
+
+/**
  * Renders a paragraph node
+ * Detects standalone link-type mentions and renders them as buttons
  */
 function renderParagraph(node: TiptapNode): string {
-  const content = renderInlineContent(node.content || [])
-  const align = (node.attrs?.textAlign as string) || 'left'
+  const nodes = node.content || [];
+  const align = (node.attrs?.textAlign as string) || "left";
 
-  // Extract styles from node attributes
-  const attrs: string[] = [`align="${align}"`]
-  if (node.attrs?.fontSize) attrs.push(`font-size="${node.attrs.fontSize}"`)
-  if (node.attrs?.lineHeight) attrs.push(`line-height="${node.attrs.lineHeight}"`)
-
-  // Empty paragraph becomes a spacer
-  if (!content || content.trim() === '') {
-    return '<mj-text>&nbsp;</mj-text>'
+  // Check if this paragraph contains a single link-type mention (possibly with whitespace text)
+  const nonEmptyNodes = nodes.filter(
+    (n) => !(n.type === "text" && (!n.text || n.text.trim() === "")),
+  );
+  if (nonEmptyNodes.length === 1 && nonEmptyNodes[0].type === "mention") {
+    const varId = (nonEmptyNodes[0].attrs?.id as string) || "";
+    if (LINK_VARIABLE_IDS.has(varId)) {
+      const label = LINK_BUTTON_LABELS[varId] || varId;
+      return `<mj-button href="{{${varId}}}" align="${align}">${label}</mj-button>`;
+    }
   }
 
-  return `<mj-text ${attrs.join(' ')}>${content}</mj-text>`
+  const content = renderInlineContent(nodes);
+
+  // Extract styles from node attributes
+  const attrs: string[] = [`align="${align}"`];
+  if (node.attrs?.fontSize) attrs.push(`font-size="${node.attrs.fontSize}"`);
+  if (node.attrs?.lineHeight)
+    attrs.push(`line-height="${node.attrs.lineHeight}"`);
+
+  // Empty paragraph becomes a spacer
+  if (!content || content.trim() === "") {
+    return "<mj-text>&nbsp;</mj-text>";
+  }
+
+  return `<mj-text ${attrs.join(" ")}>${content}</mj-text>`;
 }
 
 /**
  * Renders a heading node (h1-h6)
  */
 function renderHeading(node: TiptapNode): string {
-  const level = (node.attrs?.level as number) || 1
-  const content = renderInlineContent(node.content || [])
-  const align = (node.attrs?.textAlign as string) || 'left'
+  const level = (node.attrs?.level as number) || 1;
+  const content = renderInlineContent(node.content || []);
+  const align = (node.attrs?.textAlign as string) || "left";
 
   const sizes: Record<number, string> = {
-    1: '28px',
-    2: '24px',
-    3: '20px',
-    4: '18px',
-    5: '16px',
-    6: '14px',
-  }
+    1: "28px",
+    2: "24px",
+    3: "20px",
+    4: "18px",
+    5: "16px",
+    6: "14px",
+  };
 
-  const fontSize = sizes[level] || '14px'
+  const fontSize = sizes[level] || "14px";
 
-  return `<mj-text align="${align}" font-size="${fontSize}" font-weight="bold" padding-bottom="10px">${content}</mj-text>`
+  return `<mj-text align="${align}" font-size="${fontSize}" font-weight="bold" padding-bottom="10px">${content}</mj-text>`;
 }
 
 /**
@@ -203,12 +241,12 @@ function renderHeading(node: TiptapNode): string {
 function renderBulletList(node: TiptapNode): string {
   const items = (node.content || [])
     .map((item) => {
-      const itemContent = item.content?.[0]?.content || item.content || []
-      return `<li>${renderInlineContent(itemContent)}</li>`
+      const itemContent = item.content?.[0]?.content || item.content || [];
+      return `<li>${renderInlineContent(itemContent)}</li>`;
     })
-    .join('\n')
+    .join("\n");
 
-  return `<mj-text><ul style="margin: 0; padding-left: 20px;">${items}</ul></mj-text>`
+  return `<mj-text><ul style="margin: 0; padding-left: 20px;">${items}</ul></mj-text>`;
 }
 
 /**
@@ -217,26 +255,26 @@ function renderBulletList(node: TiptapNode): string {
 function renderOrderedList(node: TiptapNode): string {
   const items = (node.content || [])
     .map((item) => {
-      const itemContent = item.content?.[0]?.content || item.content || []
-      return `<li>${renderInlineContent(itemContent)}</li>`
+      const itemContent = item.content?.[0]?.content || item.content || [];
+      return `<li>${renderInlineContent(itemContent)}</li>`;
     })
-    .join('\n')
+    .join("\n");
 
-  return `<mj-text><ol style="margin: 0; padding-left: 20px;">${items}</ol></mj-text>`
+  return `<mj-text><ol style="margin: 0; padding-left: 20px;">${items}</ol></mj-text>`;
 }
 
 /**
  * Renders a list item (usually handled by parent list)
  */
 function renderListItem(node: TiptapNode): string {
-  return renderInlineContent(node.content?.[0]?.content || [])
+  return renderInlineContent(node.content?.[0]?.content || []);
 }
 
 /**
  * Renders a blockquote
  */
 function renderBlockquote(node: TiptapNode): string {
-  const content = (node.content || []).map(renderNode).join('')
+  const content = (node.content || []).map(renderNode).join("");
 
   return `
     <mj-section padding="0">
@@ -244,20 +282,20 @@ function renderBlockquote(node: TiptapNode): string {
         ${content}
       </mj-column>
     </mj-section>
-  `
+  `;
 }
 
 /**
  * Renders an image node
  */
 function renderImage(node: TiptapNode): string {
-  const src = escapeHtml(String(node.attrs?.src || ''))
-  const alt = escapeHtml(String(node.attrs?.alt || ''))
-  const width = String(node.attrs?.width || '100%')
+  const src = escapeHtml(String(node.attrs?.src || ""));
+  const alt = escapeHtml(String(node.attrs?.alt || ""));
+  const width = String(node.attrs?.width || "100%");
 
-  if (!src) return ''
+  if (!src) return "";
 
-  return `<mj-image src="${src}" alt="${alt}" width="${width}" />`
+  return `<mj-image src="${src}" alt="${alt}" width="${width}" />`;
 }
 
 // =============================================================================
@@ -268,88 +306,101 @@ function renderImage(node: TiptapNode): string {
  * Renders an array of inline nodes to HTML string
  */
 export function renderInlineContent(nodes: TiptapNode[]): string {
-  return nodes.map(renderInlineNode).join('')
+  return nodes.map(renderInlineNode).join("");
 }
 
 /**
  * Renders a single inline node
  */
 export function renderInlineNode(node: TiptapNode): string {
-  if (node.type === 'text') {
-    let text = escapeHtml(node.text || '')
+  if (node.type === "text") {
+    let text = escapeHtml(node.text || "");
 
     // Apply marks (formatting)
     if (node.marks && node.marks.length > 0) {
-      text = applyMarks(text, node.marks)
+      text = applyMarks(text, node.marks);
     }
 
-    return text
+    return text;
   }
 
-  if (node.type === 'mention') {
+  if (node.type === "mention") {
     // Variable placeholder - will be replaced at send time
-    const varId = (node.attrs?.id as string) || ''
-    return `{{${varId}}}`
+    const varId = (node.attrs?.id as string) || "";
+
+    // Link-type variables render as clickable links when inline
+    if (LINK_VARIABLE_IDS.has(varId)) {
+      const label = LINK_BUTTON_LABELS[varId] || varId;
+      return `<a href="{{${varId}}}" target="_blank" style="color: #4F46E5;">${label}</a>`;
+    }
+
+    return `{{${varId}}}`;
   }
 
-  if (node.type === 'hardBreak') {
-    return '<br />'
+  if (node.type === "hardBreak") {
+    return "<br />";
   }
 
   // Recurse for other inline nodes
   if (node.content) {
-    return renderInlineContent(node.content)
+    return renderInlineContent(node.content);
   }
 
-  return ''
+  return "";
 }
 
 /**
  * Applies formatting marks to text
  */
 export function applyMarks(text: string, marks: TiptapMark[]): string {
-  let result = text
+  let result = text;
 
   for (const mark of marks) {
     switch (mark.type) {
-      case 'bold':
-        result = `<strong>${result}</strong>`
-        break
-      case 'italic':
-        result = `<em>${result}</em>`
-        break
-      case 'underline':
-        result = `<u>${result}</u>`
-        break
-      case 'strike':
-        result = `<s>${result}</s>`
-        break
-      case 'code':
-        result = `<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 4px; font-family: monospace;">${result}</code>`
-        break
-      case 'link': {
-        const href = escapeHtml(String(mark.attrs?.href || '#'))
-        const target = (mark.attrs?.target as string) || '_blank'
-        result = `<a href="${href}" target="${target}" style="color: #4F46E5;">${result}</a>`
-        break
+      case "bold":
+        result = `<strong>${result}</strong>`;
+        break;
+      case "italic":
+        result = `<em>${result}</em>`;
+        break;
+      case "underline":
+        result = `<u>${result}</u>`;
+        break;
+      case "strike":
+        result = `<s>${result}</s>`;
+        break;
+      case "code":
+        result = `<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 4px; font-family: monospace;">${result}</code>`;
+        break;
+      case "link": {
+        const href = escapeHtml(String(mark.attrs?.href || "#"));
+        const target = (mark.attrs?.target as string) || "_blank";
+        result = `<a href="${href}" target="${target}" style="color: #4F46E5;">${result}</a>`;
+        break;
       }
-      case 'textStyle': {
-        const styles: string[] = []
-        if (mark.attrs?.color) styles.push(`color: ${escapeHtml(String(mark.attrs.color))}`)
+      case "textStyle": {
+        const styles: string[] = [];
+        if (mark.attrs?.color)
+          styles.push(`color: ${escapeHtml(String(mark.attrs.color))}`);
         if (mark.attrs?.backgroundColor)
-          styles.push(`background-color: ${escapeHtml(String(mark.attrs.backgroundColor))}`)
-        if (mark.attrs?.fontSize) styles.push(`font-size: ${escapeHtml(String(mark.attrs.fontSize))}`)
+          styles.push(
+            `background-color: ${escapeHtml(String(mark.attrs.backgroundColor))}`,
+          );
+        if (mark.attrs?.fontSize)
+          styles.push(`font-size: ${escapeHtml(String(mark.attrs.fontSize))}`);
         if (mark.attrs?.fontFamily)
-          styles.push(`font-family: ${escapeHtml(String(mark.attrs.fontFamily))}`)
+          styles.push(
+            `font-family: ${escapeHtml(String(mark.attrs.fontFamily))}`,
+          );
         if (styles.length > 0) {
-          result = `<span style="${styles.join('; ')}">${result}</span>`
+          result = `<span style="${styles.join("; ")}">${result}</span>`;
         }
-        break
+        break;
       }
     }
   }
 
-  return result
+  return result;
 }
 
 // =============================================================================
@@ -362,45 +413,45 @@ export function applyMarks(text: string, marks: TiptapMark[]): string {
 function extractTextFromNode(node: TiptapNode): string {
   // Direct text content
   if (node.text) {
-    return node.text
+    return node.text;
   }
 
   // Mention nodes become {{variable}}
-  if (node.type === 'mention') {
-    const varId = (node.attrs?.id as string) || ''
-    return `{{${varId}}}`
+  if (node.type === "mention") {
+    const varId = (node.attrs?.id as string) || "";
+    return `{{${varId}}}`;
   }
 
   // Hard breaks become newlines
-  if (node.type === 'hardBreak') {
-    return '\n'
+  if (node.type === "hardBreak") {
+    return "\n";
   }
 
   // Horizontal rules become separator
-  if (node.type === 'horizontalRule') {
-    return '\n---\n'
+  if (node.type === "horizontalRule") {
+    return "\n---\n";
   }
 
   // Recursively extract from children
   if (!node.content) {
-    return ''
+    return "";
   }
 
-  const childText = node.content.map(extractTextFromNode).join('')
+  const childText = node.content.map(extractTextFromNode).join("");
 
   // Add appropriate line breaks based on node type
   switch (node.type) {
-    case 'paragraph':
-    case 'heading':
-    case 'blockquote':
-      return childText + '\n'
-    case 'bulletList':
-    case 'orderedList':
-      return childText + '\n'
-    case 'listItem':
-      return '- ' + childText.trim() + '\n'
+    case "paragraph":
+    case "heading":
+    case "blockquote":
+      return childText + "\n";
+    case "bulletList":
+    case "orderedList":
+      return childText + "\n";
+    case "listItem":
+      return "- " + childText.trim() + "\n";
     default:
-      return childText
+      return childText;
   }
 }
 
@@ -413,12 +464,12 @@ function extractTextFromNode(node: TiptapNode): string {
  */
 export function escapeHtml(text: string): string {
   const escapeMap: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
-  }
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  };
 
-  return text.replace(/[&<>"']/g, (char) => escapeMap[char])
+  return text.replace(/[&<>"']/g, (char) => escapeMap[char]);
 }

@@ -3,17 +3,21 @@
 // CRUD operations for email templates
 // =============================================================================
 
-import { prisma } from '@/database/client.js';
-import { AppError } from '@shared/errors/app-error.js';
-import { ErrorCodes } from '@shared/errors/error-codes.js';
-import { paginate, getSkip } from '@shared/utils/pagination.js';
+import { prisma } from "@/database/client.js";
+import { AppError } from "@shared/errors/app-error.js";
+import { ErrorCodes } from "@shared/errors/error-codes.js";
+import { paginate, getSkip } from "@shared/utils/pagination.js";
 import {
   renderTemplateToMjml,
   compileMjmlToHtml,
   extractPlainText,
-} from './email-renderer.service.js';
-import type { TiptapDocument } from './email.types.js';
-import type { Prisma, EmailTemplate, AutomaticEmailTrigger } from '@/generated/prisma/client.js';
+} from "./email-renderer.service.js";
+import type { TiptapDocument } from "./email.types.js";
+import type {
+  Prisma,
+  EmailTemplate,
+  AutomaticEmailTrigger,
+} from "@/generated/prisma/client.js";
 
 // =============================================================================
 // Types
@@ -33,7 +37,7 @@ export async function createEmailTemplate(input: {
   description?: string | null;
   subject: string;
   content: TiptapDocument;
-  category: 'AUTOMATIC' | 'MANUAL';
+  category: "AUTOMATIC" | "MANUAL";
   trigger?: AutomaticEmailTrigger | null;
   isActive?: boolean;
 }): Promise<EmailTemplate> {
@@ -44,11 +48,11 @@ export async function createEmailTemplate(input: {
   });
 
   if (!event) {
-    throw new AppError('Event not found', 404, true, ErrorCodes.NOT_FOUND);
+    throw new AppError("Event not found", 404, true, ErrorCodes.NOT_FOUND);
   }
 
   // For automatic templates, check uniqueness per event+trigger
-  if (input.category === 'AUTOMATIC' && input.trigger) {
+  if (input.category === "AUTOMATIC" && input.trigger) {
     const existing = await prisma.emailTemplate.findFirst({
       where: {
         eventId: input.eventId,
@@ -61,7 +65,7 @@ export async function createEmailTemplate(input: {
         `An active template for trigger "${input.trigger}" already exists for this event`,
         409,
         true,
-        ErrorCodes.CONFLICT
+        ErrorCodes.CONFLICT,
       );
     }
   }
@@ -93,14 +97,16 @@ export async function createEmailTemplate(input: {
 // READ
 // =============================================================================
 
-export async function getEmailTemplateById(id: string): Promise<EmailTemplate | null> {
+export async function getEmailTemplateById(
+  id: string,
+): Promise<EmailTemplate | null> {
   return prisma.emailTemplate.findUnique({
     where: { id },
   });
 }
 
 export async function getEmailTemplateWithEvent(
-  id: string
+  id: string,
 ): Promise<EmailTemplateWithRelations | null> {
   return prisma.emailTemplate.findFirst({
     where: { id },
@@ -109,7 +115,9 @@ export async function getEmailTemplateWithEvent(
 }
 
 // Get clientId for permission checks
-export async function getEmailTemplateClientId(id: string): Promise<string | null> {
+export async function getEmailTemplateClientId(
+  id: string,
+): Promise<string | null> {
   const template = await prisma.emailTemplate.findUnique({
     where: { id },
     select: { clientId: true },
@@ -126,9 +134,9 @@ export async function listEmailTemplates(
   query: {
     page?: number;
     limit?: number;
-    category?: 'AUTOMATIC' | 'MANUAL';
+    category?: "AUTOMATIC" | "MANUAL";
     search?: string;
-  }
+  },
 ) {
   const { page = 1, limit = 20, category, search } = query;
   const skip = getSkip({ page, limit });
@@ -138,8 +146,8 @@ export async function listEmailTemplates(
     ...(category && { category }),
     ...(search && {
       OR: [
-        { name: { contains: search, mode: 'insensitive' } },
-        { subject: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: "insensitive" } },
+        { subject: { contains: search, mode: "insensitive" } },
       ],
     }),
   };
@@ -149,7 +157,7 @@ export async function listEmailTemplates(
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.emailTemplate.count({ where }),
   ]);
@@ -160,13 +168,13 @@ export async function listEmailTemplates(
 // Get template by trigger (for automatic emails)
 export async function getTemplateByTrigger(
   eventId: string,
-  trigger: AutomaticEmailTrigger
+  trigger: AutomaticEmailTrigger,
 ): Promise<EmailTemplate | null> {
   return prisma.emailTemplate.findFirst({
     where: {
       eventId,
       trigger,
-      category: 'AUTOMATIC',
+      category: "AUTOMATIC",
       isActive: true,
     },
   });
@@ -183,42 +191,48 @@ export async function updateEmailTemplate(
     description?: string | null;
     subject?: string;
     content?: TiptapDocument;
-    category?: 'AUTOMATIC' | 'MANUAL';
+    category?: "AUTOMATIC" | "MANUAL";
     trigger?: AutomaticEmailTrigger | null;
     isActive?: boolean;
-  }
+  },
 ): Promise<EmailTemplate> {
   const existing = await prisma.emailTemplate.findUnique({ where: { id } });
 
   if (!existing) {
-    throw new AppError('Email template not found', 404, true, ErrorCodes.NOT_FOUND);
+    throw new AppError(
+      "Email template not found",
+      404,
+      true,
+      ErrorCodes.NOT_FOUND,
+    );
   }
 
   // Determine final category and trigger values
   const finalCategory = input.category ?? existing.category;
-  const finalTrigger = input.trigger !== undefined ? input.trigger : existing.trigger;
+  const finalTrigger =
+    input.trigger !== undefined ? input.trigger : existing.trigger;
 
   // Validate category/trigger consistency
-  if (finalCategory === 'AUTOMATIC' && !finalTrigger) {
+  if (finalCategory === "AUTOMATIC" && !finalTrigger) {
     throw new AppError(
-      'Automatic templates require a trigger',
+      "Automatic templates require a trigger",
       400,
       true,
-      ErrorCodes.BAD_REQUEST
+      ErrorCodes.BAD_REQUEST,
     );
   }
-  if (finalCategory === 'MANUAL' && finalTrigger) {
+  if (finalCategory === "MANUAL" && finalTrigger) {
     throw new AppError(
-      'Manual templates should not have a trigger',
+      "Manual templates should not have a trigger",
       400,
       true,
-      ErrorCodes.BAD_REQUEST
+      ErrorCodes.BAD_REQUEST,
     );
   }
 
   // Check for duplicate trigger if changing to automatic or changing trigger
   if (
-    finalCategory === 'AUTOMATIC' &&
+    finalCategory === "AUTOMATIC" &&
     finalTrigger &&
     (finalTrigger !== existing.trigger || finalCategory !== existing.category)
   ) {
@@ -235,7 +249,7 @@ export async function updateEmailTemplate(
         `An active template for trigger "${finalTrigger}" already exists for this event`,
         409,
         true,
-        ErrorCodes.CONFLICT
+        ErrorCodes.CONFLICT,
       );
     }
   }
@@ -258,9 +272,13 @@ export async function updateEmailTemplate(
     where: { id },
     data: {
       ...(input.name !== undefined && { name: input.name }),
-      ...(input.description !== undefined && { description: input.description }),
+      ...(input.description !== undefined && {
+        description: input.description,
+      }),
       ...(input.subject !== undefined && { subject: input.subject }),
-      ...(input.content && { content: input.content as unknown as Prisma.InputJsonValue }),
+      ...(input.content && {
+        content: input.content as unknown as Prisma.InputJsonValue,
+      }),
       ...compiledContent,
       ...(input.category !== undefined && { category: input.category }),
       ...(input.trigger !== undefined && { trigger: input.trigger }),
@@ -279,7 +297,12 @@ export async function deleteEmailTemplate(id: string): Promise<void> {
   });
 
   if (!existing) {
-    throw new AppError('Email template not found', 404, true, ErrorCodes.NOT_FOUND);
+    throw new AppError(
+      "Email template not found",
+      404,
+      true,
+      ErrorCodes.NOT_FOUND,
+    );
   }
 
   await prisma.emailTemplate.delete({ where: { id } });
@@ -291,12 +314,17 @@ export async function deleteEmailTemplate(id: string): Promise<void> {
 
 export async function duplicateEmailTemplate(
   id: string,
-  newName?: string
+  newName?: string,
 ): Promise<EmailTemplate> {
   const existing = await prisma.emailTemplate.findUnique({ where: { id } });
 
   if (!existing) {
-    throw new AppError('Email template not found', 404, true, ErrorCodes.NOT_FOUND);
+    throw new AppError(
+      "Email template not found",
+      404,
+      true,
+      ErrorCodes.NOT_FOUND,
+    );
   }
 
   return prisma.emailTemplate.create({
@@ -310,7 +338,7 @@ export async function duplicateEmailTemplate(
       mjmlContent: existing.mjmlContent,
       htmlContent: existing.htmlContent,
       plainContent: existing.plainContent,
-      category: 'MANUAL', // Duplicates are always manual
+      category: "MANUAL", // Duplicates are always manual
       trigger: null,
       isActive: false, // Start as inactive
     },
