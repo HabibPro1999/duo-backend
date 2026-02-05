@@ -444,7 +444,7 @@ export function createDefaultSponsorSchema(): SponsorFormSchemaJson {
         {
           id: 'name',
           type: 'text',
-          label: 'Nom et prénom',
+          label: 'Nom complet',
           gridColumn: 'full',
         },
         {

@@ -502,7 +502,6 @@ export async function listSponsorships(
     where.OR = [
       { code: { contains: search, mode: 'insensitive' } },
       { beneficiaryName: { contains: search, mode: 'insensitive' } },
-      { beneficiaryEmail: { contains: search, mode: 'insensitive' } },
       { batch: { labName: { contains: search, mode: 'insensitive' } } },
       { batch: { contactName: { contains: search, mode: 'insensitive' } } },
     ];
