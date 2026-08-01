@@ -6,6 +6,10 @@ import { ErrorCodes } from "@shared/errors/error-codes.js";
 import { calculateApplicableAmount } from "@shared/utils/sponsorship-math.js";
 import { evaluateConditions } from "@shared/utils/conditions.js";
 import {
+  findConditionConflicts,
+  conditionSetSignature,
+} from "@shared/utils/condition-satisfiability.js";
+import {
   CLIENT_MODULE_GATE_SELECT,
   assertModuleEnabledForClient,
 } from "@clients";
@@ -86,7 +90,7 @@ async function updateEventPricingTx(
     select: {
       status: true,
       client: { select: CLIENT_MODULE_GATE_SELECT },
-      pricing: { select: { currency: true } },
+      pricing: { select: { currency: true, rules: true } },
     },
   });
   if (!event) {
@@ -127,6 +131,47 @@ async function updateEventPricingTx(
       ...rule,
       id: rule.id ?? randomUUID(),
     }));
+
+    // Grandfathering: only validate rules whose canonical condition
+    // signature differs from what is already stored. A naive "validate every
+    // rule in the array" guard would 400 on deleting a rule, toggling
+    // `active`, renaming, or repricing an existing (possibly legacy
+    // contradictory) rule — bricking the pricing UI for any event with a
+    // pre-existing unsatisfiable rule. Any edit to a rule's conditions or
+    // conditionLogic flips it into "must be valid" going forward.
+    const storedRules =
+      (event.pricing?.rules as unknown as EmbeddedPricingRule[] | null) ?? [];
+    const storedSignatures = new Map(
+      storedRules.map((rule) => [
+        rule.id,
+        conditionSetSignature(rule.conditions, rule.conditionLogic),
+      ]),
+    );
+
+    for (const rule of rulesWithIds) {
+      const storedSignature = storedSignatures.get(rule.id);
+      const currentSignature = conditionSetSignature(
+        rule.conditions,
+        rule.conditionLogic,
+      );
+      if (storedSignature !== undefined && storedSignature === currentSignature) {
+        continue; // Untouched legacy rule — grandfathered in.
+      }
+
+      const conflicts = findConditionConflicts(
+        rule.conditions,
+        rule.conditionLogic,
+      );
+      if (conflicts.length > 0) {
+        throw new AppError(
+          `Pricing rule "${rule.name}" has conditions that can never all be true`,
+          400,
+          ErrorCodes.PRICING_RULE_UNSATISFIABLE,
+          { ruleId: rule.id, ruleName: rule.name, conflicts },
+        );
+      }
+    }
+
     updateData.rules = rulesWithIds as Prisma.InputJsonValue;
     createData.rules = rulesWithIds as Prisma.InputJsonValue;
   }

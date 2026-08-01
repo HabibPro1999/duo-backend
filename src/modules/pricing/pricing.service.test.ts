@@ -684,5 +684,252 @@ describe("Pricing Service", () => {
       expect(result.calculatedBasePrice).toBe(300);
       expect(result.appliedRules).toHaveLength(0);
     });
+
+    it("should apply an `in` condition (string[] survives the unparsed JSON-column cast)", async () => {
+      const mockPricing = createMockEventPricing({
+        eventId,
+        basePrice: 300,
+        rules: [
+          {
+            id: "in-rule",
+            name: "Category Discount",
+            price: 200,
+            conditions: [
+              {
+                fieldId: "category",
+                operator: "in",
+                value: ["gold", "silver"],
+              },
+            ],
+            conditionLogic: "AND",
+            priority: 1,
+            active: true,
+            description: null,
+          },
+        ],
+      });
+
+      prismaMock.eventPricing.findUnique.mockResolvedValue(mockPricing);
+      prismaMock.eventAccess.findMany.mockResolvedValue([]);
+
+      const matched = await calculatePrice(eventId, {
+        formData: { category: "gold" },
+        selectedAccessItems: [],
+        sponsorshipCodes: [],
+      });
+      expect(matched.calculatedBasePrice).toBe(200);
+      expect(matched.appliedRules[0].ruleName).toBe("Category Discount");
+
+      const unmatched = await calculatePrice(eventId, {
+        formData: { category: "bronze" },
+        selectedAccessItems: [],
+        sponsorshipCodes: [],
+      });
+      expect(unmatched.calculatedBasePrice).toBe(300);
+      expect(unmatched.appliedRules).toHaveLength(0);
+    });
+  });
+
+  describe("contradiction guard (updateEventPricingTx)", () => {
+    // The exact TSHG prod incident shape: three `equals` stacked on one
+    // dropdown under AND can never all be true.
+    const contradictoryConditions: Array<{
+      fieldId: string;
+      operator: "equals";
+      value: string;
+    }> = [
+      { fieldId: "dropdown_CAT", operator: "equals", value: "opt_phd" },
+      { fieldId: "dropdown_CAT", operator: "equals", value: "opt_resident" },
+      { fieldId: "dropdown_CAT", operator: "equals", value: "opt_postgrad" },
+    ];
+
+    it("rejects a contradictory create with PRC_6006", async () => {
+      const existingPricing = createMockEventPricing({ eventId, rules: [] });
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+
+      await expect(
+        addPricingRule(eventId, {
+          name: "Dead Rule",
+          price: 300,
+          conditionLogic: "AND",
+          priority: 0,
+          active: true,
+          conditions: contradictoryConditions,
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: ErrorCodes.PRICING_RULE_UNSATISFIABLE,
+      });
+
+      expect(prismaMock.eventPricing.upsert).not.toHaveBeenCalled();
+    });
+
+    it("rejects a partial conditionLogic-only patch that turns a legacy OR rule contradictory under AND (proves the service layer must validate the merged rule, not just the patch)", async () => {
+      const storedRule = {
+        id: "rule-1",
+        name: "Legacy OR Rule",
+        price: 300,
+        conditions: contradictoryConditions,
+        conditionLogic: "OR" as const,
+        priority: 0,
+        active: true,
+        description: null,
+      };
+      const existingPricing = createMockEventPricing({
+        eventId,
+        rules: [storedRule],
+      });
+
+      prismaMock.event.findUnique.mockResolvedValue({
+        ...pricingEnabledEvent,
+        pricing: { currency: "TND", rules: [storedRule] },
+      } as never);
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+
+      await expect(
+        updatePricingRule(eventId, "rule-1", { conditionLogic: "AND" }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: ErrorCodes.PRICING_RULE_UNSATISFIABLE,
+      });
+
+      expect(prismaMock.eventPricing.upsert).not.toHaveBeenCalled();
+    });
+
+    it("deletePricingRule succeeds when another stored rule is legacy-contradictory (the lockout regression test)", async () => {
+      const legacyContradictoryRule = {
+        id: "legacy-rule",
+        name: "TSHG Dead Rule",
+        price: 300,
+        conditions: contradictoryConditions,
+        conditionLogic: "AND" as const,
+        priority: 0,
+        active: true,
+        description: null,
+      };
+      const ruleToDelete = {
+        id: "rule-to-delete",
+        name: "Normal Rule",
+        price: 100,
+        conditions: [] as never[],
+        conditionLogic: "AND" as const,
+        priority: 0,
+        active: true,
+        description: null,
+      };
+      const existingPricing = createMockEventPricing({
+        eventId,
+        rules: [ruleToDelete, legacyContradictoryRule],
+      });
+      const updatedPricing = createMockEventPricing({
+        eventId,
+        rules: [legacyContradictoryRule],
+      });
+
+      prismaMock.event.findUnique.mockResolvedValue({
+        ...pricingEnabledEvent,
+        pricing: {
+          currency: "TND",
+          rules: [ruleToDelete, legacyContradictoryRule],
+        },
+      } as never);
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.eventPricing.upsert.mockResolvedValue(updatedPricing);
+
+      const result = await deletePricingRule(eventId, "rule-to-delete");
+
+      expect(result.rules).toHaveLength(1);
+      expect(result.rules[0].id).toBe("legacy-rule");
+    });
+
+    it("toggling active on a legacy contradictory rule with identical conditions succeeds", async () => {
+      const legacyRule = {
+        id: "legacy-rule",
+        name: "TSHG Dead Rule",
+        price: 300,
+        conditions: contradictoryConditions,
+        conditionLogic: "AND" as const,
+        priority: 0,
+        active: true,
+        description: null,
+      };
+      const existingPricing = createMockEventPricing({
+        eventId,
+        rules: [legacyRule],
+      });
+      const updatedPricing = createMockEventPricing({
+        eventId,
+        rules: [{ ...legacyRule, active: false }],
+      });
+
+      prismaMock.event.findUnique.mockResolvedValue({
+        ...pricingEnabledEvent,
+        pricing: { currency: "TND", rules: [legacyRule] },
+      } as never);
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.eventPricing.upsert.mockResolvedValue(updatedPricing);
+
+      const result = await updatePricingRule(eventId, "legacy-rule", {
+        active: false,
+      });
+
+      expect(result.rules[0].active).toBe(false);
+    });
+
+    it("rejects the same legacy rule once one of its condition values actually changes", async () => {
+      const legacyRule = {
+        id: "legacy-rule",
+        name: "TSHG Dead Rule",
+        price: 300,
+        conditions: contradictoryConditions,
+        conditionLogic: "AND" as const,
+        priority: 0,
+        active: true,
+        description: null,
+      };
+      const existingPricing = createMockEventPricing({
+        eventId,
+        rules: [legacyRule],
+      });
+
+      prismaMock.event.findUnique.mockResolvedValue({
+        ...pricingEnabledEvent,
+        pricing: { currency: "TND", rules: [legacyRule] },
+      } as never);
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+
+      await expect(
+        updatePricingRule(eventId, "legacy-rule", {
+          conditions: [
+            { fieldId: "dropdown_CAT", operator: "equals", value: "opt_phd" },
+            {
+              fieldId: "dropdown_CAT",
+              operator: "equals",
+              value: "opt_resident",
+            },
+            {
+              fieldId: "dropdown_CAT",
+              operator: "equals",
+              value: "opt_undergrad", // changed from opt_postgrad
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: ErrorCodes.PRICING_RULE_UNSATISFIABLE,
+      });
+
+      expect(prismaMock.eventPricing.upsert).not.toHaveBeenCalled();
+    });
   });
 });
