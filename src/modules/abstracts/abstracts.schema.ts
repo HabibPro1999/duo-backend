@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { FormFieldSchema } from "@modules/forms/forms.schema.js";
+import {
+  FormLanguagesSchema,
+  translationsMapOf,
+} from "@shared/schemas/i18n.schema.js";
 import { StrongPasswordSchema } from "@modules/identity/users.schema.js";
 
 // ============================================================================
@@ -66,6 +70,7 @@ export const PatchConfigSchema = z.strictObject({
     .enum(["BY_CODE", "BY_THEME", "BY_SUBMISSION_ORDER"])
     .optional(),
   bookIncludeAuthorNames: z.boolean().optional(),
+  languages: FormLanguagesSchema.optional(),
   force: z.boolean().optional(),
 });
 
@@ -73,9 +78,17 @@ export const PatchConfigSchema = z.strictObject({
 // Theme Schemas
 // ============================================================================
 
+export const ThemeTranslationsSchema = translationsMapOf(
+  z.strictObject({
+    label: z.string().min(1).max(120).optional(),
+    description: z.string().trim().max(500).optional(),
+  }),
+);
+
 export const CreateThemeSchema = z.strictObject({
   label: z.string().min(1).max(120),
   description: z.string().trim().max(500).nullish(),
+  translations: ThemeTranslationsSchema.nullish(),
   sortOrder: z.number().int().optional(),
   active: z.boolean().optional(),
 });
@@ -83,6 +96,7 @@ export const CreateThemeSchema = z.strictObject({
 export const UpdateThemeSchema = z.strictObject({
   label: z.string().min(1).max(120).optional(),
   description: z.string().trim().max(500).nullish(),
+  translations: ThemeTranslationsSchema.nullish(),
   sortOrder: z.number().int().optional(),
   active: z.boolean().optional(),
 });
@@ -100,6 +114,7 @@ export const AdditionalFieldsSchema = z.strictObject({
 // ============================================================================
 
 export type PatchConfigInput = z.infer<typeof PatchConfigSchema>;
+export type ThemeTranslations = z.infer<typeof ThemeTranslationsSchema>;
 export type CreateThemeInput = z.infer<typeof CreateThemeSchema>;
 export type UpdateThemeInput = z.infer<typeof UpdateThemeSchema>;
 export type AdditionalFieldsInput = z.infer<typeof AdditionalFieldsSchema>;

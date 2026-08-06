@@ -124,17 +124,18 @@ enum SponsorshipStatus {
 // ============================================================================
 
 model Form {
-  id             String   @id @default(uuid())
-  eventId        String   @map("event_id")
-  type           FormType @default(REGISTRATION)
-  name           String
-  schema         Json
-  schemaVersion  Int      @default(1) @map("schema_version")
-  successTitle   String?  @map("success_title")
-  successMessage String?  @map("success_message")
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(uuid())
+  eventId             String   @map("event_id")
+  type                FormType @default(REGISTRATION)
+  name                String
+  schema              Json
+  schemaVersion       Int      @default(1) @map("schema_version")
+  successTitle        String?  @map("success_title")
+  successMessage      String?  @map("success_message")
+  successTranslations Json?    @map("success_translations")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   registrations      Registration[]
@@ -812,6 +813,7 @@ model AbstractConfig {
   bookOrder              AbstractBookOrder      @default(BY_CODE) @map("book_order")
   bookIncludeAuthorNames Boolean                @default(true) @map("book_include_author_names")
   additionalFieldsSchema Json                   @default("[]") @map("additional_fields_schema")
+  languages              Json?
   createdAt              DateTime               @default(now()) @map("created_at")
   updatedAt              DateTime               @updatedAt @map("updated_at")
 
@@ -822,14 +824,15 @@ model AbstractConfig {
 }
 
 model AbstractTheme {
-  id          String   @id @default(uuid())
-  configId    String   @map("config_id")
-  label       String
-  description String?
-  sortOrder   Int      @default(0) @map("sort_order")
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  configId     String   @map("config_id")
+  label        String
+  description  String?
+  translations Json?
+  sortOrder    Int      @default(0) @map("sort_order")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   config         AbstractConfig            @relation(fields: [configId], references: [id], onDelete: Cascade)
   abstracts      AbstractThemeOnAbstract[]
