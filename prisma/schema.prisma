@@ -262,7 +262,7 @@ model AccessCheckIn {
   id             String   @id @default(uuid())
   registrationId String   @map("registration_id")
   accessId       String   @map("access_id")
-  checkedInAt    DateTime @default(now()) @map("checked_in_at")
+  checkedInAt    DateTime @default(now()) @db.Timestamptz(6) @map("checked_in_at")
   checkedInBy    String   @map("checked_in_by")
 
   registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
@@ -503,7 +503,7 @@ model Registration {
   droppedAccessIds String[] @default([]) @map("dropped_access_ids")
 
   // Check-in (event-level attendance)
-  checkedInAt DateTime? @map("checked_in_at")
+  checkedInAt DateTime? @db.Timestamptz(6) @map("checked_in_at")
   checkedInBy String?   @map("checked_in_by")
 
   // Relations
