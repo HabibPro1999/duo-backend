@@ -311,6 +311,63 @@ describe("FormSettingsSchema", () => {
     expect(result.success).toBe(true);
     expect(result.data).not.toHaveProperty("settings");
   });
+
+  it("round-trips a registration fee label and its sidecar verbatim", () => {
+    const settings = {
+      languages: ["fr", "en", "ar"],
+      registrationFeeLabel: "Droits d'inscription 2026",
+      translations: {
+        en: { registrationFeeLabel: "Registration fees 2026" },
+        ar: { registrationFeeLabel: "رسوم التسجيل 2026" },
+      },
+    };
+
+    const result = FormSchemaJsonSchema.safeParse(withSettings(settings));
+
+    expect(result.success).toBe(true);
+    expect(result.data?.settings).toEqual(settings);
+  });
+
+  it("rejects an unknown language code on the settings sidecar", () => {
+    const result = FormSchemaJsonSchema.safeParse(
+      withSettings({
+        translations: { de: { registrationFeeLabel: "Anmeldegebühr" } },
+      }),
+    );
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects junk keys inside a settings translation entry", () => {
+    const result = FormSchemaJsonSchema.safeParse(
+      withSettings({
+        translations: {
+          en: {
+            registrationFeeLabel: "Registration fee",
+            accessSectionTitle: "Nope",
+          },
+        },
+      }),
+    );
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-string registration fee label", () => {
+    const result = FormSchemaJsonSchema.safeParse(
+      withSettings({ registrationFeeLabel: { fr: "Frais" } }),
+    );
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a registration fee label longer than 120 characters", () => {
+    const result = FormSchemaJsonSchema.safeParse(
+      withSettings({ registrationFeeLabel: "a".repeat(121) }),
+    );
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("SponsorFormSchemaJsonSchema translations", () => {
@@ -371,6 +428,24 @@ describe("SponsorFormSchemaJsonSchema translations", () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it("accepts a registration fee label and its sidecar on sponsor settings", () => {
+    const settings = {
+      languages: ["fr", "en"],
+      registrationFeeLabel: "Droits d'inscription 2026",
+      translations: {
+        en: { registrationFeeLabel: "Registration fees 2026" },
+      },
+    };
+
+    const result = SponsorFormSchemaJsonSchema.safeParse({
+      ...sponsorSchema,
+      settings,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.settings).toEqual(settings);
   });
 
   it("rejects junk keys inside a summary translation entry", () => {

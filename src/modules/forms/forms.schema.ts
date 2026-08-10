@@ -156,10 +156,21 @@ export const FormStepSchema = z.strictObject({
 // Form Settings Schema
 // ============================================================================
 
+// Settings-level sidecar. Additive by design: the deferred per-language
+// settings copy (accessSectionTitle, addonGroupTitle, ...) lands here as one
+// optional key each, with no rename and no data migration.
+export const FormSettingsTranslationEntrySchema = z.strictObject({
+  registrationFeeLabel: z.string().max(120).optional(),
+});
+
 // Loose: existing persisted blobs already carry admin-authored settings keys
 // (isFree, screens, ...) that must keep round-tripping untouched.
 export const FormSettingsSchema = z.looseObject({
   languages: FormLanguagesSchema.optional(),
+  registrationFeeLabel: z.string().max(120).optional(),
+  translations: translationsMapOf(
+    FormSettingsTranslationEntrySchema,
+  ).optional(),
 });
 
 // ============================================================================
@@ -290,6 +301,9 @@ export type StepTranslationEntry = z.infer<typeof StepTranslationEntrySchema>;
 export type FormField = z.infer<typeof FormFieldSchema>;
 export type FormStep = z.infer<typeof FormStepSchema>;
 export type FormSettings = z.infer<typeof FormSettingsSchema>;
+export type FormSettingsTranslationEntry = z.infer<
+  typeof FormSettingsTranslationEntrySchema
+>;
 export type SuccessTranslations = z.infer<typeof SuccessTranslationsSchema>;
 export type FormSchemaJson = z.infer<typeof FormSchemaJsonSchema>;
 export type SponsorshipSettings = z.infer<typeof SponsorshipSettingsSchema>;
