@@ -51,3 +51,8 @@ load-env.fish
 # Database backups
 backups/
 Action items.md
+
+# Local one-off artifacts (schema dumps, data-repair backups and their scripts)
+_schema_full.sql
+abstract-html-repair-backup-*.json
+src/scripts/repair-abstract-html.ts

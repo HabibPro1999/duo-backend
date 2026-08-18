@@ -36,9 +36,10 @@ const envSchema = z
     STORAGE_PROVIDER: z.enum(["firebase", "r2"]).default("firebase"),
     // Public URL for forms (used in email links)
     PUBLIC_FORMS_URL: z.string().url().optional(),
-    // Admin app base URL — used as the in-app target for Firebase password
-    // reset / action handler links. The Firebase Console "Customize action URL"
-    // setting should point at `${ADMIN_APP_URL}/auth/action`.
+    // Admin app base URL — used as the base for emailed in-app links. Committee
+    // invites point at `${ADMIN_APP_URL}/committee/set-password`. The legacy
+    // Firebase Console "Customize action URL" (`${ADMIN_APP_URL}/auth/action`)
+    // is only still used by console-initiated password resets.
     ADMIN_APP_URL: z.string().url().default("http://localhost:8080"),
     // Cloudflare R2
     R2_ACCOUNT_ID: z.string().optional(),
@@ -58,6 +59,9 @@ const envSchema = z
     ABSTRACTS_EDIT_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
     ABSTRACTS_READ_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
     ABSTRACTS_RATE_LIMIT_WINDOW: z.string().default("1 minute"),
+    // Lifetime of an app-managed committee invite token (single-use link
+    // emailed to scientific-committee members to set their password).
+    COMMITTEE_INVITE_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
   })
   .refine(
     (data) => {
@@ -195,6 +199,9 @@ export function parseConfig(source: NodeJS.ProcessEnv) {
         editMax: env.ABSTRACTS_EDIT_RATE_LIMIT_MAX,
         readMax: env.ABSTRACTS_READ_RATE_LIMIT_MAX,
         timeWindow: env.ABSTRACTS_RATE_LIMIT_WINDOW,
+      },
+      committeeInvite: {
+        tokenTtlDays: env.COMMITTEE_INVITE_TOKEN_TTL_DAYS,
       },
     },
     firebase: {

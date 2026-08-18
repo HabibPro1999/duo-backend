@@ -289,6 +289,29 @@ export const SetCommitteeMemberPasswordSchema = z.strictObject({
   password: StrongPasswordSchema,
 });
 
+// Public committee-invite endpoints. Token shape is validated here (not in an
+// `extract` helper) so a malformed token fails as a 400 — these routes must
+// never answer 401, which the admin app treats as "session dead, sign out".
+export const CommitteeInviteTokenValueSchema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, "Invalid invitation token");
+
+// Verification takes the token in a POST body, never a query string: query
+// params land in access logs, proxy logs and Referer headers, which would leak
+// a live credential-setting token.
+export const CommitteeInviteVerifySchema = z.strictObject({
+  token: CommitteeInviteTokenValueSchema,
+});
+
+export const CommitteeInviteSetPasswordSchema = z.strictObject({
+  token: CommitteeInviteTokenValueSchema,
+  password: StrongPasswordSchema,
+});
+
+export const CommitteeInviteResendSchema = z.strictObject({
+  token: CommitteeInviteTokenValueSchema,
+});
+
 export type AddCommitteeMemberInput = z.infer<typeof AddCommitteeMemberSchema>;
 export type SetReviewerThemesInput = z.infer<typeof SetReviewerThemesSchema>;
 export type AssignReviewersInput = z.infer<typeof AssignReviewersSchema>;
@@ -296,4 +319,13 @@ export type CommitteeAbstractsQuery = z.infer<typeof CommitteeAbstractsQuerySche
 export type ReviewAbstractInput = z.infer<typeof ReviewAbstractSchema>;
 export type SetCommitteeMemberPasswordInput = z.infer<
   typeof SetCommitteeMemberPasswordSchema
+>;
+export type CommitteeInviteVerifyInput = z.infer<
+  typeof CommitteeInviteVerifySchema
+>;
+export type CommitteeInviteSetPasswordInput = z.infer<
+  typeof CommitteeInviteSetPasswordSchema
+>;
+export type CommitteeInviteResendInput = z.infer<
+  typeof CommitteeInviteResendSchema
 >;

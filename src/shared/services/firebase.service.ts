@@ -1,9 +1,5 @@
 import admin from "firebase-admin";
-import type {
-  ActionCodeSettings,
-  Auth,
-  DecodedIdToken,
-} from "firebase-admin/auth";
+import type { Auth, DecodedIdToken } from "firebase-admin/auth";
 import type { Storage } from "firebase-admin/storage";
 import { config } from "@config/app.config.js";
 
@@ -129,20 +125,6 @@ export async function setCustomClaims(
  */
 export async function deleteFirebaseUser(uid: string): Promise<void> {
   await firebaseAuth.deleteUser(uid);
-}
-
-/**
- * Generate a one-time password-reset link. Used to onboard newly created
- * accounts without requiring an admin to set (and share) a temporary password.
- *
- * Optional ActionCodeSettings forward the continueUrl/handler URL so the link
- * lands on our in-app handler page instead of Firebase's hosted action page.
- */
-export async function generatePasswordResetLink(
-  email: string,
-  actionCodeSettings?: ActionCodeSettings,
-): Promise<string> {
-  return firebaseAuth.generatePasswordResetLink(email, actionCodeSettings);
 }
 
 /**

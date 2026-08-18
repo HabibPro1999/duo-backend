@@ -110,6 +110,12 @@ export const ErrorCodes = {
   ABSTRACT_SUBMISSIONS_NOT_OPEN: "ABS_18009",
   ABSTRACT_DUPLICATE_AUTHOR_EMAIL: "ABS_18010",
   ABSTRACT_TOO_MANY_THEMES: "ABS_18011",
+
+  // Committee invites (19xxx) — all surfaced as HTTP 410 on the public
+  // set-password endpoints so the admin app can distinguish dead-link causes.
+  COMMITTEE_INVITE_INVALID: "INV_19001",
+  COMMITTEE_INVITE_EXPIRED: "INV_19002",
+  COMMITTEE_INVITE_USED: "INV_19003",
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
