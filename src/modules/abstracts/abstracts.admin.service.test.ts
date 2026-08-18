@@ -5,7 +5,11 @@ import { AbstractStatus } from "@/generated/prisma/client.js";
 
 vi.mock("@shared/utils/audit.js", () => ({ auditLog: vi.fn() }));
 
-import { finalizeAbstract, reopenAbstract } from "./abstracts.admin.service.js";
+import {
+  finalizeAbstract,
+  reopenAbstract,
+  buildAdminAbstractsWhere,
+} from "./abstracts.admin.service.js";
 
 const eventId = "event-1";
 const abstractId = "abstract-1";
@@ -221,5 +225,69 @@ describe("abstracts admin service", () => {
       }),
     );
     expect(result.status).toBe("UNDER_REVIEW");
+  });
+});
+
+describe("buildAdminAbstractsWhere", () => {
+  it("matches finalType === type OR (finalType null AND requestedType === type) for POSTER", () => {
+    const where = buildAdminAbstractsWhere(eventId, { presentationType: "POSTER" });
+
+    expect(where).toEqual({
+      eventId,
+      AND: [
+        {
+          OR: [
+            { finalType: "POSTER" },
+            { finalType: null, requestedType: "POSTER" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("produces two separate AND entries when q and presentationType are combined", () => {
+    const where = buildAdminAbstractsWhere(eventId, {
+      q: "ada",
+      presentationType: "ORAL_COMMUNICATION",
+    });
+
+    const and = where.AND as unknown[];
+    expect(and).toHaveLength(2);
+    expect(and[0]).toEqual({
+      OR: [
+        { authorFirstName: { contains: "ada" } },
+        { authorLastName: { contains: "ada" } },
+        { authorAffiliation: { contains: "ada" } },
+        { authorEmail: { contains: "ada" } },
+        { code: { contains: "ada" } },
+      ],
+    });
+    expect(and[1]).toEqual({
+      OR: [
+        { finalType: "ORAL_COMMUNICATION" },
+        { finalType: null, requestedType: "ORAL_COMMUNICATION" },
+      ],
+    });
+  });
+
+  it("emits no requestedType branch for CONFERENCE", () => {
+    const where = buildAdminAbstractsWhere(eventId, {
+      presentationType: "CONFERENCE",
+    });
+
+    expect(where).toEqual({
+      eventId,
+      AND: [{ OR: [{ finalType: "CONFERENCE" }] }],
+    });
+  });
+
+  it("leaves the where clause unchanged when no presentationType or q is passed", () => {
+    const where = buildAdminAbstractsWhere(eventId, { status: "ACCEPTED" });
+
+    expect(where).toEqual({
+      eventId,
+      status: "ACCEPTED",
+    });
+    expect(where.AND).toBeUndefined();
   });
 });

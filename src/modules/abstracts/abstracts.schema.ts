@@ -203,8 +203,16 @@ export const ListAbstractsQuerySchema = z.strictObject({
   themeId: z.string().uuid().optional(),
   reviewerId: z.string().min(1).optional(),
   q: z.string().trim().min(1).max(120).optional(),
+  presentationType: z
+    .enum(["ORAL_COMMUNICATION", "POSTER", "CONFERENCE"])
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+});
+
+export const ExportAbstractsQuerySchema = ListAbstractsQuerySchema.omit({
+  limit: true,
+  offset: true,
 });
 
 export const FinalizeAbstractSchema = z.discriminatedUnion("decision", [
@@ -219,6 +227,7 @@ export const FinalizeAbstractSchema = z.discriminatedUnion("decision", [
 ]);
 
 export type ListAbstractsQuery = z.infer<typeof ListAbstractsQuerySchema>;
+export type ExportAbstractsQuery = z.infer<typeof ExportAbstractsQuerySchema>;
 export type FinalizeAbstractInput = z.infer<typeof FinalizeAbstractSchema>;
 
 export const MarkAbstractPresentedSchema = z.strictObject({
