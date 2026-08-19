@@ -10,6 +10,10 @@ import {
   conditionSetSignature,
 } from "@shared/utils/condition-satisfiability.js";
 import {
+  buildFieldOptionIndex,
+  findInvalidOptionConditions,
+} from "@shared/utils/condition-option-validation.js";
+import {
   CLIENT_MODULE_GATE_SELECT,
   assertModuleEnabledForClient,
 } from "@clients";
@@ -37,7 +41,12 @@ export type EventPricingWithRules = Omit<EventPricing, "rules"> & {
 
 type PricingTxClient = Pick<
   TxClient,
-  "event" | "eventPricing" | "registration" | "eventAccess" | "sponsorship"
+  | "event"
+  | "eventPricing"
+  | "registration"
+  | "eventAccess"
+  | "sponsorship"
+  | "form"
 >;
 
 function parseEventPricing(pricing: EventPricing): EventPricingWithRules {
@@ -148,16 +157,22 @@ async function updateEventPricingTx(
       ]),
     );
 
-    for (const rule of rulesWithIds) {
+    const rulesToValidate = rulesWithIds.filter((rule) => {
       const storedSignature = storedSignatures.get(rule.id);
       const currentSignature = conditionSetSignature(
         rule.conditions,
         rule.conditionLogic,
       );
-      if (storedSignature !== undefined && storedSignature === currentSignature) {
-        continue; // Untouched legacy rule — grandfathered in.
-      }
+      // Untouched legacy rules are grandfathered in — excluded here too, not
+      // just from the contradiction guard, so a rule with a legacy
+      // label-not-id condition value doesn't newly 400 on an unrelated edit
+      // (rename, reprice, reorder) elsewhere in the same bulk update.
+      return !(
+        storedSignature !== undefined && storedSignature === currentSignature
+      );
+    });
 
+    for (const rule of rulesToValidate) {
       const conflicts = findConditionConflicts(
         rule.conditions,
         rule.conditionLogic,
@@ -169,6 +184,36 @@ async function updateEventPricingTx(
           ErrorCodes.PRICING_RULE_UNSATISFIABLE,
           { ruleId: rule.id, ruleName: rule.name, conflicts },
         );
+      }
+    }
+
+    if (rulesToValidate.length > 0) {
+      const form = await tx.form.findUnique({
+        where: { eventId_type: { eventId, type: "REGISTRATION" } },
+        select: { schema: true },
+      });
+      if (form) {
+        const optionIndex = buildFieldOptionIndex(form.schema);
+        for (const rule of rulesToValidate) {
+          const bad = findInvalidOptionConditions(rule.conditions, optionIndex);
+          if (bad.length > 0) {
+            const f = bad[0];
+            throw new AppError(
+              `Pricing rule "${rule.name}": value "${String(f.value)}" for field "${f.fieldLabel}" is not one of the field's option ids (e.g. ${f.exampleOptionIds.map((id) => `"${id}"`).join(", ")}). Pick the option in the rule editor.`,
+              400,
+              ErrorCodes.PRICING_CONDITION_INVALID_OPTION,
+              {
+                ruleId: rule.id,
+                ruleName: rule.name,
+                fieldId: f.fieldId,
+                fieldLabel: f.fieldLabel,
+                operator: f.operator,
+                value: f.value,
+                exampleOptionIds: f.exampleOptionIds,
+              },
+            );
+          }
+        }
       }
     }
 

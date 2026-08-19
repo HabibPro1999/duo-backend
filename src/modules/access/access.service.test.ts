@@ -3,6 +3,7 @@ import { prismaMock } from "../../../tests/mocks/prisma.js";
 import {
   createMockEventAccess,
   createMockEvent,
+  createMockForm,
 } from "../../../tests/helpers/factories.js";
 import {
   createEventAccess,
@@ -64,6 +65,31 @@ describe("Access Service", () => {
     clientId,
     startDate: eventStartDate,
     endDate: eventEndDate,
+  });
+
+  // Registration form with one option-bearing field, used by the
+  // condition option-id validation tests below.
+  const mockFormWithCountryField = createMockForm({
+    eventId,
+    schema: {
+      steps: [
+        {
+          id: "step-1",
+          title: "Registrant Info",
+          fields: [
+            {
+              id: "country_x",
+              type: "country",
+              label: "Country",
+              options: [
+                { id: "TN", label: "Tunisie" },
+                { id: "FR", label: "France" },
+              ],
+            },
+          ],
+        },
+      ],
+    },
   });
 
   // ============================================================================
@@ -211,6 +237,55 @@ describe("Access Service", () => {
           }),
         }),
       );
+    });
+
+    it("should create an access item when a condition value is a real option id", async () => {
+      const input = {
+        eventId,
+        name: "VIP Workshop",
+        conditions: [
+          { fieldId: "country_x", operator: "equals" as const, value: "TN" },
+        ],
+      } as CreateEventAccessInput;
+
+      const createdAccess = createEventAccessWithRelations({
+        id: "access-vip",
+        eventId,
+        name: "VIP Workshop",
+        conditions: input.conditions,
+      });
+
+      prismaMock.event.findUnique.mockResolvedValue(mockEvent);
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+      prismaMock.eventAccess.create.mockResolvedValue(createdAccess as never);
+
+      const result = await createEventAccess(input);
+
+      expect(result.name).toBe("VIP Workshop");
+      expect(prismaMock.eventAccess.create).toHaveBeenCalled();
+    });
+
+    it("should reject a condition value that is an option label instead of an id", async () => {
+      const input = {
+        eventId,
+        name: "VIP Workshop",
+        conditions: [
+          {
+            fieldId: "country_x",
+            operator: "equals" as const,
+            value: "Tunisie",
+          },
+        ],
+      } as CreateEventAccessInput;
+
+      prismaMock.event.findUnique.mockResolvedValue(mockEvent);
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+
+      await expect(createEventAccess(input)).rejects.toMatchObject({
+        statusCode: 400,
+        code: ErrorCodes.ACCESS_CONDITION_INVALID_OPTION,
+      });
+      expect(prismaMock.eventAccess.create).not.toHaveBeenCalled();
     });
   });
 

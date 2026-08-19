@@ -4,6 +4,7 @@ import {
   createMockEventPricing,
   createMockEventAccess,
   createMockSponsorship,
+  createMockForm,
 } from "../../../tests/helpers/factories.js";
 import {
   getEventPricing,
@@ -930,6 +931,341 @@ describe("Pricing Service", () => {
       });
 
       expect(prismaMock.eventPricing.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("option-id validation (updateEventPricingTx)", () => {
+    // A registration form with one option-bearing field ("country_x", real
+    // ids TN/FR/DZ/DE) and one field with no options at all ("notes") — the
+    // fixture the "authored the label instead of the id" tests below exploit.
+    const mockFormWithCountryField = createMockForm({
+      eventId,
+      schema: {
+        steps: [
+          {
+            id: "step-1",
+            title: "Registrant Info",
+            fields: [
+              {
+                id: "country_x",
+                type: "country",
+                label: "Country",
+                options: [
+                  { id: "TN", label: "Tunisie" },
+                  { id: "FR", label: "France" },
+                  { id: "DZ", label: "Algérie" },
+                  { id: "DE", label: "Allemagne" },
+                ],
+              },
+              {
+                id: "notes",
+                type: "text",
+                label: "Notes",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    it("addPricingRule resolves when the equals value is a real option id", async () => {
+      const existingPricing = createMockEventPricing({ eventId, rules: [] });
+      const updatedPricing = createMockEventPricing({
+        eventId,
+        rules: [
+          {
+            id: expect.any(String),
+            name: "Tunisia Price",
+            price: 100,
+            conditions: [
+              { fieldId: "country_x", operator: "equals", value: "TN" },
+            ],
+            conditionLogic: "AND",
+            priority: 0,
+            active: true,
+          },
+        ],
+      });
+
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+      prismaMock.eventPricing.upsert.mockResolvedValue(updatedPricing);
+
+      const result = await addPricingRule(eventId, {
+        name: "Tunisia Price",
+        price: 100,
+        conditions: [{ fieldId: "country_x", operator: "equals", value: "TN" }],
+        conditionLogic: "AND",
+        priority: 0,
+        active: true,
+      });
+
+      expect(result.rules).toHaveLength(1);
+      expect(prismaMock.eventPricing.upsert).toHaveBeenCalled();
+    });
+
+    it("addPricingRule rejects when the equals value is an option label instead of an id", async () => {
+      const existingPricing = createMockEventPricing({ eventId, rules: [] });
+
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+
+      let caught: AppError | undefined;
+      try {
+        await addPricingRule(eventId, {
+          name: "Tunisia Price",
+          price: 100,
+          conditions: [
+            { fieldId: "country_x", operator: "equals", value: "Tunisie" },
+          ],
+          conditionLogic: "AND",
+          priority: 0,
+          active: true,
+        });
+      } catch (err) {
+        caught = err as AppError;
+      }
+
+      expect(caught).toBeInstanceOf(AppError);
+      expect(caught?.statusCode).toBe(400);
+      expect(caught?.code).toBe(ErrorCodes.PRICING_CONDITION_INVALID_OPTION);
+      expect(caught?.message).toContain("Country");
+      expect(caught?.message).toContain('"TN"');
+      expect(prismaMock.eventPricing.upsert).not.toHaveBeenCalled();
+    });
+
+    it("addPricingRule rejects when an `in` condition contains one option label among valid ids", async () => {
+      const existingPricing = createMockEventPricing({ eventId, rules: [] });
+
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+
+      await expect(
+        addPricingRule(eventId, {
+          name: "Multi Country Price",
+          price: 100,
+          conditions: [
+            { fieldId: "country_x", operator: "in", value: ["TN", "Tunisie"] },
+          ],
+          conditionLogic: "AND",
+          priority: 0,
+          active: true,
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: ErrorCodes.PRICING_CONDITION_INVALID_OPTION,
+      });
+
+      expect(prismaMock.eventPricing.upsert).not.toHaveBeenCalled();
+    });
+
+    it("grandfathers a stored rule with a legacy label value when only renaming it", async () => {
+      const legacyRule = {
+        id: "legacy-rule",
+        name: "Old Name",
+        price: 100,
+        conditions: [
+          {
+            fieldId: "country_x",
+            operator: "equals" as const,
+            value: "Tunisie",
+          },
+        ],
+        conditionLogic: "AND" as const,
+        priority: 0,
+        active: true,
+        description: null,
+      };
+      const existingPricing = createMockEventPricing({
+        eventId,
+        rules: [legacyRule],
+      });
+      const updatedPricing = createMockEventPricing({
+        eventId,
+        rules: [{ ...legacyRule, name: "New Name" }],
+      });
+
+      prismaMock.event.findUnique.mockResolvedValue({
+        ...pricingEnabledEvent,
+        pricing: { currency: "TND", rules: [legacyRule] },
+      } as never);
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      // Mocked WITH the bad-value-triggering form on purpose: proves the
+      // rename is accepted because the rule is unchanged (grandfathered),
+      // not merely because the form lookup happened to be unmocked.
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+      prismaMock.eventPricing.upsert.mockResolvedValue(updatedPricing);
+
+      const result = await updatePricingRule(eventId, "legacy-rule", {
+        name: "New Name",
+      });
+
+      expect(result.rules[0].name).toBe("New Name");
+      expect(prismaMock.eventPricing.upsert).toHaveBeenCalled();
+    });
+
+    it("grandfathers a stored rule with a legacy label value when echoed untouched via bulk updateEventPricing", async () => {
+      const legacyRule = {
+        id: "legacy-rule",
+        name: "Old Name",
+        price: 100,
+        conditions: [
+          {
+            fieldId: "country_x",
+            operator: "equals" as const,
+            value: "Tunisie",
+          },
+        ],
+        conditionLogic: "AND" as const,
+        priority: 0,
+        active: true,
+        description: null,
+      };
+      const existingPricing = createMockEventPricing({
+        eventId,
+        rules: [legacyRule],
+      });
+
+      prismaMock.event.findUnique.mockResolvedValue({
+        ...pricingEnabledEvent,
+        pricing: { currency: "TND", rules: [legacyRule] },
+      } as never);
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+      prismaMock.eventPricing.upsert.mockResolvedValue(existingPricing);
+
+      const result = await updateEventPricing(eventId, {
+        rules: [legacyRule],
+      });
+
+      expect(result.rules).toHaveLength(1);
+      expect(prismaMock.eventPricing.upsert).toHaveBeenCalled();
+    });
+
+    it("resolves when the condition's fieldId is not on the registration form", async () => {
+      const existingPricing = createMockEventPricing({ eventId, rules: [] });
+      const updatedPricing = createMockEventPricing({
+        eventId,
+        rules: [
+          {
+            id: expect.any(String),
+            name: "Unknown Field Rule",
+            price: 100,
+            conditions: [
+              {
+                fieldId: "does_not_exist",
+                operator: "equals",
+                value: "Tunisie",
+              },
+            ],
+            conditionLogic: "AND",
+            priority: 0,
+            active: true,
+          },
+        ],
+      });
+
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+      prismaMock.eventPricing.upsert.mockResolvedValue(updatedPricing);
+
+      const result = await addPricingRule(eventId, {
+        name: "Unknown Field Rule",
+        price: 100,
+        conditions: [
+          { fieldId: "does_not_exist", operator: "equals", value: "Tunisie" },
+        ],
+        conditionLogic: "AND",
+        priority: 0,
+        active: true,
+      });
+
+      expect(result.rules).toHaveLength(1);
+    });
+
+    it("resolves when the condition targets a field with no options", async () => {
+      const existingPricing = createMockEventPricing({ eventId, rules: [] });
+      const updatedPricing = createMockEventPricing({
+        eventId,
+        rules: [
+          {
+            id: expect.any(String),
+            name: "Notes Rule",
+            price: 100,
+            conditions: [
+              { fieldId: "notes", operator: "equals", value: "anything" },
+            ],
+            conditionLogic: "AND",
+            priority: 0,
+            active: true,
+          },
+        ],
+      });
+
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.form.findUnique.mockResolvedValue(mockFormWithCountryField);
+      prismaMock.eventPricing.upsert.mockResolvedValue(updatedPricing);
+
+      const result = await addPricingRule(eventId, {
+        name: "Notes Rule",
+        price: 100,
+        conditions: [{ fieldId: "notes", operator: "equals", value: "anything" }],
+        conditionLogic: "AND",
+        priority: 0,
+        active: true,
+      });
+
+      expect(result.rules).toHaveLength(1);
+    });
+
+    it("resolves when the event has no registration form", async () => {
+      const existingPricing = createMockEventPricing({ eventId, rules: [] });
+      const updatedPricing = createMockEventPricing({
+        eventId,
+        rules: [
+          {
+            id: expect.any(String),
+            name: "No Form Rule",
+            price: 100,
+            conditions: [
+              { fieldId: "country_x", operator: "equals", value: "Tunisie" },
+            ],
+            conditionLogic: "AND",
+            priority: 0,
+            active: true,
+          },
+        ],
+      });
+
+      prismaMock.eventPricing.findUnique.mockResolvedValueOnce(
+        existingPricing,
+      );
+      prismaMock.form.findUnique.mockResolvedValue(null);
+      prismaMock.eventPricing.upsert.mockResolvedValue(updatedPricing);
+
+      const result = await addPricingRule(eventId, {
+        name: "No Form Rule",
+        price: 100,
+        conditions: [
+          { fieldId: "country_x", operator: "equals", value: "Tunisie" },
+        ],
+        conditionLogic: "AND",
+        priority: 0,
+        active: true,
+      });
+
+      expect(result.rules).toHaveLength(1);
     });
   });
 });
