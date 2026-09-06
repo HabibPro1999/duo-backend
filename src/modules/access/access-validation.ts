@@ -1,5 +1,6 @@
 import { prisma } from "@/database/client.js";
 import { evaluateConditions } from "@shared/utils/conditions.js";
+import { getExclusivityKey } from "./access-grouping.js";
 import type { AccessSelection, AccessCondition } from "./access.schema.js";
 import type { EventAccess } from "@/generated/prisma/client.js";
 import type { TxClient } from "@shared/types/prisma.js";
@@ -87,10 +88,7 @@ export async function validateAccessSelections(
 
   for (const selection of selections) {
     const access = accessMap.get(selection.accessId)!;
-    const typeKey =
-      access.type === "OTHER"
-        ? `OTHER:${access.groupLabel || ""}`
-        : access.type;
+    const typeKey = getExclusivityKey(access);
 
     if (!selectionsByType.has(typeKey)) selectionsByType.set(typeKey, []);
     selectionsByType.get(typeKey)!.push({ access, selection });
@@ -111,6 +109,25 @@ export async function validateAccessSelections(
           if (!(aEnd <= bStart || bEnd <= aStart)) {
             errors.push(`Time conflict: "${a.name}" and "${b.name}" overlap`);
           }
+        }
+
+        // Undated items of the same exclusivity key render as one radio group,
+        // so only one of them can be selected. Included-in-base items are
+        // exempt (they can never be deselected), and pairs already held by the
+        // registration are grandfathered.
+        const bothExisting =
+          existingAccessIds?.has(a.id) && existingAccessIds.has(b.id);
+        if (
+          a.type !== "ADDON" &&
+          a.startsAt === null &&
+          b.startsAt === null &&
+          !a.includedInBase &&
+          !b.includedInBase &&
+          !bothExisting
+        ) {
+          errors.push(
+            `Only one of "${a.name}" and "${b.name}" can be selected`,
+          );
         }
       }
     }

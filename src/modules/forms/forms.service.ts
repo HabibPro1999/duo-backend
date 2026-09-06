@@ -255,8 +255,8 @@ export async function getFormByEventSlug(
           access: {
             where: { active: true },
             orderBy: [
-              { startsAt: "asc" },
               { sortOrder: "asc" },
+              { startsAt: "asc" },
               { createdAt: "asc" },
             ],
           },
