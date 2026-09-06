@@ -167,6 +167,9 @@ export const FormSettingsTranslationEntrySchema = z.strictObject({
 // (isFree, screens, ...) that must keep round-tripping untouched.
 export const FormSettingsSchema = z.looseObject({
   languages: FormLanguagesSchema.optional(),
+  // When true, the public registration form requires at least one non-included
+  // access option to be selected (skipped when nothing is selectable).
+  accessSelectionRequired: z.boolean().optional(),
   registrationFeeLabel: z.string().max(120).optional(),
   translations: translationsMapOf(
     FormSettingsTranslationEntrySchema,
